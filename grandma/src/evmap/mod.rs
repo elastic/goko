@@ -24,8 +24,6 @@
 use std::sync::{atomic, Arc, Mutex};
 
 mod inner;
-pub mod shallow_copy;
-pub use crate::evmap::shallow_copy::ShallowCopy;
 
 pub(crate) type Epochs = Arc<Mutex<Vec<Arc<atomic::AtomicUsize>>>>;
 
