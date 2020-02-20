@@ -1,0 +1,8 @@
+target
+Cargo.lock
+data
+build
+dist
+*.egg-info
+__pycache__
+add_license.py

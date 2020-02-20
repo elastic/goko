@@ -1,0 +1,36 @@
+[package]
+name = "pointcloud"
+version = "0.1.0"
+edition = "2018"
+
+description = "An accessor layer for grandma"
+readme = "../README.md"
+
+authors = ["Sven Cattell <scattell@gmail.com>"]
+
+documentation = "https://docs.rs/pointcloud"
+homepage = "https://github.com/comath/grandma"
+repository = "https://github.com/comath/grandma.git"
+
+license = "Apache-2.0"
+
+keywords = ["datasets"]
+categories = ["science", "data-structures"]
+
+[dependencies]
+csv = "1"
+libc = "0.2"
+rand = "*"
+yaml-rust = "0.4"
+pbr = "*"
+rayon = "1.3"
+packed_simd = "*"
+glob = "0.2.11"
+indexmap = {version = "1.0.2", features = ["serde-1"]}
+serde_json = "*"
+serde = { version = "1.0", features = ["derive"] }
+flate2 = "1.0"
+
+[dev-dependencies]
+tempdir = "0.3"
+assert_approx_eq = "1.0.0"

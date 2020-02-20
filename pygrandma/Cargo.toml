@@ -1,0 +1,27 @@
+[package]
+name = "pointcloud"
+version = "0.1.0"
+edition = "2018"
+
+description = "An python interface for grandma"
+readme = "../README.md"
+
+authors = ["Sven Cattell <scattell@gmail.com>"]
+
+documentation = "https://docs.rs/grandma"
+homepage = "https://github.com/comath/grandma"
+repository = "https://github.com/comath/grandma.git"
+
+license = "Apache-2.0"
+
+[dependencies]
+grandma = { path = "../grandma" }
+pointcloud = { path = "../pointcloud" }
+pyo3 = { version = "0.8.4", features = ["extension-module"] }
+numpy = "0.7.0"
+ndarray = "0.13"
+rayon = "1.2"
+
+[lib]
+name = "pygrandma"
+crate-type = ["cdylib"]
