@@ -67,6 +67,7 @@ pub struct CoverTreeParameters<M: Metric> {
     pub point_cloud: PointCloud<M>,
     /// This should be replaced by a logging solution
     pub verbosity: u32,
+    plug_in_parameters: RwLock<HashMap<String, dyn PlugInParameters>>,
 }
 
 impl<M: Metric> CoverTreeParameters<M> {
@@ -318,6 +319,8 @@ impl<M: Metric> CoverTreeWriter<M> {
         }
         Ok(())
     }
+
+    pub fn add_plugin(&mut self, )
 
     /// Provides a reference to a `CoverLayerWriter`. Do not use, unless you're going to leave the tree in a *valid* state.
     pub(crate) unsafe fn layer(&mut self, scale_index: i32) -> &mut CoverLayerWriter {

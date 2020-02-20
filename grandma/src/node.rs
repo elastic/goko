@@ -52,6 +52,8 @@ pub struct CoverNode {
     /// Children
     children: Option<NodeChildren>,
     singles_indexes: SmallVec<[PointIndex; 20]>,
+    /// plugins, recursive
+    plugins: Hashmap<String,dyn CoverNodePlugin>,
 }
 
 impl CoverNode {
