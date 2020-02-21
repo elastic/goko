@@ -1,6 +1,6 @@
 # Grandma, a KNN Library
 
-This is a covertree library with some modifications to make it more suitable for real data. Currently, it only implements the [fast covertree](http://proceedings.mlr.press/v37/izbicki15.pdf), which is an extension of the original [covertree](https://dl.acm.org/doi/10.1145/1143844.1143857).
+This is a covertree library with some modifications to make it more suitable for real data. Currently, it only implements the [fast covertree](http://proceedings.mlr.press/v37/izbicki15.pdf), which is an extension of the original covertree [(pdf)](https://homes.cs.washington.edu/~sham/papers/ml/cover_tree.pdf).
 
 See the code for documentation. Haven't yet had a chance to update this page or host the code somewhere.
 
