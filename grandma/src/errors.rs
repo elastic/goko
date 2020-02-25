@@ -28,11 +28,11 @@ use std::io;
 use std::str;
 
 /// Helper type for a call that could go wrong. 
-pub type MalwareBrotResult<T> = Result<T, MalwareBrotError>;
+pub type GrandmaResult<T> = Result<T, GrandmaError>;
 
 /// Error type for MalwareBrot. Mostly this is a wrapper around `PointCloudError`, as the data i/o where most errors happen.
 #[derive(Debug)]
-pub enum MalwareBrotError {
+pub enum GrandmaError {
     /// Unable to retrieve some data point (given by index) in a file (slice name)
     PointCloudError(PointCloudError),
     /// Most common error, the given point name isn't present in the training data
@@ -47,20 +47,20 @@ pub enum MalwareBrotError {
     InsertBeforeNest,
 }
 
-impl fmt::Display for MalwareBrotError {
+impl fmt::Display for GrandmaError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             // not sure that cause should be included in message
-            &MalwareBrotError::IoError(ref e) => write!(f,"{}",e),
-            &MalwareBrotError::ParsingError(ref e) => write!(f,"{}",e),
-            &MalwareBrotError::PointCloudError(ref e) => write!(f,"{}",e),
-            &MalwareBrotError::NameNotInTree { .. } => {
+            &GrandmaError::IoError(ref e) => write!(f,"{}",e),
+            &GrandmaError::ParsingError(ref e) => write!(f,"{}",e),
+            &GrandmaError::PointCloudError(ref e) => write!(f,"{}",e),
+            &GrandmaError::NameNotInTree { .. } => {
                 write!(f,"there was an issue grabbing a name from the known names")
             }
-            &MalwareBrotError::DoubleNest => {
+            &GrandmaError::DoubleNest => {
                 write!(f,"Inserted a nested node into a node that already had a nested child")
             }
-            &MalwareBrotError::InsertBeforeNest => {
+            &GrandmaError::InsertBeforeNest => {
                 write!(f,"Inserted a node into a node that does not have a nested child")
             }
         }
@@ -68,20 +68,20 @@ impl fmt::Display for MalwareBrotError {
 }
 
 #[allow(deprecated)]
-impl Error for MalwareBrotError {
+impl Error for GrandmaError {
     fn description(&self) -> &str {
         match self {
             // not sure that cause should be included in message
-            &MalwareBrotError::IoError(ref e) => e.description(),
-            &MalwareBrotError::ParsingError(ref e) => e.description(),
-            &MalwareBrotError::PointCloudError(ref e) => e.description(),
-            &MalwareBrotError::NameNotInTree { .. } => {
+            &GrandmaError::IoError(ref e) => e.description(),
+            &GrandmaError::ParsingError(ref e) => e.description(),
+            &GrandmaError::PointCloudError(ref e) => e.description(),
+            &GrandmaError::NameNotInTree { .. } => {
                 "there was an issue grabbing a name from the known names"
             }
-            &MalwareBrotError::DoubleNest => {
+            &GrandmaError::DoubleNest => {
                 "Inserted a nested node into a node that already had a nested child"
             }
-            &MalwareBrotError::InsertBeforeNest => {
+            &GrandmaError::InsertBeforeNest => {
                 "Inserted a node into a node that does not have a nested child"
             }
         }
@@ -89,38 +89,38 @@ impl Error for MalwareBrotError {
 
     fn cause(&self) -> Option<&dyn Error> {
         match self {
-            &MalwareBrotError::IoError(ref e) => Some(e),
-            &MalwareBrotError::ParsingError(ref e) => Some(e),
-            &MalwareBrotError::PointCloudError(ref e) => Some(e),
-            &MalwareBrotError::NameNotInTree { .. } => None,
-            &MalwareBrotError::DoubleNest => None,
-            &MalwareBrotError::InsertBeforeNest => None,
+            &GrandmaError::IoError(ref e) => Some(e),
+            &GrandmaError::ParsingError(ref e) => Some(e),
+            &GrandmaError::PointCloudError(ref e) => Some(e),
+            &GrandmaError::NameNotInTree { .. } => None,
+            &GrandmaError::DoubleNest => None,
+            &GrandmaError::InsertBeforeNest => None,
         }
     }
 }
 
-impl From<PointCloudError> for MalwareBrotError {
+impl From<PointCloudError> for GrandmaError {
     fn from(err: PointCloudError) -> Self {
-        MalwareBrotError::PointCloudError(err)
+        GrandmaError::PointCloudError(err)
     }
 }
 
-impl From<io::Error> for MalwareBrotError {
+impl From<io::Error> for GrandmaError {
     fn from(err: io::Error) -> Self {
-        MalwareBrotError::IoError(err)
+        GrandmaError::IoError(err)
     }
 }
 
-impl From<ProtobufError> for MalwareBrotError {
+impl From<ProtobufError> for GrandmaError {
     fn from(err: ProtobufError) -> Self {
-        MalwareBrotError::ParsingError(ParsingError::ProtobufError(err))
+        GrandmaError::ParsingError(ParsingError::ProtobufError(err))
     }
 }
 
-impl From<MalwareBrotError> for io::Error {
-    fn from(err: MalwareBrotError) -> Self {
+impl From<GrandmaError> for io::Error {
+    fn from(err: GrandmaError) -> Self {
         match err {
-            MalwareBrotError::IoError(e) => e,
+            GrandmaError::IoError(e) => e,
             e => io::Error::new(io::ErrorKind::Other, Box::new(e)),
         }
     }

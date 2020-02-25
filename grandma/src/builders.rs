@@ -27,7 +27,7 @@ use std::cmp::{max, min};
 use std::sync::{atomic, Arc};
 
 use crossbeam_channel::{unbounded, Receiver, Sender};
-use errors::MalwareBrotResult;
+use errors::GrandmaResult;
 
 use std::time::Instant;
 
@@ -38,7 +38,7 @@ struct BuilderNode {
 }
 
 impl BuilderNode {
-    fn new<M: Metric>(parameters: &CoverTreeParameters<M>) -> MalwareBrotResult<BuilderNode> {
+    fn new<M: Metric>(parameters: &CoverTreeParameters<M>) -> GrandmaResult<BuilderNode> {
         let covered = CoveredData::new(&parameters.point_cloud)?;
         let scale_index = (covered.max_distance()).log(parameters.scale_base).ceil() as i32;
         Ok(BuilderNode {
@@ -55,7 +55,7 @@ impl BuilderNode {
     fn split_parallel<M: Metric>(
         self,
         parameters: &Arc<CoverTreeParameters<M>>,
-        node_sender: &Arc<Sender<MalwareBrotResult<(i32, PointIndex, CoverNode)>>>,
+        node_sender: &Arc<Sender<GrandmaResult<(i32, PointIndex, CoverNode)>>>,
     ) {
         let parameters = Arc::clone(parameters);
         let node_sender = Arc::clone(node_sender);
@@ -76,7 +76,7 @@ impl BuilderNode {
     fn split<M: Metric>(
         self,
         parameters: &Arc<CoverTreeParameters<M>>,
-    ) -> MalwareBrotResult<(CoverNode, Vec<BuilderNode>)> {
+    ) -> GrandmaResult<(CoverNode, Vec<BuilderNode>)> {
         //println!("=====================");
         //println!("Splitting node with address {:?} and covered: {:?}", self.address(),self.covered);
 
@@ -237,7 +237,7 @@ impl CoverTreeBuilder {
     pub fn build<M: Metric>(
         &self,
         point_cloud: PointCloud<M>,
-    ) -> MalwareBrotResult<CoverTreeWriter<M>> {
+    ) -> GrandmaResult<CoverTreeWriter<M>> {
         let parameters = CoverTreeParameters {
             total_nodes: atomic::AtomicUsize::new(1),
             scale_base: self.scale_base,
@@ -259,8 +259,8 @@ impl CoverTreeBuilder {
         }
 
         let (node_sender, node_receiver): (
-            Sender<MalwareBrotResult<(i32, PointIndex, CoverNode)>>,
-            Receiver<MalwareBrotResult<(i32, PointIndex, CoverNode)>>,
+            Sender<GrandmaResult<(i32, PointIndex, CoverNode)>>,
+            Receiver<GrandmaResult<(i32, PointIndex, CoverNode)>>,
         ) = unbounded();
 
         let node_sender = Arc::new(node_sender);
@@ -385,8 +385,8 @@ mod tests {
         let build_node = BuilderNode::new(&test_parameters).unwrap();
 
         let (node_sender, node_receiver): (
-            Sender<MalwareBrotResult<(i32, PointIndex, CoverNode)>>,
-            Receiver<MalwareBrotResult<(i32, PointIndex, CoverNode)>>,
+            Sender<GrandmaResult<(i32, PointIndex, CoverNode)>>,
+            Receiver<GrandmaResult<(i32, PointIndex, CoverNode)>>,
         ) = unbounded();
         let node_sender = Arc::new(node_sender);
 

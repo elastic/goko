@@ -42,7 +42,7 @@ use tree_file_format::*;
 use std::sync::{atomic, Arc};
 
 use crate::query_tools::KnnQueryHeap;
-use errors::MalwareBrotResult;
+use errors::GrandmaError;
 use std::iter::Iterator;
 use std::ops::Range;
 use std::slice::Iter;
@@ -184,7 +184,7 @@ impl<M: Metric> CoverTreeReader<M> {
     ///
     /// See `query_tools::KnnQueryHeap` for the pair of heaps and mechanisms for tracking the minimum distance and the current knn set.
     /// See the `nodes::CoverNode::singleton_knn` and `nodes::CoverNode::child_knn` for the brute force node based knn.
-    pub fn knn(&self,point:&[f32],k:usize) -> MalwareBrotResult<Vec<(f32,PointIndex)>> {
+    pub fn knn(&self,point:&[f32],k:usize) -> GrandmaError<Vec<(f32,PointIndex)>> {
         let mut query_heap = KnnQueryHeap::new(k, self.parameters.scale_base);
 
         let root_center = self.parameters.point_cloud.get_point(self.root_address.1)?;
@@ -246,7 +246,7 @@ impl<M: Metric> CoverTreeReader<M> {
         &self,
         si: i32,
         pis: &[PointIndex],
-    ) -> MalwareBrotResult<Vec<(usize, i32, Vec<PointIndex>)>> {
+    ) -> GrandmaError<Vec<(usize, i32, Vec<PointIndex>)>> {
         //println!("\tClustering children of {:?}", (si,pis));
         let mut children_addresses = Vec::new();
         for pi in pis {
@@ -294,7 +294,7 @@ pub struct CoverTreeWriter<M: Metric> {
 
 impl<M: Metric> CoverTreeWriter<M> {
     #[doc(hidden)]
-    pub fn cluster(&mut self) -> MalwareBrotResult<()> {
+    pub fn cluster(&mut self) -> GrandmaError<()> {
         let reader = self.reader();
         let mut pending_clusters = vec![(0, self.root_address.0, vec![self.root_address.1])];
         while let Some((i, si, pis)) = pending_clusters.pop() {
@@ -320,7 +320,9 @@ impl<M: Metric> CoverTreeWriter<M> {
         Ok(())
     }
 
-    pub fn add_plugin(&mut self, )
+    pub fn add_plugin<P:CoverPlugin>(&mut self, plug_in_name:String, plug_in: P) {
+
+    }
 
     /// Provides a reference to a `CoverLayerWriter`. Do not use, unless you're going to leave the tree in a *valid* state.
     pub(crate) unsafe fn layer(&mut self, scale_index: i32) -> &mut CoverLayerWriter {
@@ -349,7 +351,7 @@ impl<M: Metric> CoverTreeWriter<M> {
     pub fn load(
         cover_proto: &CoreProto,
         point_cloud: PointCloud<M>,
-    ) -> MalwareBrotResult<CoverTreeWriter<M>> {
+    ) -> GrandmaError<CoverTreeWriter<M>> {
         let parameters = Arc::new(CoverTreeParameters {
             total_nodes: atomic::AtomicUsize::new(0),
             use_singletons: cover_proto.use_singletons,

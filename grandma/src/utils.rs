@@ -19,7 +19,7 @@
 
 //! Utility functions for i/o
 
-use crate::errors::MalwareBrotResult;
+use crate::errors::GrandmaError;
 use crate::tree_file_format::*;
 use pointcloud::*;
 use protobuf::{CodedInputStream, CodedOutputStream, Message};
@@ -68,7 +68,7 @@ use crate::tree::CoverTreeWriter;
 /// file: mnist.tree (optional, if here and the file exists it loads it)
 /// ```
 ///
-pub fn cover_tree_from_yaml<P: AsRef<Path>>(path: P) -> MalwareBrotResult<CoverTreeWriter<L2>> {
+pub fn cover_tree_from_yaml<P: AsRef<Path>>(path: P) -> GrandmaError<CoverTreeWriter<L2>> {
     let mut config_file = File::open(&path).expect("Unable to open config file");
 
     let mut config = String::new();
@@ -129,7 +129,7 @@ pub fn read_ct_params_yaml(params: &Yaml) -> (f32, usize, i32, bool) {
 pub fn load_tree<P: AsRef<Path>, M: Metric>(
     tree_path: P,
     point_cloud: PointCloud<M>,
-) -> MalwareBrotResult<CoverTreeWriter<M>> {
+) -> GrandmaError<CoverTreeWriter<M>> {
     let tree_path_ref: &Path = tree_path.as_ref();
     println!("\nLoading tree from : {}", tree_path_ref.to_string_lossy());
 
@@ -159,7 +159,7 @@ pub fn load_tree<P: AsRef<Path>, M: Metric>(
 pub fn save_tree<P: AsRef<Path>, M: Metric>(
     tree_path: P,
     cover_tree: &CoverTreeWriter<M>,
-) -> MalwareBrotResult<()> {
+) -> GrandmaError<()> {
     let tree_path_ref: &Path = tree_path.as_ref();
 
     println!("Saving tree to : {}", tree_path_ref.to_string_lossy());

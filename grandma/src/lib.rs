@@ -51,7 +51,7 @@ extern crate assert_approx_eq;
 
 use pointcloud::*;
 pub mod errors;
-pub use errors::MalwareBrotResult;
+pub use errors::GrandmaResult;
 
 pub(crate) mod evmap;
 

@@ -17,7 +17,7 @@
 * under the License.
 */
 
-use crate::errors::MalwareBrotResult;
+use crate::errors::GrandmaResult;
 use pointcloud::*;
 use rand::{thread_rng, Rng};
 use std::fmt;
@@ -39,7 +39,7 @@ impl UncoveredData {
         &mut self,
         radius: f32,
         point_cloud: &PointCloud<M>,
-    ) -> MalwareBrotResult<CoveredData> {
+    ) -> GrandmaResult<CoveredData> {
         let mut rng = thread_rng();
         let new_center: usize = rng.gen_range(0, self.coverage.len());
         let center_index = self.coverage.remove(new_center);
@@ -101,7 +101,7 @@ fn find_split(dist_indexes: &[(f32, usize)], thresh: f32) -> usize {
 }
 
 impl CoveredData {
-    pub(crate) fn new<M: Metric>(point_cloud: &PointCloud<M>) -> MalwareBrotResult<CoveredData> {
+    pub(crate) fn new<M: Metric>(point_cloud: &PointCloud<M>) -> GrandmaResult<CoveredData> {
         let mut coverage = point_cloud.reference_indexes();
         let center_index = coverage.pop().unwrap();
         let dists = point_cloud.distances_to_point_index(center_index, &coverage)?;
@@ -112,7 +112,7 @@ impl CoveredData {
         })
     }
 
-    pub(crate) fn split(self, thresh: f32) -> MalwareBrotResult<(CoveredData, UncoveredData)> {
+    pub(crate) fn split(self, thresh: f32) -> GrandmaResult<(CoveredData, UncoveredData)> {
         let mut close_index = Vec::with_capacity(self.coverage.len());
         let mut close_dist = Vec::with_capacity(self.coverage.len());
         let mut far = Vec::new();

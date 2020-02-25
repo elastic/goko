@@ -20,7 +20,7 @@
 //! # The Node
 //! This is the workhorse of the library. Each node 
 //! 
-use crate::errors::{MalwareBrotError, MalwareBrotResult};
+use crate::errors::{GrandmaError, GrandmaResult};
 use crate::tree_file_format::*;
 use crate::query_tools::KnnQueryHeap;
 use crate::NodeAddress;
@@ -85,10 +85,10 @@ impl CoverNode {
         &mut self,
         scale_index: i32,
         coverage: usize,
-    ) -> MalwareBrotResult<()> {
+    ) -> GrandmaResult<()> {
         self.cover_count += coverage;
         if let Some(_) = &self.children {
-            Err(MalwareBrotError::DoubleNest)
+            Err(GrandmaError::DoubleNest)
         } else {
             self.children = Some(NodeChildren {
                 nested_scale: scale_index,
@@ -146,7 +146,7 @@ impl CoverNode {
         point: &[f32],
         point_cloud: &PointCloud<M>,
         query_heap: &mut KnnQueryHeap,
-    ) -> MalwareBrotResult<()> {
+    ) -> GrandmaResult<()> {
         self.singleton_knn(point, point_cloud, query_heap)?;
 
         let dist_to_center =
@@ -165,7 +165,7 @@ impl CoverNode {
         point: &[f32],
         point_cloud: &PointCloud<M>,
         query_heap: &mut KnnQueryHeap,
-    ) -> MalwareBrotResult<()> {
+    ) -> GrandmaResult<()> {
         let distances = point_cloud.distances_to_point(point, &self.singles_indexes[..])?;
         query_heap.push_outliers(&self.singles_indexes[..], &distances[..]);
         Ok(())
@@ -179,7 +179,7 @@ impl CoverNode {
         point: &[f32],
         point_cloud: &PointCloud<M>,
         query_heap: &mut KnnQueryHeap,
-    ) -> MalwareBrotResult<()> {
+    ) -> GrandmaResult<()> {
         let dist_to_center =
             dist_to_center.unwrap_or(point_cloud.distances_to_point(point, &[self.address.1])?[0]);
 
@@ -198,13 +198,13 @@ impl CoverNode {
     }
 
     /// Inserts a routing child into the node. Make sure the child node is also in the tree or you get a dangling reference
-    pub(crate) fn insert_child(&mut self, address: NodeAddress, coverage: usize) -> MalwareBrotResult<()> {
+    pub(crate) fn insert_child(&mut self, address: NodeAddress, coverage: usize) -> GrandmaResult<()> {
         self.cover_count += coverage;
         if let Some(children) = &mut self.children {
             children.addresses.push(address);
             Ok(())
         } else {
-            Err(MalwareBrotError::InsertBeforeNest)
+            Err(GrandmaError::InsertBeforeNest)
         }
     }
 
@@ -227,7 +227,7 @@ impl CoverNode {
     pub(crate) fn update_metasummary<M: Metric>(
         &mut self,
         point_cloud: &PointCloud<M>,
-    ) -> MalwareBrotResult<()> {
+    ) -> GrandmaResult<()> {
         self.singles_summary = Some(point_cloud.get_metasummary(&self.singles_indexes[..])?);
         Ok(())
     }
@@ -301,7 +301,7 @@ impl CoverNode {
         &self,
         scale: f32,
         point_cloud: &PointCloud<M>,
-    ) -> MalwareBrotResult<bool> {
+    ) -> GrandmaResult<bool> {
         let mut nodes = self.singles_indexes.clone();
         nodes.push(self.address.1);
         if let Some(children) = &self.children {
