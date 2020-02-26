@@ -11,12 +11,12 @@ authors = ["Sven Cattell <scattell@gmail.com>"]
 documentation = "https://docs.rs/grandma"
 homepage = "https://github.com/elastic/grandma"
 repository = "https://github.com/elastic/grandma.git"
-include = ["protos/tree_file_format.proto"]
 
 keywords = ["cover-tree","knn","lock-free"]
 categories = ["concurrency", "data-structures"]
 
 license = "Apache-2.0"
+include = ["protos/tree_file_format.proto"]
 
 
 [dependencies]
