@@ -6,6 +6,7 @@ from sklearn.neighbors import KDTree
 import os
 
 # Base MNIST transform for easy access. 
+# The Yaml files are often messed with, these are the base files.
 mnist_yaml = '''
 ---
 cutoff: 5
