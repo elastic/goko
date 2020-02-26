@@ -1,6 +1,6 @@
 [package]
 name = "grandma"
-version = "0.1.0"
+version = "0.1.3"
 edition = "2018"
 
 description = "A lock-free, eventually consistent, concurrent covertree."
@@ -15,9 +15,15 @@ repository = "https://github.com/elastic/grandma.git"
 keywords = ["cover-tree","knn","lock-free"]
 categories = ["concurrency", "data-structures"]
 
-license = "Apache-2.0"
-include = ["protos/tree_file_format.proto"]
+license-file = "../LICENSE.txt"
+include = ["protos/tree_file_format.proto","build.rs","src/*","Cargo.toml"]
 
+[features]
+docs-only = []
+
+[lib]
+path = "src/lib.rs"
+test = true
 
 [dependencies]
 protobuf = "2.10"
@@ -36,3 +42,6 @@ assert_approx_eq = "1.0.0"
 
 [build-dependencies]
 protoc-rust = "2.0"
+
+[package.metadata.docs.rs]
+features = [ "docs-only" ]

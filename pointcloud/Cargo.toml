@@ -1,6 +1,6 @@
 [package]
 name = "pointcloud"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2018"
 
 description = "An accessor layer for grandma"
@@ -12,7 +12,7 @@ documentation = "https://docs.rs/pointcloud"
 homepage = "https://github.com/elastic/grandma"
 repository = "https://github.com/elastic/grandma.git"
 
-license = "Apache-2.0"
+license-file = "../LICENSE.txt"
 
 keywords = ["datasets"]
 categories = ["science", "data-structures"]

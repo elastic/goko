@@ -19,15 +19,23 @@
 
 extern crate protoc_rust;
 
+#[cfg(not(feature = "docs-only"))]
 use protoc_rust::Customize;
 
+#[cfg(not(feature = "docs-only"))]
 fn main() {
+    println!("Building proto");
     protoc_rust::run(protoc_rust::Args {
-        out_dir: "src",
+        out_dir: "src/",
         input: &["protos/tree_file_format.proto"],
         includes: &["protos"],
         customize: Customize {
           ..Default::default()
         },
     }).expect("protoc");
+}
+
+#[cfg(feature = "docs-only")]
+fn main() {
+    println!("NOT Building proto");
 }

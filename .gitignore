@@ -6,4 +6,3 @@ dist
 *.egg-info
 __pycache__
 add_license.py
-tree_file_format.rs
