@@ -1,10 +1,10 @@
 # Grandma, a KNN Library
 
-This is a covertree library with some modifications to make it more sutible for real data. Currently it only implements the [fast covertree](http://proceedings.mlr.press/v37/izbicki15.pdf). There are plans to enable support for GMRA
+This is a covertree library with some modifications to make it more sutible for real data. Currently it only implements the [fast covertree](http://proceedings.mlr.press/v37/izbicki15.pdf). There are plans to enable support for full geometric multi-resolution analysis (GMRA, where the library get it's name from) and topological data analysis.
 
 ## Project Layout 
 
-Data Access is handled through the `pointcloud` library. Currently this supports memory maps (for NVMe backed datasets) and ram based data. We will support large file based datasets that cannot be loaded in memory concurrently and loading many formats into ram. The covertree implementation is inside the `grandma` library, and the `pygrandma` library is a python & numpy partial wrap around `grandma`.
+Data Access is handled through the `pointcloud` library. Currently this supports memory maps (for NVMe backed datasets) and ram based data. The covertree implementation is inside the `grandma` library, and the `pygrandma` library is a python & numpy partial wrap around `grandma`.
 
 ## Unusual Choices
 
