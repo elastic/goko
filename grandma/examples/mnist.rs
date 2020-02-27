@@ -68,7 +68,7 @@ use pointcloud::*;
 
 use std::sync::Arc;
 fn build_tree() -> CoverTreeWriter<L2> {
-    let file_name = "data/ember_complex.yml";
+    let file_name = "../data/mnist_complex.yml";
     let path = Path::new(file_name);
     if !path.exists() {
         panic!(file_name.to_owned() + &" does not exist".to_string());
