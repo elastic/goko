@@ -33,7 +33,7 @@ pbr = "1.0.2"
 rayon = "1.3"
 indexmap = {version = "1.0.2", features = ["serde-1"]}
 crossbeam-channel = "0.4.2"
-pointcloud = { version = "0.1.0" }
+pointcloud = { version = "0.1.2", path = "../pointcloud" }
 #evmap = { git = "https://github.com/comath/rust-evmap" }
 smallvec = "1.0"
 
