@@ -18,13 +18,14 @@
 */
 
 use crate::*;
+use crate::plugins::TreePluginSet;
 use data_caches::*;
 use layer::*;
 use node::*;
 use pbr::ProgressBar;
 //use pointcloud::*;
 use std::cmp::{max, min};
-use std::sync::{atomic, Arc};
+use std::sync::{atomic, Arc, RwLock};
 
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use errors::GrandmaResult;
@@ -247,6 +248,7 @@ impl CoverTreeBuilder {
             cluster_min: self.cluster_min,
             point_cloud: point_cloud,
             verbosity: self.verbosity,
+            plugins: RwLock::new(TreePluginSet::new()),
         };
 
         let root = BuilderNode::new(&parameters)?;

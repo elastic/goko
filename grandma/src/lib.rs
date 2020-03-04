@@ -18,7 +18,7 @@
 */
 
 #![allow(dead_code)]
-#![deny(warnings)]
+//#![deny(warnings)]
 #![warn(missing_docs)]
 #![doc(test(attr(allow(unused_variables), deny(warnings))))]
 
@@ -63,6 +63,8 @@ pub mod node;
 pub mod query_tools;
 mod tree;
 pub mod utils;
+
+mod plugins;
 
 pub use builders::CoverTreeBuilder;
 pub use tree::*;

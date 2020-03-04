@@ -39,10 +39,11 @@ use node::*;
 //use pointcloud::*;
 
 use tree_file_format::*;
-use std::sync::{atomic, Arc};
+use std::sync::{atomic, Arc, RwLock};
 
 use crate::query_tools::KnnQueryHeap;
-use errors::GrandmaError;
+use crate::plugins::{TreePluginSet,TreePlugin};
+use errors::GrandmaResult;
 use std::iter::Iterator;
 use std::ops::Range;
 use std::slice::Iter;
@@ -67,7 +68,8 @@ pub struct CoverTreeParameters<M: Metric> {
     pub point_cloud: PointCloud<M>,
     /// This should be replaced by a logging solution
     pub verbosity: u32,
-    plug_in_parameters: RwLock<HashMap<String, dyn PlugInParameters>>,
+    /// This is where the base plugins are are stored. 
+    pub plugins: RwLock<TreePluginSet<M>>,
 }
 
 impl<M: Metric> CoverTreeParameters<M> {
@@ -184,7 +186,7 @@ impl<M: Metric> CoverTreeReader<M> {
     ///
     /// See `query_tools::KnnQueryHeap` for the pair of heaps and mechanisms for tracking the minimum distance and the current knn set.
     /// See the `nodes::CoverNode::singleton_knn` and `nodes::CoverNode::child_knn` for the brute force node based knn.
-    pub fn knn(&self,point:&[f32],k:usize) -> GrandmaError<Vec<(f32,PointIndex)>> {
+    pub fn knn(&self,point:&[f32],k:usize) -> GrandmaResult<Vec<(f32,PointIndex)>> {
         let mut query_heap = KnnQueryHeap::new(k, self.parameters.scale_base);
 
         let root_center = self.parameters.point_cloud.get_point(self.root_address.1)?;
@@ -246,7 +248,7 @@ impl<M: Metric> CoverTreeReader<M> {
         &self,
         si: i32,
         pis: &[PointIndex],
-    ) -> GrandmaError<Vec<(usize, i32, Vec<PointIndex>)>> {
+    ) -> GrandmaResult<Vec<(usize, i32, Vec<PointIndex>)>> {
         //println!("\tClustering children of {:?}", (si,pis));
         let mut children_addresses = Vec::new();
         for pi in pis {
@@ -294,7 +296,7 @@ pub struct CoverTreeWriter<M: Metric> {
 
 impl<M: Metric> CoverTreeWriter<M> {
     #[doc(hidden)]
-    pub fn cluster(&mut self) -> GrandmaError<()> {
+    pub fn cluster(&mut self) -> GrandmaResult<()> {
         let reader = self.reader();
         let mut pending_clusters = vec![(0, self.root_address.0, vec![self.root_address.1])];
         while let Some((i, si, pis)) = pending_clusters.pop() {
@@ -320,8 +322,8 @@ impl<M: Metric> CoverTreeWriter<M> {
         Ok(())
     }
 
-    pub fn add_plugin<P:CoverPlugin>(&mut self, plug_in_name:String, plug_in: P) {
-
+    pub fn add_plugin<P:TreePlugin<M> + 'static>(&mut self, plug_in: P) {
+        self.parameters.plugins.write().unwrap().insert(plug_in)
     }
 
     /// Provides a reference to a `CoverLayerWriter`. Do not use, unless you're going to leave the tree in a *valid* state.
@@ -351,7 +353,7 @@ impl<M: Metric> CoverTreeWriter<M> {
     pub fn load(
         cover_proto: &CoreProto,
         point_cloud: PointCloud<M>,
-    ) -> GrandmaError<CoverTreeWriter<M>> {
+    ) -> GrandmaResult<CoverTreeWriter<M>> {
         let parameters = Arc::new(CoverTreeParameters {
             total_nodes: atomic::AtomicUsize::new(0),
             use_singletons: cover_proto.use_singletons,
@@ -361,6 +363,7 @@ impl<M: Metric> CoverTreeWriter<M> {
             cluster_min: 5,
             point_cloud,
             verbosity: 2,
+            plugins: RwLock::new(TreePluginSet::new()),
         });
         let root_address = (cover_proto.get_root_scale(), cover_proto.get_root_index());
         let layers = cover_proto
@@ -413,6 +416,23 @@ pub(crate) mod tests {
         cover_tree_from_yaml(&path).unwrap()
     }
 
+    pub(crate) fn build_basic_tree() -> CoverTreeWriter<L2> {
+        let data = vec![0.499, 0.49, 0.48, -0.49, 0.0];
+        let labels = vec![0.0, 0.0, 0.0, 1.0, 1.0];
+
+        let point_cloud =
+            PointCloud::<L2>::simple_from_ram(Box::from(data), 1, Box::from(labels), 1).unwrap();
+        let builder = CoverTreeBuilder {
+            scale_base: 2.0,
+            cutoff: 1,
+            resolution: -9,
+            use_singletons: true,
+            cluster_min: 5,
+            verbosity: 0,
+        };
+        builder.build(point_cloud)
+    }
+
     #[test]
     fn greedy_knn_nodes() {
         let data = vec![0.499, 0.49, 0.48, -0.49, 0.0];
@@ -453,21 +473,7 @@ pub(crate) mod tests {
     
     #[test]
     fn knn_singletons_on() {
-        let data = vec![0.499, 0.49, 0.48, -0.49, 0.0];
-        let labels = vec![0.0, 0.0, 0.0, 1.0, 1.0];
-
-        let point_cloud =
-            PointCloud::<L2>::simple_from_ram(Box::from(data), 1, Box::from(labels), 1).unwrap();
-        let builder = CoverTreeBuilder {
-            scale_base: 2.0,
-            cutoff: 1,
-            resolution: -9,
-            use_singletons: true,
-            cluster_min: 5,
-            verbosity: 0,
-        };
-        let tree = builder.build(point_cloud).unwrap();
-        let reader = tree.reader();
+        
 
         println!("2 nearest neighbors of 0.0 are 0.48 and 0.0");
         let zero_nbrs = reader.knn(&[0.1],2).unwrap();

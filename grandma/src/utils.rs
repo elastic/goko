@@ -19,7 +19,7 @@
 
 //! Utility functions for i/o
 
-use crate::errors::GrandmaError;
+use crate::errors::{GrandmaResult,GrandmaError};
 use crate::tree_file_format::*;
 use pointcloud::*;
 use protobuf::{CodedInputStream, CodedOutputStream, Message};
@@ -30,7 +30,7 @@ use std::path::Path;
 use yaml_rust::{Yaml, YamlLoader};
 
 use crate::builders::CoverTreeBuilder;
-use crate::errors::MalwareBrotError;
+
 use crate::tree::CoverTreeWriter;
 
 /// Given a yaml file on disk, it builds a covertree.
@@ -68,7 +68,7 @@ use crate::tree::CoverTreeWriter;
 /// file: mnist.tree (optional, if here and the file exists it loads it)
 /// ```
 ///
-pub fn cover_tree_from_yaml<P: AsRef<Path>>(path: P) -> GrandmaError<CoverTreeWriter<L2>> {
+pub fn cover_tree_from_yaml<P: AsRef<Path>>(path: P) -> GrandmaResult<CoverTreeWriter<L2>> {
     let mut config_file = File::open(&path).expect("Unable to open config file");
 
     let mut config = String::new();
@@ -129,7 +129,7 @@ pub fn read_ct_params_yaml(params: &Yaml) -> (f32, usize, i32, bool) {
 pub fn load_tree<P: AsRef<Path>, M: Metric>(
     tree_path: P,
     point_cloud: PointCloud<M>,
-) -> GrandmaError<CoverTreeWriter<M>> {
+) -> GrandmaResult<CoverTreeWriter<M>> {
     let tree_path_ref: &Path = tree_path.as_ref();
     println!("\nLoading tree from : {}", tree_path_ref.to_string_lossy());
 
@@ -159,7 +159,7 @@ pub fn load_tree<P: AsRef<Path>, M: Metric>(
 pub fn save_tree<P: AsRef<Path>, M: Metric>(
     tree_path: P,
     cover_tree: &CoverTreeWriter<M>,
-) -> GrandmaError<()> {
+) -> GrandmaResult<()> {
     let tree_path_ref: &Path = tree_path.as_ref();
 
     println!("Saving tree to : {}", tree_path_ref.to_string_lossy());
@@ -169,7 +169,7 @@ pub fn save_tree<P: AsRef<Path>, M: Metric>(
             None => panic!("Unicode error with the tree path"),
         };
         println!("\t \t {:?} exists, removing", tree_path_str);
-        remove_file(&tree_path).map_err(|e| MalwareBrotError::from(e))?;
+        remove_file(&tree_path).map_err(|e| GrandmaError::from(e))?;
     }
 
     let cover_proto = cover_tree.save();
@@ -189,7 +189,7 @@ pub fn save_tree<P: AsRef<Path>, M: Metric>(
     let mut cos = CodedOutputStream::new(&mut core_file);
     cover_proto
         .write_to(&mut cos)
-        .map_err(|e| MalwareBrotError::from(e))?;
-    cos.flush().map_err(|e| MalwareBrotError::from(e))?;
+        .map_err(|e| GrandmaError::from(e))?;
+    cos.flush().map_err(|e| GrandmaError::from(e))?;
     Ok(())
 }

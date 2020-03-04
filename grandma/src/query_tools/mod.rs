@@ -24,7 +24,7 @@ use pointcloud::*;
 use std::collections::{BinaryHeap, HashMap, HashSet};
 use std::f32;
 
-mod query_items;
+pub(crate) mod query_items;
 
 use query_items::{QueryAddress, QuerySingleton};
 

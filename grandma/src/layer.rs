@@ -127,7 +127,7 @@ impl CoverLayerReader {
         &self,
         mut unclustered: Vec<PointIndex>,
         point_cloud: &PointCloud<M>,
-    ) -> MalwareBrotResult<Vec<(usize, Vec<PointIndex>)>> {
+    ) -> GrandmaResult<Vec<(usize, Vec<PointIndex>)>> {
         if unclustered.len() == 1 {
             //println!("\t\t Singleton with {:?}", unclustered);
             let id = self.cluster_index.fetch_add(1, atomic::Ordering::SeqCst);
