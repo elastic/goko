@@ -21,6 +21,7 @@
 //#![deny(warnings)]
 #![warn(missing_docs)]
 #![doc(test(attr(allow(unused_variables), deny(warnings))))]
+#![feature(associated_type_bounds)]
 
 //! # Cuddly Raccoon
 //! This is an efficient implementation of a covertree
@@ -69,8 +70,8 @@ mod plugins;
 pub use builders::CoverTreeBuilder;
 pub use tree::*;
 
-/// The data structure explicitly seperates the covertree by layer, and the addressing schema for nodes 
-/// is a pair for the layer index and the center point index of that node. 
+/// The data structure explicitly seperates the covertree by layer, and the addressing schema for nodes
+/// is a pair for the layer index and the center point index of that node.
 pub type NodeAddress = (i32, PointIndex);
 /// Like with a node address, the clusters are segmented by layer so we also reference by layer. The ClusterID is not meaningful, it's just a uint.
 pub type ClusterAddress = (i32, usize);

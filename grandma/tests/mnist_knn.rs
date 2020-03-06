@@ -36,7 +36,7 @@
  * under the License.
  */
 
- extern crate protobuf;
+extern crate protobuf;
 extern crate rand;
 extern crate yaml_rust;
 use std::path::Path;
@@ -49,7 +49,7 @@ use pointcloud::*;
 
 use std::sync::Arc;
 fn build_tree() -> CoverTreeWriter<L2> {
-    let file_name = "data/mnist_complex.yml";
+    let file_name = "../data/mnist_complex.yml";
     let path = Path::new(file_name);
     if !path.exists() {
         panic!(file_name.to_owned() + &" does not exist".to_string());
@@ -77,7 +77,7 @@ fn load_tree_and_query() {
 #[test]
 fn run_knn_query() {
     let ct = build_tree();
-    save_tree(Path::new("data/mnist.tree"),&ct).unwrap();
+    save_tree(Path::new("../data/mnist.tree"), &ct).unwrap();
     let ct_reader = ct.reader();
     let zeros = Arc::new(vec![0.0; 784]);
     let query = ct_reader.knn(&zeros, 5).unwrap();
@@ -90,4 +90,3 @@ fn run_knn_query() {
     assert!(query[4].1 == 37920);
     assert!(query.len() == 5);
 }
-

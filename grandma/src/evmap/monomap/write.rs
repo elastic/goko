@@ -8,39 +8,6 @@ use std::sync::atomic;
 use std::sync::{Arc, MutexGuard};
 use std::{mem, thread};
 
-/// A handle that may be used to modify the eventually consistent map.
-///
-/// Note that any changes made to the map will not be made visible to readers until `refresh()` is
-/// called.
-///
-/// When the `MonoWriteHandle` is dropped, the map is immediately (but safely) taken away from all
-/// readers, causing all future lookups to return `None`.
-///
-/// # Examples
-/// ```
-/// let x = ('x', 42);
-///
-/// let (r, mut w) = evmap::monomap::new::<char,(char,i32)>();
-///
-/// // the map is uninitialized, so all lookups should return None
-/// assert_eq!(r.get_and(&x.0, |rs| rs.1), None);
-///
-/// w.refresh();
-///
-/// // after the first refresh, it is empty, but ready
-/// assert_eq!(r.get_and(&x.0, |rs| rs.1), None);
-///
-/// w.insert(x.0, x);
-///
-/// // it is empty even after an add (we haven't refresh yet)
-/// assert_eq!(r.get_and(&x.0, |rs| rs.1), None);
-///
-/// w.refresh();
-///
-/// // but after the swap, the record is there!
-/// assert_eq!(r.get_and(&x.0, |rs| rs.1), Some(42));
-/// assert_eq!(r.get_and(&x.0, |rs| rs == &x), Some(true));
-/// ```
 pub struct MonoWriteHandle<K, V, M = (), S = RandomState>
 where
     K: Eq + Hash + Clone,
@@ -288,28 +255,6 @@ where
         self
     }
 
-    /// Gives the sequence of operations that have not yet been applied.
-    ///
-    /// Note that until the *first* call to `refresh`, the sequence of operations is always empty.
-    ///
-    /// ```
-    /// # use evmap::monomap::MonoOperation;
-    /// let x = ('x', 42);
-    ///
-    /// let (r, mut w) = evmap::monomap::new();
-    ///
-    /// // before the first refresh, no oplog is kept
-    /// w.refresh();
-    ///
-    /// assert_eq!(w.pending(), &[]);
-    /// w.insert(x.0, x);
-    /// assert_eq!(w.pending(), &[MonoOperation::Insert(x.0, x)]);
-    /// w.refresh();
-    /// w.remove(x.0);
-    /// assert_eq!(w.pending(), &[MonoOperation::Remove(x.0)]);
-    /// w.refresh();
-    /// assert_eq!(w.pending(), &[]);
-    /// ```
     pub fn pending(&self) -> &[MonoOperation<K, V>] {
         &self.oplog[self.swap_index..]
     }
@@ -364,7 +309,7 @@ where
     /// See [the doc section on this](./index.html#small-vector-optimization) for more information.
     ///
     /// The new value will only be visible to readers after the next call to `refresh()`.
-    pub fn update<F>(&mut self, k: K, f: F) -> &mut Self 
+    pub fn update<F>(&mut self, k: K, f: F) -> &mut Self
     where
         F: Fn(&mut V) + 'static + Send + Sync,
     {
@@ -377,7 +322,6 @@ where
     pub fn remove(&mut self, k: K) -> &mut Self {
         self.add_op(MonoOperation::Remove(k))
     }
-
 
     /// Purge all value-sets from the map.
     ///
@@ -392,7 +336,7 @@ where
     fn apply_first(inner: &mut Inner<K, V, M, S>, op: &mut MonoOperation<K, V>) {
         match *op {
             MonoOperation::Insert(ref key, ref value) => {
-                inner.data.insert(key.clone(),value.clone());
+                inner.data.insert(key.clone(), value.clone());
             }
 
             MonoOperation::Update(ref key, ref updater) => {
@@ -417,7 +361,7 @@ where
     fn apply_second(inner: &mut Inner<K, V, M, S>, op: MonoOperation<K, V>) {
         match op {
             MonoOperation::Insert(key, value) => {
-                inner.data.insert(key,value);
+                inner.data.insert(key, value);
             }
 
             MonoOperation::Update(ref key, ref updater) => {

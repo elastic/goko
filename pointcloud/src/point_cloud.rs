@@ -206,16 +206,18 @@ impl<M: Metric> PointCloud<M> {
     ///    string: String
     ///    boolean: bool
     /// ```
-    pub fn from_yaml(params: &Yaml) -> PointCloudResult<PointCloud<M>> {
+    pub fn from_yaml<P: AsRef<Path>>(params: &Yaml,yaml_path:P) -> PointCloudResult<PointCloud<M>> {
         let data_paths = &get_file_list(
             params["data_path"]
                 .as_str()
                 .expect("Unable to read the 'labels_path'"),
+            yaml_path.as_ref(),
         );
         let labels_paths = &get_file_list(
             params["labels_path"]
                 .as_str()
                 .expect("Unable to read the 'labels_path'"),
+            yaml_path.as_ref(),
         );
         let data_dim = params["data_dim"]
             .as_i64()
@@ -250,7 +252,7 @@ impl<M: Metric> PointCloud<M> {
             .expect(&format!("Unable to read config file {:?}", &path.as_ref()));
         let params_files = YamlLoader::load_from_str(&config).unwrap();
 
-        PointCloud::<M>::from_yaml(&params_files[0])
+        PointCloud::<M>::from_yaml(&params_files[0],path)
     }
 
 
@@ -480,16 +482,27 @@ fn build_label_schema_yaml(label_scheme: &mut LabelScheme, schema_yaml: &Yaml) {
     }
 }
 
-fn get_file_list(files_reg: &str) -> Vec<PathBuf> {
+fn get_file_list(files_reg: &str, yaml_path:&Path) -> Vec<PathBuf> {
     let options = MatchOptions {
         case_sensitive: false,
         ..Default::default()
     };
     let mut paths = Vec::new();
-    let glob_paths = match glob_with(files_reg, &options) {
-        Ok(expr) => expr,
-        Err(e) => panic!("Pattern reading error {:?}", e),
-    };
+    let glob_paths;
+    let files_reg_path = Path::new(files_reg);
+    if files_reg_path.is_absolute() {
+        glob_paths = match glob_with(&files_reg_path.to_str().unwrap(), &options) {
+            Ok(expr) => expr,
+            Err(e) => panic!("Pattern reading error {:?}", e),
+        };
+    } else {
+        glob_paths = match glob_with(&yaml_path.parent().unwrap().join(files_reg_path).to_str().unwrap(), &options) {
+            Ok(expr) => expr,
+            Err(e) => panic!("Pattern reading error {:?}", e),
+        };
+    }
+    
+
     for entry in glob_paths {
         let path = match entry {
             Ok(expr) => expr,

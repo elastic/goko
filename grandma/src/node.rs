@@ -18,17 +18,18 @@
 */
 
 //! # The Node
-//! This is the workhorse of the library. Each node 
-//! 
+//! This is the workhorse of the library. Each node
+//!
 use crate::errors::{GrandmaError, GrandmaResult};
-use crate::tree_file_format::*;
 use crate::query_tools::KnnQueryHeap;
+use crate::tree_file_format::*;
 use crate::NodeAddress;
+use crate::plugins::{NodePluginSet,NodePlugin};
 use pointcloud::labels::MetaSummary;
 use pointcloud::*;
 use smallvec::SmallVec;
-
-/// The node children. This is a separate struct from the `CoverNode` to use the rust compile time type checking and 
+use std::marker::PhantomData;
+/// The node children. This is a separate struct from the `CoverNode` to use the rust compile time type checking and
 /// `Option` data structure to ensure that all nodes with children are valid and cover their nested child.
 #[derive(Debug, Clone)]
 pub(crate) struct NodeChildren {
@@ -42,7 +43,7 @@ pub(crate) struct NodeChildren {
 /// memory redirect for the first 20 singleton children. The children are saved in a separate struct also consisting of a `SmallVec`
 /// (though, this is only 10 wide before we allocate on the heap), and the scale index of the nested child.
 #[derive(Debug, Clone)]
-pub struct CoverNode {
+pub struct CoverNode<M:Metric> {
     /// Node address
     address: NodeAddress,
     /// Query caches
@@ -52,11 +53,13 @@ pub struct CoverNode {
     /// Children
     children: Option<NodeChildren>,
     singles_indexes: SmallVec<[PointIndex; 20]>,
+    plugins: NodePluginSet,
+    metic: PhantomData<M>,
 }
 
-impl CoverNode {
+impl<M:Metric> CoverNode<M> {
     /// Creates a new blank node
-    pub fn new(address: NodeAddress) -> CoverNode {
+    pub fn new(address: NodeAddress) -> CoverNode<M> {
         CoverNode {
             address,
             radius: 0.0,
@@ -64,6 +67,8 @@ impl CoverNode {
             children: None,
             singles_indexes: SmallVec::new(),
             singles_summary: None,
+            plugins: NodePluginSet::new(),
+            metic: PhantomData,
         }
     }
 
@@ -79,11 +84,7 @@ impl CoverNode {
 
     /// Add a nested child and converts the node from a leaf to a routing node.
     /// Throws an error if the node is already a routing node with a nested node.
-    pub fn insert_nested_child(
-        &mut self,
-        scale_index: i32,
-        coverage: usize,
-    ) -> GrandmaResult<()> {
+    pub fn insert_nested_child(&mut self, scale_index: i32, coverage: usize) -> GrandmaResult<()> {
         self.cover_count += coverage;
         if let Some(_) = &self.children {
             Err(GrandmaError::DoubleNest)
@@ -121,7 +122,7 @@ impl CoverNode {
         &self.address.0
     }
 
-    /// 
+    ///
     pub fn children_len(&self) -> usize {
         match &self.children {
             Some(children) => children.addresses.len() + 1,
@@ -138,7 +139,7 @@ impl CoverNode {
 
     /// Performs the `singleton_knn` and `child_knn` with a provided query heap. If you have the distance
     /// from the query point to this you can pass it to save a distance calculation.
-    pub fn knn<M: Metric>(
+    pub fn knn(
         &self,
         dist_to_center: Option<f32>,
         point: &[f32],
@@ -158,7 +159,7 @@ impl CoverNode {
     }
 
     /// Performs a brute force knn against just the singleton children with a provided query heap.
-    pub fn singleton_knn<M: Metric>(
+    pub fn singleton_knn(
         &self,
         point: &[f32],
         point_cloud: &PointCloud<M>,
@@ -171,7 +172,7 @@ impl CoverNode {
 
     /// Performs a brute force knn against the children of the node with a provided query heap. Does nothing if this is a leaf node.
     /// If you have the distance from the query point to this you can pass it to save a distance calculation.
-    pub fn child_knn<M: Metric>(
+    pub fn child_knn(
         &self,
         dist_to_center: Option<f32>,
         point: &[f32],
@@ -196,7 +197,11 @@ impl CoverNode {
     }
 
     /// Inserts a routing child into the node. Make sure the child node is also in the tree or you get a dangling reference
-    pub(crate) fn insert_child(&mut self, address: NodeAddress, coverage: usize) -> GrandmaResult<()> {
+    pub(crate) fn insert_child(
+        &mut self,
+        address: NodeAddress,
+        coverage: usize,
+    ) -> GrandmaResult<()> {
         self.cover_count += coverage;
         if let Some(children) = &mut self.children {
             children.addresses.push(address);
@@ -212,17 +217,23 @@ impl CoverNode {
         self.singles_indexes.extend(addresses);
     }
     /// Inserts a single singleton child into the node.
-    pub(crate) fn insert_singleton(&mut self, address: PointIndex) {
+    pub(crate) fn insert_singleton(&mut self, pi: PointIndex) {
         self.cover_count += 1;
-        self.singles_indexes.push(address);
+        self.singles_indexes.push(pi);
     }
+
+    /// Inserts a single singleton child into the node.
+    pub(crate) fn insert_plugin<T: NodePlugin<M> + 'static>(&mut self, plugin: T) {
+        self.plugins.insert(plugin);
+    }
+
     /// Updates the radius
     pub(crate) fn set_radius(&mut self, radius: f32) {
         self.radius = radius;
     }
 
     /// Updates the metasummary of the singletons this covers. Call this after inserting or removing a singleton.
-    pub(crate) fn update_metasummary<M: Metric>(
+    pub(crate) fn update_metasummary(
         &mut self,
         point_cloud: &PointCloud<M>,
     ) -> GrandmaResult<()> {
@@ -230,7 +241,7 @@ impl CoverNode {
         Ok(())
     }
 
-    pub(crate) fn load(scale_index: i32, node_proto: &NodeProto) -> CoverNode {
+    pub(crate) fn load(scale_index: i32, node_proto: &NodeProto) -> CoverNode<M> {
         let singles_indexes = node_proto
             .outlier_point_indexes
             .iter()
@@ -263,6 +274,8 @@ impl CoverNode {
             children,
             singles_indexes,
             singles_summary,
+            plugins: NodePluginSet::new(),
+            metic: PhantomData,
         }
     }
 
@@ -293,9 +306,9 @@ impl CoverNode {
         proto
     }
 
-    /// Brute force verifies that the children are separated by at least the scale provided. 
+    /// Brute force verifies that the children are separated by at least the scale provided.
     /// The scale provided should be b^(s-1) where s is this node's scale index.
-    pub fn check_seperation<M: Metric>(
+    pub fn check_seperation(
         &self,
         scale: f32,
         point_cloud: &PointCloud<M>,
@@ -314,11 +327,11 @@ impl CoverNode {
 mod tests {
     use super::*;
 
-    use crate::tree::tests::build_mnist_tree;
-    use crate::query_tools::tests::clone_unvisited_nodes;
     use crate::query_tools::query_items::QueryAddress;
+    use crate::query_tools::tests::clone_unvisited_nodes;
+    use crate::tree::tests::build_mnist_tree;
 
-    fn create_test_node() -> CoverNode {
+    fn create_test_node<M:Metric>() -> CoverNode<M> {
         let children = Some(NodeChildren {
             nested_scale: 0,
             addresses: smallvec![(-4, 1), (-4, 2), (-4, 3)],
@@ -331,10 +344,11 @@ mod tests {
             children,
             singles_indexes: smallvec![4, 5, 6],
             singles_summary: None,
+            plugins: NodePluginSet::new(),
         }
     }
 
-    fn create_test_leaf_node() -> CoverNode {
+    fn create_test_leaf_node<M:Metric>() -> CoverNode<M> {
         CoverNode {
             address: (0, 0),
             radius: 1.0,
@@ -342,6 +356,7 @@ mod tests {
             children: None,
             singles_indexes: smallvec![1, 2, 3, 4, 5, 6],
             singles_summary: None,
+            plugins: NodePluginSet::new(),
         }
     }
 
@@ -355,7 +370,7 @@ mod tests {
             PointCloud::<L2>::simple_from_ram(Box::from(data), 1, Box::from(labels), 1).unwrap();
 
         let test_node = create_test_node();
-        let mut heap = KnnQueryHeap::new(5,2.0);
+        let mut heap = KnnQueryHeap::new(5, 2.0);
         let point = [0.494];
         test_node
             .knn(None, &point, &point_cloud, &mut heap)
@@ -383,7 +398,7 @@ mod tests {
             PointCloud::<L2>::simple_from_ram(Box::from(data), 1, Box::from(labels), 1).unwrap();
 
         let test_node = create_test_node();
-        let mut heap = KnnQueryHeap::new(5,2.0);
+        let mut heap = KnnQueryHeap::new(5, 2.0);
         let point = [0.494];
         test_node
             .knn(None, &point, &point_cloud, &mut heap)
@@ -411,7 +426,7 @@ mod tests {
             PointCloud::<L2>::simple_from_ram(Box::from(data), 1, Box::from(labels), 1).unwrap();
 
         let test_node = create_test_leaf_node();
-        let mut heap = KnnQueryHeap::new(5,2.0);
+        let mut heap = KnnQueryHeap::new(5, 2.0);
         let point = [0.494];
         test_node
             .knn(None, &point, &point_cloud, &mut heap)
@@ -430,12 +445,12 @@ mod tests {
         assert!(results[1].1 == 3);
     }
 
-    fn brute_test_knn_node<M: Metric>(node: &CoverNode, point_cloud: &PointCloud<M>) {
+    fn brute_test_knn_node<M: Metric>(node: &CoverNode<M>, point_cloud: &PointCloud<M>) {
         let zeros: Vec<f32> = vec![0.0; 784];
 
         let mut all_children = Vec::from(node.singletons());
         if let Some(children) = &node.children {
-            all_children.extend(children.addresses.iter().map(|(_si,pi)| *pi));
+            all_children.extend(children.addresses.iter().map(|(_si, pi)| *pi));
         }
         all_children.push(node.address.1);
 
@@ -465,18 +480,26 @@ mod tests {
         let mut children_range_calc: Vec<QueryAddress> = children_dist
             .iter()
             .zip(children)
-            .map(|(d, (si,pi))| QueryAddress {min_dist:(*d - (1.3f32).powi(si)).max(0.0), dist_to_center:*d, address:(si,pi)})
+            .map(|(d, (si, pi))| QueryAddress {
+                min_dist: (*d - (1.3f32).powi(si)).max(0.0),
+                dist_to_center: *d,
+                address: (si, pi),
+            })
             .collect();
         children_range_calc.sort();
 
-        let mut heap = KnnQueryHeap::new(10000,1.3);
+        let mut heap = KnnQueryHeap::new(10000, 1.3);
         node.knn(None, &zeros, &point_cloud, &mut heap).unwrap();
 
-        let heap_range: Vec<NodeAddress> = clone_unvisited_nodes(&heap).iter().map(|(_d,a)| *a).collect();
-        let heap_knn: Vec<PointIndex> = heap.unpack().iter().map(|(_d,pi)| *pi).collect();
+        let heap_range: Vec<NodeAddress> = clone_unvisited_nodes(&heap)
+            .iter()
+            .map(|(_d, a)| *a)
+            .collect();
+        let heap_knn: Vec<PointIndex> = heap.unpack().iter().map(|(_d, pi)| *pi).collect();
 
-        let children_range_calc: Vec<NodeAddress> = children_range_calc.iter().map(|a| a.address).collect();
-        let brute_knn: Vec<PointIndex> = brute_knn.iter().map(|(_d,pi)| *pi).collect();
+        let children_range_calc: Vec<NodeAddress> =
+            children_range_calc.iter().map(|a| a.address).collect();
+        let brute_knn: Vec<PointIndex> = brute_knn.iter().map(|(_d, pi)| *pi).collect();
 
         let mut correct = true;
         if correct {

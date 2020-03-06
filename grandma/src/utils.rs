@@ -19,7 +19,7 @@
 
 //! Utility functions for i/o
 
-use crate::errors::{GrandmaResult,GrandmaError};
+use crate::errors::{GrandmaError, GrandmaResult};
 use crate::tree_file_format::*;
 use pointcloud::*;
 use protobuf::{CodedInputStream, CodedOutputStream, Message};
@@ -79,7 +79,7 @@ pub fn cover_tree_from_yaml<P: AsRef<Path>>(path: P) -> GrandmaResult<CoverTreeW
     let params_files = YamlLoader::load_from_str(&config).unwrap();
     let params = &params_files[0];
 
-    let point_cloud: PointCloud<L2> = PointCloud::<L2>::from_yaml(&params)?;
+    let point_cloud: PointCloud<L2> = PointCloud::<L2>::from_yaml(&params, path)?;
     if let Some(count) = params["count"].as_i64() {
         if count as usize != point_cloud.len() {
             panic!(

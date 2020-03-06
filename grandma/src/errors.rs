@@ -17,7 +17,7 @@
 * under the License.
 */
 
-//! The errors that can occor when a cover tree is loading, working or saving. 
+//! The errors that can occor when a cover tree is loading, working or saving.
 //! Most errors are floated up from `PointCloud` as that's the i/o layer.
 
 use pointcloud::errors::PointCloudError;
@@ -27,7 +27,7 @@ use std::fmt;
 use std::io;
 use std::str;
 
-/// Helper type for a call that could go wrong. 
+/// Helper type for a call that could go wrong.
 pub type GrandmaResult<T> = Result<T, GrandmaError>;
 
 /// Error type for MalwareBrot. Mostly this is a wrapper around `PointCloudError`, as the data i/o where most errors happen.
@@ -51,18 +51,20 @@ impl fmt::Display for GrandmaError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             // not sure that cause should be included in message
-            &GrandmaError::IoError(ref e) => write!(f,"{}",e),
-            &GrandmaError::ParsingError(ref e) => write!(f,"{}",e),
-            &GrandmaError::PointCloudError(ref e) => write!(f,"{}",e),
+            &GrandmaError::IoError(ref e) => write!(f, "{}", e),
+            &GrandmaError::ParsingError(ref e) => write!(f, "{}", e),
+            &GrandmaError::PointCloudError(ref e) => write!(f, "{}", e),
             &GrandmaError::NameNotInTree { .. } => {
-                write!(f,"there was an issue grabbing a name from the known names")
+                write!(f, "there was an issue grabbing a name from the known names")
             }
-            &GrandmaError::DoubleNest => {
-                write!(f,"Inserted a nested node into a node that already had a nested child")
-            }
-            &GrandmaError::InsertBeforeNest => {
-                write!(f,"Inserted a node into a node that does not have a nested child")
-            }
+            &GrandmaError::DoubleNest => write!(
+                f,
+                "Inserted a nested node into a node that already had a nested child"
+            ),
+            &GrandmaError::InsertBeforeNest => write!(
+                f,
+                "Inserted a node into a node that does not have a nested child"
+            ),
         }
     }
 }
@@ -162,11 +164,13 @@ impl fmt::Display for ParsingError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             // not sure that cause should be included in message
-            &ParsingError::ProtobufError(ref e) => write!(f,"{}",e),
-            &ParsingError::MalformedYamlError { .. } => write!(f,"there is a error reading a yaml entry"),
-            &ParsingError::MissingYamlError { .. } => write!(f,"not all message fields set"),
-            &ParsingError::CSVReadError { .. } => write!(f,"issue reading a CSV entry"),
-            &ParsingError::RegularParsingError(..) => write!(f,"Error parsing a string"),
+            &ParsingError::ProtobufError(ref e) => write!(f, "{}", e),
+            &ParsingError::MalformedYamlError { .. } => {
+                write!(f, "there is a error reading a yaml entry")
+            }
+            &ParsingError::MissingYamlError { .. } => write!(f, "not all message fields set"),
+            &ParsingError::CSVReadError { .. } => write!(f, "issue reading a CSV entry"),
+            &ParsingError::RegularParsingError(..) => write!(f, "Error parsing a string"),
         }
     }
 }

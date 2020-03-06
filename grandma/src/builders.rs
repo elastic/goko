@@ -17,8 +17,8 @@
 * under the License.
 */
 
-use crate::*;
 use crate::plugins::TreePluginSet;
+use crate::*;
 use data_caches::*;
 use layer::*;
 use node::*;
@@ -56,7 +56,7 @@ impl BuilderNode {
     fn split_parallel<M: Metric>(
         self,
         parameters: &Arc<CoverTreeParameters<M>>,
-        node_sender: &Arc<Sender<GrandmaResult<(i32, PointIndex, CoverNode)>>>,
+        node_sender: &Arc<Sender<GrandmaResult<(i32, PointIndex, CoverNode<M>)>>>,
     ) {
         let parameters = Arc::clone(parameters);
         let node_sender = Arc::clone(node_sender);
@@ -77,7 +77,7 @@ impl BuilderNode {
     fn split<M: Metric>(
         self,
         parameters: &Arc<CoverTreeParameters<M>>,
-    ) -> GrandmaResult<(CoverNode, Vec<BuilderNode>)> {
+    ) -> GrandmaResult<(CoverNode<M>, Vec<BuilderNode>)> {
         //println!("=====================");
         //println!("Splitting node with address {:?} and covered: {:?}", self.address(),self.covered);
 
@@ -186,17 +186,17 @@ pub struct CoverTreeBuilder {
     pub cutoff: usize,
     /// If a node has scale index less than or equal to this, it becomes a leaf
     pub resolution: i32,
-    /// If you don't want singletons messing with your tree and want everything to be a node or a element of leaf node, make this true. 
+    /// If you don't want singletons messing with your tree and want everything to be a node or a element of leaf node, make this true.
     pub use_singletons: bool,
     /// Unused for now
     pub cluster_min: usize,
-    /// Printing verbosity. 2 is the default and gives a progress bar. Still not fully pulled thru the codebase. 
+    /// Printing verbosity. 2 is the default and gives a progress bar. Still not fully pulled thru the codebase.
     /// This should be replaced by a logging solution
     pub verbosity: u32,
 }
 
 impl CoverTreeBuilder {
-    /// Creates a new builder with sensible defaults. 
+    /// Creates a new builder with sensible defaults.
     pub fn new() -> CoverTreeBuilder {
         CoverTreeBuilder {
             scale_base: 2.0,
@@ -208,7 +208,7 @@ impl CoverTreeBuilder {
         }
     }
 
-    /// 
+    ///
     pub fn set_scale_base(&mut self, x: f32) -> &mut Self {
         self.scale_base = x;
         self
@@ -233,7 +233,7 @@ impl CoverTreeBuilder {
         self.verbosity = x;
         self
     }
-    /// Pass a point cloud object when ready. 
+    /// Pass a point cloud object when ready.
     /// To do, make this point cloud an Arc
     pub fn build<M: Metric>(
         &self,
@@ -261,8 +261,8 @@ impl CoverTreeBuilder {
         }
 
         let (node_sender, node_receiver): (
-            Sender<GrandmaResult<(i32, PointIndex, CoverNode)>>,
-            Receiver<GrandmaResult<(i32, PointIndex, CoverNode)>>,
+            Sender<GrandmaResult<(i32, PointIndex, CoverNode<M>)>>,
+            Receiver<GrandmaResult<(i32, PointIndex, CoverNode<M>)>>,
         ) = unbounded();
 
         let node_sender = Arc::new(node_sender);
@@ -285,7 +285,9 @@ impl CoverTreeBuilder {
             match node_receiver.recv() {
                 Ok(res) => {
                     let (scale_index, point_index, new_node) = res.unwrap();
-                    unsafe {cover_tree.insert_raw(scale_index, point_index, new_node);}
+                    unsafe {
+                        cover_tree.insert_raw(scale_index, point_index, new_node);
+                    }
                     inserted_nodes += 1;
                     if parameters.verbosity > 1 {
                         pb.total = parameters.total_nodes.load(atomic::Ordering::SeqCst) as u64;
@@ -336,6 +338,7 @@ mod tests {
             cluster_min: 0,
             point_cloud,
             verbosity: 0,
+            plugins: RwLock::new(TreePluginSet::new()),
         })
     }
 
@@ -387,8 +390,8 @@ mod tests {
         let build_node = BuilderNode::new(&test_parameters).unwrap();
 
         let (node_sender, node_receiver): (
-            Sender<GrandmaResult<(i32, PointIndex, CoverNode)>>,
-            Receiver<GrandmaResult<(i32, PointIndex, CoverNode)>>,
+            Sender<GrandmaResult<(i32, PointIndex, CoverNode<L2>)>>,
+            Receiver<GrandmaResult<(i32, PointIndex, CoverNode<L2>)>>,
         ) = unbounded();
         let node_sender = Arc::new(node_sender);
 

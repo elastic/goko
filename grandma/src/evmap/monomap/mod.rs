@@ -1,9 +1,8 @@
 //! A lock free, eventually consistent, concurrent single-value map.
 //! This is almost identical to the multimap, but duplicates the data.
-//! This stores the values in 2 copies of the hashmap, so it's meant to be used when you care about speed and 
-//! concurrency with updates rather than memory efficency. Ideally if your type has any large vectors you'd partner 
+//! This stores the values in 2 copies of the hashmap, so it's meant to be used when you care about speed and
+//! concurrency with updates rather than memory efficency. Ideally if your type has any large vectors you'd partner
 //! this with a multimap to store the vector, and keep the complex logic on this structure.
-
 
 use std::collections::hash_map::RandomState;
 use std::fmt;
