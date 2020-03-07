@@ -1,9 +1,7 @@
 use crate::node::CoverNode;
 use crate::tree::CoverTreeReader;
 use crate::*;
-use anymap::Map;
-use anymap::any::{UncheckedAnyExt};
-use std::any::Any;
+use anymap::SyncAnyMap as SyncMap;
 
 use std::any::TypeId;
 use std::collections::HashMap;
@@ -13,7 +11,7 @@ pub trait NodePlugin<M:Metric>: Send + Sync + Debug {
     fn update(&mut self, my_node: &CoverNode<M>, my_tree: &CoverTreeReader<M>);
 }
 
-type SyncMap = Map<Any + Send + Sync>;
+//type SyncMap = Map<Any + Send + Sync>;
 
 pub type NodePluginSet = SyncMap;
 
@@ -22,10 +20,9 @@ pub trait TreePlugin<M: Metric>: Send + Sync + Debug {
 }
 pub type TreePluginSet = SyncMap;
 
-
 pub trait GrandmaPlugin<M: Metric> {
-    type NodeComponent: NodePlugin<M> + Clone;
-    type TreeComponent: TreePlugin<M> + Clone;
+    type NodeComponent: NodePlugin<M> + Clone + 'static;
+    type TreeComponent: TreePlugin<M> + Clone + 'static;
     fn node_component(
         parameters: &Self::TreeComponent,
         my_node: &CoverNode<M>,
