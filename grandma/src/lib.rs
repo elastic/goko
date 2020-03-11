@@ -21,7 +21,6 @@
 //#![deny(warnings)]
 #![warn(missing_docs)]
 #![doc(test(attr(allow(unused_variables), deny(warnings))))]
-#![feature(associated_type_bounds)]
 
 //! # Cuddly Raccoon
 //! This is an efficient implementation of a covertree

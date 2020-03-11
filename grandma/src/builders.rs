@@ -255,7 +255,7 @@ impl CoverTreeBuilder {
         let root_address = root.address();
         let scale_range = root_address.0 - parameters.resolution;
         let mut layers = Vec::with_capacity(scale_range as usize);
-        layers.push(CoverLayerWriter::new(parameters.resolution));
+        layers.push(CoverLayerWriter::new(parameters.resolution-1));
         for i in 0..(scale_range + 1) {
             layers.push(CoverLayerWriter::new(parameters.resolution + i as i32));
         }

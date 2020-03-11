@@ -45,14 +45,14 @@ use tree_file_format::*;
 /// Actual reader, primarily contains a read head to the hash-map.
 /// This also contains a reference to the scale_index so that it is easy to save and load. It is largely redundant,
 /// but helps with unit tests.
-pub struct CoverLayerReader<M:Metric> {
+pub struct CoverLayerReader<M: Metric> {
     scale_index: i32,
     node_reader: MonoReadHandle<PointIndex, CoverNode<M>>,
     cluster_reader: MonoReadHandle<usize, CoverCluster>,
     cluster_index: Arc<atomic::AtomicUsize>,
 }
 
-impl<M:Metric> CoverLayerReader<M> {
+impl<M: Metric> CoverLayerReader<M> {
     /// Read only access to a single node.
     pub fn get_node_and<F, T>(&self, pi: &PointIndex, f: F) -> Option<T>
     where
@@ -209,14 +209,14 @@ pub struct CoverCluster {
 }
 
 /// Primarily contains the node writer head, but also has the cluster writer head and the index head.
-pub(crate) struct CoverLayerWriter<M:Metric> {
+pub(crate) struct CoverLayerWriter<M: Metric> {
     scale_index: i32,
     node_writer: MonoWriteHandle<PointIndex, CoverNode<M>>,
     cluster_writer: MonoWriteHandle<usize, CoverCluster>,
     cluster_index: Arc<atomic::AtomicUsize>,
 }
 
-impl<M:Metric> CoverLayerWriter<M> {
+impl<M: Metric> CoverLayerWriter<M> {
     /// Creates a reader head. Only way to get one from a newly created layer.
     pub(crate) fn reader(&self) -> CoverLayerReader<M> {
         CoverLayerReader {
@@ -239,10 +239,11 @@ impl<M:Metric> CoverLayerWriter<M> {
         }
     }
 
-    pub(crate) unsafe fn update_node<F>(&mut self, pi: PointIndex, update_fn: F) 
-    where F: Fn(&mut CoverNode<M>) + 'static + Send + Sync
+    pub(crate) unsafe fn update_node<F>(&mut self, pi: PointIndex, update_fn: F)
+    where
+        F: Fn(&mut CoverNode<M>) + 'static + Send + Sync,
     {
-        self.node_writer.update(pi,update_fn);
+        self.node_writer.update(pi, update_fn);
     }
 
     #[doc(hidden)]

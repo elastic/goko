@@ -21,10 +21,10 @@
 //! This is the workhorse of the library. Each node
 //!
 use crate::errors::{GrandmaError, GrandmaResult};
+use crate::plugins::{NodePlugin, NodePluginSet};
 use crate::query_tools::KnnQueryHeap;
 use crate::tree_file_format::*;
 use crate::NodeAddress;
-use crate::plugins::{NodePluginSet,NodePlugin};
 use pointcloud::labels::MetaSummary;
 use pointcloud::*;
 use smallvec::SmallVec;
@@ -42,8 +42,8 @@ pub(crate) struct NodeChildren {
 /// Finally we have the children and singleton pile. The singletons are saved in a `SmallVec` directly attached to the node. This saves a
 /// memory redirect for the first 20 singleton children. The children are saved in a separate struct also consisting of a `SmallVec`
 /// (though, this is only 10 wide before we allocate on the heap), and the scale index of the nested child.
-#[derive(Debug, Clone)]
-pub struct CoverNode<M:Metric> {
+#[derive(Debug)]
+pub struct CoverNode<M: Metric> {
     /// Node address
     address: NodeAddress,
     /// Query caches
@@ -57,7 +57,22 @@ pub struct CoverNode<M:Metric> {
     metic: PhantomData<M>,
 }
 
-impl<M:Metric> CoverNode<M> {
+impl<M: Metric> Clone for CoverNode<M> {
+    fn clone(&self) -> Self {
+        Self {
+            address: self.address,
+            radius: self.radius,
+            cover_count: self.cover_count,
+            singles_summary: self.singles_summary.clone(),
+            children: self.children.clone(),
+            singles_indexes: self.singles_indexes.clone(),
+            plugins: NodePluginSet::new(),
+            metic: PhantomData,
+        }
+    }
+}
+
+impl<M: Metric> CoverNode<M> {
     /// Creates a new blank node
     pub fn new(address: NodeAddress) -> CoverNode<M> {
         CoverNode {
@@ -95,6 +110,13 @@ impl<M:Metric> CoverNode<M> {
             });
             Ok(())
         }
+    }
+
+    pub fn get_plugin_and<T: Send + Sync + 'static, F, S>(&self, transform_fn: F) -> Option<S>
+    where
+        F: FnOnce(&T) -> S,
+    {
+        self.plugins.get::<T>().map(transform_fn)
     }
 
     /// Removes all children and returns them to us.
@@ -233,10 +255,7 @@ impl<M:Metric> CoverNode<M> {
     }
 
     /// Updates the metasummary of the singletons this covers. Call this after inserting or removing a singleton.
-    pub(crate) fn update_metasummary(
-        &mut self,
-        point_cloud: &PointCloud<M>,
-    ) -> GrandmaResult<()> {
+    pub(crate) fn update_metasummary(&mut self, point_cloud: &PointCloud<M>) -> GrandmaResult<()> {
         self.singles_summary = Some(point_cloud.get_metasummary(&self.singles_indexes[..])?);
         Ok(())
     }
@@ -308,11 +327,7 @@ impl<M:Metric> CoverNode<M> {
 
     /// Brute force verifies that the children are separated by at least the scale provided.
     /// The scale provided should be b^(s-1) where s is this node's scale index.
-    pub fn check_seperation(
-        &self,
-        scale: f32,
-        point_cloud: &PointCloud<M>,
-    ) -> GrandmaResult<bool> {
+    pub fn check_seperation(&self, scale: f32, point_cloud: &PointCloud<M>) -> GrandmaResult<bool> {
         let mut nodes = self.singles_indexes.clone();
         nodes.push(self.address.1);
         if let Some(children) = &self.children {
@@ -331,7 +346,7 @@ mod tests {
     use crate::query_tools::tests::clone_unvisited_nodes;
     use crate::tree::tests::build_mnist_tree;
 
-    fn create_test_node<M:Metric>() -> CoverNode<M> {
+    fn create_test_node<M: Metric>() -> CoverNode<M> {
         let children = Some(NodeChildren {
             nested_scale: 0,
             addresses: smallvec![(-4, 1), (-4, 2), (-4, 3)],
@@ -345,10 +360,11 @@ mod tests {
             singles_indexes: smallvec![4, 5, 6],
             singles_summary: None,
             plugins: NodePluginSet::new(),
+            metic: PhantomData,
         }
     }
 
-    fn create_test_leaf_node<M:Metric>() -> CoverNode<M> {
+    fn create_test_leaf_node<M: Metric>() -> CoverNode<M> {
         CoverNode {
             address: (0, 0),
             radius: 1.0,
@@ -357,6 +373,7 @@ mod tests {
             singles_indexes: smallvec![1, 2, 3, 4, 5, 6],
             singles_summary: None,
             plugins: NodePluginSet::new(),
+            metic: PhantomData,
         }
     }
 

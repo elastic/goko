@@ -7,7 +7,7 @@ use std::any::TypeId;
 use std::collections::HashMap;
 use std::fmt::Debug;
 
-pub trait NodePlugin<M:Metric>: Send + Sync + Debug {
+pub trait NodePlugin<M: Metric>: Send + Sync + Debug {
     fn update(&mut self, my_node: &CoverNode<M>, my_tree: &CoverTreeReader<M>);
 }
 
@@ -35,9 +35,10 @@ pub(crate) mod tests {
     use super::*;
     use crate::tree::tests::build_basic_tree;
 
-    #[derive(Debug,Clone)]
+    #[derive(Debug, Clone)]
     struct DumbNode1 {
         id: u32,
+        pi: PointIndex,
     }
 
     impl<M: Metric> NodePlugin<M> for DumbNode1 {
@@ -46,7 +47,7 @@ pub(crate) mod tests {
         }
     }
 
-    #[derive(Debug,Clone)]
+    #[derive(Debug, Clone)]
     struct DumbTree1 {
         id: u32,
     }
@@ -69,7 +70,8 @@ pub(crate) mod tests {
             my_tree: &CoverTreeReader<M>,
         ) -> Self::NodeComponent {
             DumbNode1 {
-                id: parameters.id
+                id: parameters.id,
+                pi: *my_node.center_index(),
             }
         }
     }
@@ -79,7 +81,16 @@ pub(crate) mod tests {
         let mut d = DumbTree1 { id: 1 };
         let mut tree = build_basic_tree();
         tree.add_plugin::<DumbGrandma1>(d);
-
-
+        println!("{:?}", tree.reader().len());
+        for (si, layer) in tree.reader().layers() {
+            println!("Scale Index: {:?}", si);
+            layer.for_each_node(|pi, n| {
+                println!("Node: {:?}", n);
+                n.get_plugin_and::<DumbNode1, _, _>(|dp| {
+                    println!("DumbNodes: {:?}", dp);
+                    assert_eq!(*pi, dp.pi);
+                });
+            });
+        }
     }
 }

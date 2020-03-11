@@ -47,6 +47,7 @@ use errors::GrandmaResult;
 use std::iter::Iterator;
 use std::ops::Range;
 use std::slice::Iter;
+use std::iter::Rev;
 
 /// Container for the parameters governing the construction of the covertree
 #[derive(Debug)]
@@ -84,9 +85,9 @@ impl<M: Metric> CoverTreeParameters<M> {
 }
 
 /// Helper struct for iterating thru the reader's of the the layers.
-pub struct LayerIter<'a, M:Metric> {
-    scales: Range<i32>,
-    layers: Iter<'a, CoverLayerReader<M>>,
+pub struct LayerIter<'a, M: Metric> {
+    scales: Rev<Range<i32>>,
+    layers: Rev<Iter<'a, CoverLayerReader<M>>>,
 }
 
 impl<'a, M: Metric> Iterator for LayerIter<'a, M> {
@@ -146,12 +147,16 @@ impl<M: Metric> CoverTreeReader<M> {
     }
 
     ///
-    pub fn layers<'a>(&'a self) -> LayerIter<'a,M> {
+    pub fn layers<'a>(&'a self) -> LayerIter<'a, M> {
         LayerIter {
-            scales: (self.layers.len() as i32 - self.parameters.resolution)
-                ..(self.parameters.resolution),
-            layers: self.layers.iter(),
+            scales: ((self.parameters.resolution-1)
+                            ..(self.layers.len() as i32 + self.parameters.resolution-1)).rev(),
+            layers: self.layers.iter().rev(),
         }
+    }
+
+    pub fn len(&self) -> usize {
+        self.layers.len()
     }
 
     /// If you want to build a new tree with shared parameters, this is helpful.
@@ -169,8 +174,29 @@ impl<M: Metric> CoverTreeReader<M> {
         (self.parameters.resolution)..(self.parameters.resolution - 1 + self.layers.len() as i32)
     }
 
-    pub fn get_plugin<P: GrandmaPlugin<M>>(&self) -> Option<&<P as plugins::GrandmaPlugin<M>>::TreeComponent> {
-        self.parameters.plugins.read().unwrap().get::<<P as plugins::GrandmaPlugin<M>>::TreeComponent>()
+    pub fn get_plugin_and<T: Send + Sync + 'static, F, S>(&self, transform_fn: F) -> Option<S>
+    where
+        F: FnOnce(&T) -> S,
+    {
+        self.parameters
+            .plugins
+            .read()
+            .unwrap()
+            .get::<T>()
+            .map(transform_fn)
+    }
+
+    pub fn get_node_plugin_and<T: Send + Sync + 'static, F, S>(
+        &self,
+        node_address: (i32, PointIndex),
+        transform_fn: F,
+    ) -> Option<S>
+    where
+        F: FnOnce(&T) -> S,
+    {
+        self.layers[self.parameters.internal_index(node_address.0)]
+            .get_node_and(&node_address.1, |n| n.get_plugin_and(transform_fn))
+            .flatten()
     }
 
     /// # The KNN query.
@@ -333,19 +359,20 @@ impl<M: Metric> CoverTreeWriter<M> {
         Ok(())
     }
 
-    pub fn add_plugin<P: GrandmaPlugin<M>>(&mut self, plug_in: <P as plugins::GrandmaPlugin<M>>::TreeComponent)
-    where
+    pub fn add_plugin<P: GrandmaPlugin<M>>(
+        &mut self,
+        plug_in: <P as plugins::GrandmaPlugin<M>>::TreeComponent,
+    ) where
         <P as plugins::GrandmaPlugin<M>>::TreeComponent: 'static,
         <P as plugins::GrandmaPlugin<M>>::NodeComponent: 'static,
     {
         let reader = self.reader();
-        for (si,layer) in reader.layers() {
-            layer.for_each_node(|pi,n| {
-                let node_component = P::node_component(
-                    &plug_in,
-                    n,
-                    &reader);
-                unsafe {self.update_node((si,*pi),move |n|{n.insert_plugin(node_component.clone())})}
+        for (si, layer) in reader.layers() {
+            layer.for_each_node(|pi, n| {
+                let node_component = P::node_component(&plug_in, n, &reader);
+                unsafe {
+                    self.update_node((si, *pi), move |n| n.insert_plugin(node_component.clone()))
+                }
             });
         }
         self.parameters.plugins.write().unwrap().insert(plug_in);
@@ -358,9 +385,10 @@ impl<M: Metric> CoverTreeWriter<M> {
     }
 
     pub(crate) unsafe fn update_node<F>(&mut self, address: NodeAddress, update_fn: F)
-    where F: Fn(&mut CoverNode<M>) + 'static + Send + Sync
+    where
+        F: Fn(&mut CoverNode<M>) + 'static + Send + Sync,
     {
-        self.layers[self.parameters.internal_index(address.0)].update_node(address.1,update_fn);
+        self.layers[self.parameters.internal_index(address.0)].update_node(address.1, update_fn);
     }
 
     /// Creates a reader for queries.
@@ -460,9 +488,35 @@ pub(crate) mod tests {
             resolution: -9,
             use_singletons: true,
             cluster_min: 5,
-            verbosity: 0,
+            verbosity: 2,
         };
         builder.build(point_cloud).unwrap()
+    }
+
+    #[test]
+    fn len_is_num_layers() {
+        let mut tree = build_basic_tree();
+        let reader = tree.reader();
+
+        let mut l = 0;
+        for _ in reader.layers() {
+            l += 1;
+        }
+        assert_eq!(reader.len(),l);
+    }
+
+    #[test]
+    fn layer_has_correct_scale_index() {
+        let mut tree = build_basic_tree();
+        let reader = tree.reader();
+        let mut got_one = false;
+        let mut l: i32 = reader.root_address().0;
+        for (si,l) in reader.layers() {
+            println!("Scale Index, correct: {:?}, Scale Index, layer: {:?}", si,l.scale_index());
+            assert_eq!(si,l.scale_index());
+            got_one = true;
+        }
+        assert!(got_one);
     }
 
     #[test]
