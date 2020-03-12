@@ -32,7 +32,7 @@ crossbeam-channel = "*"
 pointcloud = { version = "0.1.0", path = "../pointcloud/" }
 #evmap = { git = "https://github.com/comath/rust-evmap" }
 smallvec = "1.0"
-anymap = { path = "../../../rust_tutorial/anymap/"}
+anymap = { git = "https://github.com/comath/anymap"}
 
 [dev-dependencies]
 assert_approx_eq = "1.0.0"

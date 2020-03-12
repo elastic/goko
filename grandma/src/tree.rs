@@ -45,9 +45,9 @@ use crate::plugins::{GrandmaPlugin, TreePlugin, TreePluginSet};
 use crate::query_tools::KnnQueryHeap;
 use errors::GrandmaResult;
 use std::iter::Iterator;
+use std::iter::Rev;
 use std::ops::Range;
 use std::slice::Iter;
-use std::iter::Rev;
 
 /// Container for the parameters governing the construction of the covertree
 #[derive(Debug)]
@@ -85,20 +85,7 @@ impl<M: Metric> CoverTreeParameters<M> {
 }
 
 /// Helper struct for iterating thru the reader's of the the layers.
-pub struct LayerIter<'a, M: Metric> {
-    scales: Rev<Range<i32>>,
-    layers: Rev<Iter<'a, CoverLayerReader<M>>>,
-}
-
-impl<'a, M: Metric> Iterator for LayerIter<'a, M> {
-    type Item = (i32, &'a CoverLayerReader<M>);
-    fn next(&mut self) -> Option<Self::Item> {
-        match (self.scales.next(), self.layers.next()) {
-            (Some(a), Some(b)) => Some((a, b)),
-            _ => None,
-        }
-    }
-}
+pub type LayerIter<'a, M: Metric> = Rev<std::iter::Zip<Range<i32>, Iter<'a, CoverLayerReader<M>>>>;
 
 /// # Cover Tree Reader Head
 ///
@@ -147,12 +134,11 @@ impl<M: Metric> CoverTreeReader<M> {
     }
 
     ///
-    pub fn layers<'a>(&'a self) -> LayerIter<'a, M> {
-        LayerIter {
-            scales: ((self.parameters.resolution-1)
-                            ..(self.layers.len() as i32 + self.parameters.resolution-1)).rev(),
-            layers: self.layers.iter().rev(),
-        }
+    pub fn layers<'a>(&'a self) -> LayerIter<M> {
+        ((self.parameters.resolution - 1)
+            ..(self.layers.len() as i32 + self.parameters.resolution - 1))
+            .zip(self.layers.iter())
+            .rev()
     }
 
     pub fn len(&self) -> usize {
@@ -367,16 +353,16 @@ impl<M: Metric> CoverTreeWriter<M> {
         <P as plugins::GrandmaPlugin<M>>::NodeComponent: 'static,
     {
         let reader = self.reader();
-        for (si, layer) in reader.layers() {
+        for (si, layer) in reader.layers().rev() {
             layer.for_each_node(|pi, n| {
                 let node_component = P::node_component(&plug_in, n, &reader);
                 unsafe {
                     self.update_node((si, *pi), move |n| n.insert_plugin(node_component.clone()))
                 }
             });
+            self.refresh();
         }
         self.parameters.plugins.write().unwrap().insert(plug_in);
-        self.refresh();
     }
 
     /// Provides a reference to a `CoverLayerWriter`. Do not use, unless you're going to leave the tree in a *valid* state.
@@ -457,7 +443,7 @@ impl<M: Metric> CoverTreeWriter<M> {
     /// Swaps the maps on each layer so that any `CoverTreeReaders` see the updated tree.
     /// Only call once you have a valid tree.
     pub fn refresh(&mut self) {
-        self.layers.par_iter_mut().for_each(|l| l.refresh());
+        self.layers.iter_mut().rev().for_each(|l| l.refresh());
     }
 }
 
@@ -502,7 +488,7 @@ pub(crate) mod tests {
         for _ in reader.layers() {
             l += 1;
         }
-        assert_eq!(reader.len(),l);
+        assert_eq!(reader.len(), l);
     }
 
     #[test]
@@ -511,9 +497,13 @@ pub(crate) mod tests {
         let reader = tree.reader();
         let mut got_one = false;
         let mut l: i32 = reader.root_address().0;
-        for (si,l) in reader.layers() {
-            println!("Scale Index, correct: {:?}, Scale Index, layer: {:?}", si,l.scale_index());
-            assert_eq!(si,l.scale_index());
+        for (si, l) in reader.layers() {
+            println!(
+                "Scale Index, correct: {:?}, Scale Index, layer: {:?}",
+                si,
+                l.scale_index()
+            );
+            assert_eq!(si, l.scale_index());
             got_one = true;
         }
         assert!(got_one);

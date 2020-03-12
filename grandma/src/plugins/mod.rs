@@ -1,24 +1,21 @@
 use crate::node::CoverNode;
 use crate::tree::CoverTreeReader;
 use crate::*;
-use anymap::SyncAnyMap as SyncMap;
+use anymap::SendSyncAnyMap;
 
 use std::any::TypeId;
 use std::collections::HashMap;
 use std::fmt::Debug;
 
+pub mod diag_gaussian;
+
 pub trait NodePlugin<M: Metric>: Send + Sync + Debug {
     fn update(&mut self, my_node: &CoverNode<M>, my_tree: &CoverTreeReader<M>);
 }
 
-//type SyncMap = Map<Any + Send + Sync>;
-
-pub type NodePluginSet = SyncMap;
-
 pub trait TreePlugin<M: Metric>: Send + Sync + Debug {
     fn update(&mut self, my_tree: &CoverTreeReader<M>);
 }
-pub type TreePluginSet = SyncMap;
 
 pub trait GrandmaPlugin<M: Metric> {
     type NodeComponent: NodePlugin<M> + Clone + 'static;
@@ -30,6 +27,9 @@ pub trait GrandmaPlugin<M: Metric> {
     ) -> Self::NodeComponent;
 }
 
+pub type NodePluginSet = SendSyncAnyMap;
+pub type TreePluginSet = SendSyncAnyMap;
+
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
@@ -39,6 +39,7 @@ pub(crate) mod tests {
     struct DumbNode1 {
         id: u32,
         pi: PointIndex,
+        cover_count: usize,
     }
 
     impl<M: Metric> NodePlugin<M> for DumbNode1 {
@@ -69,9 +70,37 @@ pub(crate) mod tests {
             my_node: &CoverNode<M>,
             my_tree: &CoverTreeReader<M>,
         ) -> Self::NodeComponent {
+            println!(
+                "Building Dumb Plugin for {:?}",
+                (my_node.scale_index(), my_node.center_index())
+            );
+            let cover_count = match my_node.children() {
+                None => my_node.singleton_len(),
+                Some((nested_scale, child_addresses)) => {
+                    println!(
+                        "trying to get at the nodes at {:?}",
+                        (nested_scale, child_addresses)
+                    );
+                    let mut cover_count = my_tree
+                        .get_node_plugin_and::<Self::NodeComponent, _, _>(
+                            (nested_scale, *my_node.center_index()),
+                            |p| p.cover_count,
+                        )
+                        .unwrap();
+                    for ca in child_addresses {
+                        cover_count += my_tree
+                            .get_node_plugin_and::<Self::NodeComponent, _, _>(*ca, |p| {
+                                p.cover_count
+                            })
+                            .unwrap();
+                    }
+                    cover_count
+                }
+            };
             DumbNode1 {
                 id: parameters.id,
                 pi: *my_node.center_index(),
+                cover_count,
             }
         }
     }
