@@ -1,17 +1,26 @@
+//! # Diagonal Gaussian
+//! 
+//! This computes a coordinate bound multivariate Gaussian. 
+
 use super::*;
 
+/// Node component, coded in such a way that it can be efficiently, recursively computed.
 #[derive(Debug, Clone)]
 pub struct DiagGaussianNode {
-    mom1: Vec<f32>,
-    mom2: Vec<f32>,
-    count: usize,
+    /// First Moment
+    pub mom1: Vec<f32>,
+    /// Second Moment
+    pub mom2: Vec<f32>,
+    /// Cover count, divide the first moment by this to get the mean.
+    pub count: usize,
 }
 
 impl DiagGaussianNode {
+    /// Mean: `mom1/count`
     pub fn mean(&self) -> Vec<f32> {
         self.mom1.iter().map(|x| x / (self.count as f32)).collect()
     }
-
+    /// Variance: `mom2/count - (mom1/count)^2`
     pub fn var(&self) -> Vec<f32> {
         self.mom2
             .iter()
@@ -23,23 +32,25 @@ impl DiagGaussianNode {
 }
 
 impl<M: Metric> NodePlugin<M> for DiagGaussianNode {
-    fn update(&mut self, my_node: &CoverNode<M>, my_tree: &CoverTreeReader<M>) {}
+    fn update(&mut self, _my_node: &CoverNode<M>, _my_tree: &CoverTreeReader<M>) {}
 }
 
+/// Zero sized type that can be passed around. Equivilant to `()`
 #[derive(Debug, Clone)]
 pub struct DiagGaussianTree {}
 
 impl<M: Metric> TreePlugin<M> for DiagGaussianTree {
-    fn update(&mut self, my_tree: &CoverTreeReader<M>) {}
+    fn update(&mut self, _my_tree: &CoverTreeReader<M>) {}
 }
 
-pub struct GrandmaDiagGaussian {}
+/// Zero sized type that can be passed around. Equivilant to `()`
+pub struct GrandmaDiagGaussian {}   
 
 impl<M: Metric> GrandmaPlugin<M> for GrandmaDiagGaussian {
     type NodeComponent = DiagGaussianNode;
     type TreeComponent = DiagGaussianTree;
     fn node_component(
-        parameters: &Self::TreeComponent,
+        _parameters: &Self::TreeComponent,
         my_node: &CoverNode<M>,
         my_tree: &CoverTreeReader<M>,
     ) -> Self::NodeComponent {
@@ -110,7 +121,7 @@ pub(crate) mod tests {
         let mom1 = basic_tree_data.iter().fold(0.0, |a, x| a + x);
         let mom2 = basic_tree_data.iter().fold(0.0, |a, x| a + x * x);
         let count = basic_tree_data.len();
-        let mut d = DiagGaussianTree {};
+        let d = DiagGaussianTree {};
         let mut tree = build_basic_tree();
         tree.add_plugin::<GrandmaDiagGaussian>(d);
         println!("{:?}", tree.reader().len());
@@ -118,7 +129,7 @@ pub(crate) mod tests {
 
         for (si, layer) in tree.reader().layers() {
             println!("Scale Index: {:?}", si);
-            layer.for_each_node(|pi, n| {
+            layer.for_each_node(|_pi, n| {
                 if n.is_leaf() {
                     n.get_plugin_and::<DiagGaussianNode, _, _>(|p| {
                         println!(

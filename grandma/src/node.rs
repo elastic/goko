@@ -112,6 +112,8 @@ impl<M: Metric> CoverNode<M> {
         }
     }
 
+    /// Reads the contents of a plugin, due to the nature of the plugin map we have to access it with a 
+    /// closure.
     pub fn get_plugin_and<T: Send + Sync + 'static, F, S>(&self, transform_fn: F) -> Option<S>
     where
         F: FnOnce(&T) -> S,
@@ -343,7 +345,7 @@ mod tests {
     use super::*;
 
     use crate::query_tools::query_items::QueryAddress;
-    use crate::query_tools::tests::clone_unvisited_nodes;
+    use crate::query_tools::knn_query_heap::tests::clone_unvisited_nodes;
     use crate::tree::tests::build_mnist_tree;
 
     fn create_test_node<M: Metric>() -> CoverNode<M> {

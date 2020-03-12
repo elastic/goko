@@ -128,15 +128,17 @@ impl PyGrandma {
         self.reader.as_ref().map(|r| r.scale_range().start)
     }
 
-    /*
-    pub fn layers(&self) -> PyResult<PyGrandLayer> {
+    
+    pub fn layers(&self) -> PyResult<IterLayers> {
         let reader = self.reader.as_ref().unwrap();
-        Ok(PyGrandLayer {
+        let layers = self.layers.as_ref().unwrap();
+        Ok(IterLayers {
             parameters: Arc::clone(reader.parameters()),
-            layer: reader.layer(scale_index).reader(),
+            layers: layers.clone(),
+            index: 0,
         })
     }
-    */
+    
 
     pub fn layer(&self, scale_index: i32) -> PyResult<PyGrandLayer> {
         let reader = self.reader.as_ref().unwrap();
@@ -155,6 +157,39 @@ impl PyGrandma {
             .knn(point.as_slice().unwrap(), k)
             .unwrap();
         results.iter().map(|(d, i)| *i).collect()
+    }
+}
+
+#[pyclass(module = "py_egs_events")]
+pub struct IterLayers {
+    parameters: Arc<CoverTreeParameters<L2>>,
+    layers: Vec<Arc<CoverLayerReader<L2>>>,
+    index: usize,
+}
+
+impl std::iter::Iterator for IterLayers {
+    type Item = PyGrandLayer;
+    fn next(&mut self) -> Option<PyGrandLayer> {
+        if self.index < self.layers.len() {
+            let index = self.index;
+            self.index += 1;
+            Some(PyGrandLayer {
+                parameters: Arc::clone(&self.parameters),
+                layer: Arc::clone(&self.layers[index]),
+            })
+        } else {
+            None
+        }
+    }
+}
+
+#[pyproto]
+impl PyIterProtocol for IterLayers {
+    fn __iter__(slf: PyRefMut<Self>) -> PyResult<Py<IterLayers>> {
+        Ok(slf.into())
+    }
+    fn __next__(mut slf: PyRefMut<Self>) -> PyResult<Option<PyGrandLayer>> {
+        Ok(slf.next())
     }
 }
 
@@ -261,6 +296,51 @@ impl PyGrandLayer {
             layer: Arc::clone(&self.layer),
         })
     }
+
+    pub fn nodes(&self) -> PyResult<IterLayerNode> {
+        Ok(IterLayerNode {
+            parameters: Arc::clone(&self.parameters),
+            center_indexed: self.layer.node_center_indexes(),
+            layer: Arc::clone(&self.layer),
+            index: 0,
+        })
+    }
+}
+
+
+#[pyclass(module = "py_egs_events")]
+pub struct IterLayerNode {
+    parameters: Arc<CoverTreeParameters<L2>>,
+    center_indexed: Vec<PointIndex>,
+    layer: Arc<CoverLayerReader<L2>>,
+    index: usize,
+}
+
+impl std::iter::Iterator for IterLayerNode {
+    type Item = PyGrandNode;
+    fn next(&mut self) -> Option<PyGrandNode> {
+        if self.index < self.center_indexed.len() {
+            let index = self.index;
+            self.index += 1;
+            Some(PyGrandNode {
+                parameters: Arc::clone(&self.parameters),
+                center_index: self.center_indexed[index],
+                layer: Arc::clone(&self.layer),
+            })
+        } else {
+            None
+        }
+    }
+}
+
+#[pyproto]
+impl PyIterProtocol for IterLayerNode {
+    fn __iter__(slf: PyRefMut<Self>) -> PyResult<Py<IterLayerNode>> {
+        Ok(slf.into())
+    }
+    fn __next__(mut slf: PyRefMut<Self>) -> PyResult<Option<PyGrandNode>> {
+        Ok(slf.next())
+    }
 }
 
 #[pyclass(module = "pygrandma")]
@@ -272,6 +352,9 @@ pub struct PyGrandNode {
 
 #[pymethods]
 impl PyGrandNode {
+    pub fn center_index(&self) -> u64 {
+        self.center_index
+    }
     pub fn cover_mean(&self) -> PyResult<Py<PyArray1<f32>>> {
         let dim = self.parameters.point_cloud.dim();
         let mean = self

@@ -35,3 +35,10 @@ tree.set_scale_base(1.3)
 tree.fit(data)
 
 print(tree.knn(data[0],5))
+
+layers = [l for l in tree.layers()]
+
+for layer in layers[:3]:
+    print(f"On layer {layer.scale_index()}")
+    for node in layer.nodes():
+        print(f"\tNode {node.center_index()} mean: {node.cover_mean().mean()}")

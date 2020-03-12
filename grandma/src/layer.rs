@@ -61,6 +61,8 @@ impl<M: Metric> CoverLayerReader<M> {
         self.node_reader.get_and(pi, |n| f(n))
     }
 
+    /// Reads the contents of a plugin, due to the nature of the plugin map we have to access it with a 
+    /// closure.
     pub fn get_node_plugin_and<T: Send + Sync + 'static, F, S>(
         &self,
         center_index: PointIndex,
@@ -99,6 +101,12 @@ impl<M: Metric> CoverLayerReader<M> {
         self.node_reader
             .get_and(pi, |n| n.children().map(|(si, c)| f((si, *pi), c)))
             .flatten()
+    }
+
+    /// Grabs all children indexes and allows you to query against them. Usually used at the tree level so that you
+    /// can access the child nodes as they are not on this layer.
+    pub fn node_center_indexes(&self) -> Vec<PointIndex> {
+        self.node_reader.map_into(|pi,_| *pi)
     }
 
     #[doc(hidden)]
@@ -279,6 +287,11 @@ impl<M: Metric> CoverLayerWriter<M> {
             node_writer,
             cluster_index: Arc::new(atomic::AtomicUsize::new(0)),
         }
+    }
+
+    /// Read only accessor for the scale index.
+    pub(crate) fn scale_index(&self) -> i32 {
+        self.scale_index
     }
 
     pub(crate) fn save(&self) -> LayerProto {

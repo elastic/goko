@@ -41,7 +41,7 @@ use node::*;
 use std::sync::{atomic, Arc, RwLock};
 use tree_file_format::*;
 
-use crate::plugins::{GrandmaPlugin, TreePlugin, TreePluginSet};
+use crate::plugins::{GrandmaPlugin, TreePluginSet};
 use crate::query_tools::KnnQueryHeap;
 use errors::GrandmaResult;
 use std::iter::Iterator;
@@ -85,7 +85,7 @@ impl<M: Metric> CoverTreeParameters<M> {
 }
 
 /// Helper struct for iterating thru the reader's of the the layers.
-pub type LayerIter<'a, M: Metric> = Rev<std::iter::Zip<Range<i32>, Iter<'a, CoverLayerReader<M>>>>;
+pub type LayerIter<'a, M> = Rev<std::iter::Zip<Range<i32>, Iter<'a, CoverLayerReader<M>>>>;
 
 /// # Cover Tree Reader Head
 ///
@@ -133,7 +133,7 @@ impl<M: Metric> CoverTreeReader<M> {
         self.root_address
     }
 
-    ///
+    /// An iterator for accessing the layers starting from the layer who holds the root.
     pub fn layers<'a>(&'a self) -> LayerIter<M> {
         ((self.parameters.resolution - 1)
             ..(self.layers.len() as i32 + self.parameters.resolution - 1))
@@ -141,6 +141,7 @@ impl<M: Metric> CoverTreeReader<M> {
             .rev()
     }
 
+    /// Returns the number of layers in the tree. This is _not_ the number of non-zero layers.
     pub fn len(&self) -> usize {
         self.layers.len()
     }
@@ -160,6 +161,7 @@ impl<M: Metric> CoverTreeReader<M> {
         (self.parameters.resolution)..(self.parameters.resolution - 1 + self.layers.len() as i32)
     }
 
+    /// Access the stored tree plugin
     pub fn get_plugin_and<T: Send + Sync + 'static, F, S>(&self, transform_fn: F) -> Option<S>
     where
         F: FnOnce(&T) -> S,
@@ -172,6 +174,8 @@ impl<M: Metric> CoverTreeReader<M> {
             .map(transform_fn)
     }
 
+    /// Reads the contents of a plugin, due to the nature of the plugin map we have to access it with a 
+    /// closure.
     pub fn get_node_plugin_and<T: Send + Sync + 'static, F, S>(
         &self,
         node_address: (i32, PointIndex),
@@ -219,6 +223,32 @@ impl<M: Metric> CoverTreeReader<M> {
         }
 
         Ok(query_heap.unpack())
+    }
+
+    /// # The Trace Query
+    /// 
+    /// This returns the closest node on each layer, terminating at a leaf, to the query point. It terminates 
+    /// when the closest node is a leaf node. 
+    /// 
+    /// Todo: More Documentation, make this the k closest nodes on each layer.
+    pub fn node_trace(&self, point: &[f32]) -> GrandmaResult<Vec<(f32, NodeAddress)>> {
+        let mut query_heap = KnnQueryHeap::new(1, self.parameters.scale_base);
+
+        let root_center = self.parameters.point_cloud.get_point(self.root_address.1)?;
+        let dist_to_root = M::dense(root_center, point);
+        query_heap.push_nodes(&[self.root_address], &[dist_to_root], None);
+        self.greedy_knn_nodes(&point, &mut query_heap);
+
+        let mut trace_vec = Vec::new();
+        while let Some((dist, nearest_address)) =
+            query_heap.closest_unvisited_child_covering_address()
+        {
+            trace_vec.push((dist, nearest_address));
+        }
+
+        trace_vec.sort_by_key(|(_dist, (si,_pi))| {-si});
+
+        Ok(trace_vec)
     }
 
     fn greedy_knn_nodes(&self, point: &[f32], query_heap: &mut KnnQueryHeap) {
@@ -345,6 +375,7 @@ impl<M: Metric> CoverTreeWriter<M> {
         Ok(())
     }
 
+    /// 
     pub fn add_plugin<P: GrandmaPlugin<M>>(
         &mut self,
         plug_in: <P as plugins::GrandmaPlugin<M>>::TreeComponent,
@@ -353,14 +384,14 @@ impl<M: Metric> CoverTreeWriter<M> {
         <P as plugins::GrandmaPlugin<M>>::NodeComponent: 'static,
     {
         let reader = self.reader();
-        for (si, layer) in reader.layers().rev() {
-            layer.for_each_node(|pi, n| {
+        for layer in self.layers.iter_mut() {
+            layer.reader().for_each_node(|pi, n| {
                 let node_component = P::node_component(&plug_in, n, &reader);
                 unsafe {
-                    self.update_node((si, *pi), move |n| n.insert_plugin(node_component.clone()))
+                    layer.update_node(*pi, move |n| n.insert_plugin(node_component.clone()))
                 }
             });
-            self.refresh();
+            layer.refresh()
         }
         self.parameters.plugins.write().unwrap().insert(plug_in);
     }
@@ -481,7 +512,7 @@ pub(crate) mod tests {
 
     #[test]
     fn len_is_num_layers() {
-        let mut tree = build_basic_tree();
+        let tree = build_basic_tree();
         let reader = tree.reader();
 
         let mut l = 0;
@@ -493,10 +524,9 @@ pub(crate) mod tests {
 
     #[test]
     fn layer_has_correct_scale_index() {
-        let mut tree = build_basic_tree();
+        let tree = build_basic_tree();
         let reader = tree.reader();
         let mut got_one = false;
-        let mut l: i32 = reader.root_address().0;
         for (si, l) in reader.layers() {
             println!(
                 "Scale Index, correct: {:?}, Scale Index, layer: {:?}",
@@ -551,6 +581,19 @@ pub(crate) mod tests {
             "{:#?}",
             query_heap.closest_unvisited_child_covering_address()
         );
+    }
+
+    #[test]
+    fn trace_sanity() {
+        let writer = build_basic_tree();
+        let reader = writer.reader();
+        let trace = reader.node_trace(&[0.495]).unwrap();
+        assert_eq!(trace[0].1,reader.root_address());
+        println!("{:?}", trace);
+        for i in 0..(trace.len() - 1) {
+
+            assert!(trace[i] > trace[i+1]);
+        }
     }
 
     #[test]
