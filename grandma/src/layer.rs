@@ -61,6 +61,18 @@ impl<M: Metric> CoverLayerReader<M> {
         self.node_reader.get_and(pi, |n| f(n))
     }
 
+    pub fn get_node_plugin_and<T: Send + Sync + 'static, F, S>(
+        &self,
+        center_index: PointIndex,
+        transform_fn: F,
+    ) -> Option<S>
+    where
+        F: FnOnce(&T) -> S,
+    {
+        self.get_node_and(&center_index, |n| n.get_plugin_and(transform_fn))
+            .flatten()
+    }
+
     /// Read only access to all nodes.
     pub fn for_each_node<F>(&self, f: F)
     where
@@ -209,7 +221,7 @@ pub struct CoverCluster {
 }
 
 /// Primarily contains the node writer head, but also has the cluster writer head and the index head.
-pub(crate) struct CoverLayerWriter<M: Metric> {
+pub struct CoverLayerWriter<M: Metric> {
     scale_index: i32,
     node_writer: MonoWriteHandle<PointIndex, CoverNode<M>>,
     cluster_writer: MonoWriteHandle<usize, CoverCluster>,

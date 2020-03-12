@@ -19,23 +19,24 @@
 
 use pyo3::prelude::*;
 
-use ndarray::{Array,Array2};
-use numpy::{IntoPyArray, PyArray1,PyArray2};
+use ndarray::{Array, Array1, Array2};
+use numpy::{IntoPyArray, PyArray1, PyArray2};
 use pyo3::PyIterProtocol;
 
-use grandma::*;
 use grandma::layer::*;
+use grandma::plugins::*;
+use grandma::*;
 use pointcloud::*;
 use std::sync::Arc;
 
 use rayon::prelude::*;
-
 
 #[pyclass(module = "pygrandma")]
 pub struct PyGrandma {
     builder: Option<CoverTreeBuilder>,
     writer: Option<CoverTreeWriter<L2>>,
     reader: Option<CoverTreeReader<L2>>,
+    layers: Option<Vec<Arc<CoverLayerReader<L2>>>>,
     metric: String,
 }
 
@@ -47,6 +48,7 @@ impl PyGrandma {
             builder: Some(CoverTreeBuilder::new()),
             writer: None,
             reader: None,
+            layers: None,
             metric: "L2".to_string(),
         });
         Ok(())
@@ -76,11 +78,11 @@ impl PyGrandma {
         };
     }
 
-    pub fn set_metric(&mut self, metric_name:String) {
+    pub fn set_metric(&mut self, metric_name: String) {
         self.metric = metric_name;
     }
 
-    pub fn fit(&mut self,data:&PyArray2<f32>, labels:Option<&PyArray2<f32>>) -> PyResult<()>  {
+    pub fn fit(&mut self, data: &PyArray2<f32>, labels: Option<&PyArray2<f32>>) -> PyResult<()> {
         let len = data.shape()[0];
         let data_dim = data.shape()[1];
         let labels_dim;
@@ -88,21 +90,36 @@ impl PyGrandma {
             Some(labels) => {
                 labels_dim = labels.shape()[1];
                 Box::from(labels.as_slice().unwrap())
-            },
+            }
             None => {
                 labels_dim = 1;
-                Box::from(vec![0.0;len])
-            },
+                Box::from(vec![0.0; len])
+            }
         };
-        let pointcloud = PointCloud::<L2>::simple_from_ram(Box::from(data.as_slice().unwrap()),data_dim,my_labels,labels_dim).unwrap();
+        let pointcloud = PointCloud::<L2>::simple_from_ram(
+            Box::from(data.as_slice().unwrap()),
+            data_dim,
+            my_labels,
+            labels_dim,
+        )
+        .unwrap();
         println!("{:?}", pointcloud);
         let builder = self.builder.take();
         self.writer = Some(builder.unwrap().build(pointcloud).unwrap());
-        self.reader = Some(self.writer.as_ref().unwrap().reader());
+        let writer = self.writer.as_mut().unwrap();
+        writer.add_plugin::<GrandmaDiagGaussian>(DiagGaussianTree {});
+        let reader = writer.reader();
+        self.layers = Some(
+            reader
+                .layers()
+                .map(|(si, _)| Arc::new(reader.layer(si).reader()))
+                .collect(),
+        );
+        self.reader = Some(reader);
         Ok(())
     }
 
-    //pub fn layers(&self) -> 
+    //pub fn layers(&self) ->
     pub fn top_scale(&self) -> Option<i32> {
         self.reader.as_ref().map(|r| r.scale_range().end - 1)
     }
@@ -111,32 +128,40 @@ impl PyGrandma {
         self.reader.as_ref().map(|r| r.scale_range().start)
     }
 
-    pub fn layer(&self,scale_index:i32) -> PyResult<PyGrandLayer> {
+    /*
+    pub fn layers(&self) -> PyResult<PyGrandLayer> {
         let reader = self.reader.as_ref().unwrap();
         Ok(PyGrandLayer {
             parameters: Arc::clone(reader.parameters()),
             layer: reader.layer(scale_index).reader(),
         })
     }
+    */
 
-    pub fn layers(&self,scale_index:i32) -> PyResult<PyGrandLayer> {
+    pub fn layer(&self, scale_index: i32) -> PyResult<PyGrandLayer> {
         let reader = self.reader.as_ref().unwrap();
+        let layers = self.layers.as_ref().unwrap();
         Ok(PyGrandLayer {
             parameters: Arc::clone(reader.parameters()),
-            layer: reader.layer(scale_index).reader(),
+            layer: Arc::new(reader.layer(scale_index).reader()),
         })
     }
 
-    pub fn knn(&self,point:&PyArray1<f32>,k:usize) -> Vec<u64> {
-        let results = self.reader.as_ref().unwrap().knn(point.as_slice().unwrap(),k).unwrap();
-        results.iter().map(|(d,i)| *i).collect()
+    pub fn knn(&self, point: &PyArray1<f32>, k: usize) -> Vec<u64> {
+        let results = self
+            .reader
+            .as_ref()
+            .unwrap()
+            .knn(point.as_slice().unwrap(), k)
+            .unwrap();
+        results.iter().map(|(d, i)| *i).collect()
     }
 }
 
 #[pyclass(module = "pygrandma")]
 pub struct PyGrandLayer {
     parameters: Arc<CoverTreeParameters<L2>>,
-    layer: CoverLayerReader,
+    layer: Arc<CoverLayerReader<L2>>,
 }
 
 #[pymethods]
@@ -151,61 +176,124 @@ impl PyGrandLayer {
         self.layer.node_count()
     }
     pub fn center_indexes(&self) -> Vec<u64> {
-        self.layer.map_nodes(|pi,_n| *pi as u64)
+        self.layer.map_nodes(|pi, _n| *pi as u64)
     }
-    pub fn child_addresses(&self,point_index:u64) -> Option<Vec<(i32,u64)>> {
-        self.layer.get_node_children_and(&point_index,|nested_address,child_addresses| {let mut v = vec![nested_address]; v.extend(child_addresses); v})
+    pub fn child_addresses(&self, point_index: u64) -> Option<Vec<(i32, u64)>> {
+        self.layer
+            .get_node_children_and(&point_index, |nested_address, child_addresses| {
+                let mut v = vec![nested_address];
+                v.extend(child_addresses);
+                v
+            })
     }
-    pub fn singleton_indexes(&self,point_index:u64) -> Option<Vec<u64>> {
-        self.layer.get_node_and(&point_index,|n| Vec::from(n.singletons()))
+    pub fn singleton_indexes(&self, point_index: u64) -> Option<Vec<u64>> {
+        self.layer
+            .get_node_and(&point_index, |n| Vec::from(n.singletons()))
     }
 
-    pub fn is_leaf(&self,point_index:u64) -> Option<bool> {
-        self.layer.get_node_and(&point_index,|n| n.is_leaf())
+    pub fn is_leaf(&self, point_index: u64) -> Option<bool> {
+        self.layer.get_node_and(&point_index, |n| n.is_leaf())
     }
 
-    pub fn centers(&self) -> PyResult<(Py<PyArray1<u64>>,Py<PyArray2<f32>>)> {
-        let mut centers = Vec::with_capacity(self.layer.node_count()*self.parameters.point_cloud.dim());
+    pub fn centers(&self) -> PyResult<(Py<PyArray1<u64>>, Py<PyArray2<f32>>)> {
+        let mut centers =
+            Vec::with_capacity(self.layer.node_count() * self.parameters.point_cloud.dim());
         let mut centers_indexes = Vec::with_capacity(self.layer.node_count());
-        self.layer.for_each_node(|pi,_n| {
+        self.layer.for_each_node(|pi, _n| {
             centers_indexes.push(*pi);
             centers.extend(self.parameters.point_cloud.get_point(*pi).unwrap());
         });
         let py_center_indexes = Array::from(centers_indexes);
-        let py_centers = Array2::from_shape_vec((self.layer.node_count(), self.parameters.point_cloud.dim()), centers).unwrap();
+        let py_centers = Array2::from_shape_vec(
+            (self.layer.node_count(), self.parameters.point_cloud.dim()),
+            centers,
+        )
+        .unwrap();
         let gil = GILGuard::acquire();
         let py = gil.python();
-        Ok((py_center_indexes.into_pyarray(py).to_owned(),py_centers.into_pyarray(py).to_owned()))
+        Ok((
+            py_center_indexes.into_pyarray(py).to_owned(),
+            py_centers.into_pyarray(py).to_owned(),
+        ))
     }
 
-    pub fn child_points(&self,point_index:u64) -> PyResult<Option<Py<PyArray2<f32>>>> {
+    pub fn child_points(&self, point_index: u64) -> PyResult<Option<Py<PyArray2<f32>>>> {
         let dim = self.parameters.point_cloud.dim();
-        Ok(self.layer.get_node_children_and(&point_index,|nested_address,child_addresses| {
-            let count = child_addresses.len() + 1;
-            let mut centers: Vec<f32> = Vec::with_capacity(count*dim);
-            centers.extend(self.parameters.point_cloud.get_point(nested_address.1).unwrap());
-            for na in child_addresses {
-                centers.extend(self.parameters.point_cloud.get_point(na.1).unwrap());
-            }
-            let py_centers = Array2::from_shape_vec((count,dim), centers).unwrap();
-            let gil = GILGuard::acquire();
-            let py = gil.python();
-            py_centers.into_pyarray(py).to_owned()
-        }))
+        Ok(self
+            .layer
+            .get_node_children_and(&point_index, |nested_address, child_addresses| {
+                let count = child_addresses.len() + 1;
+                let mut centers: Vec<f32> = Vec::with_capacity(count * dim);
+                centers.extend(
+                    self.parameters
+                        .point_cloud
+                        .get_point(nested_address.1)
+                        .unwrap(),
+                );
+                for na in child_addresses {
+                    centers.extend(self.parameters.point_cloud.get_point(na.1).unwrap());
+                }
+                let py_centers = Array2::from_shape_vec((count, dim), centers).unwrap();
+                let gil = GILGuard::acquire();
+                let py = gil.python();
+                py_centers.into_pyarray(py).to_owned()
+            }))
     }
-    pub fn singleton_points(&self,point_index:u64) -> PyResult<Option<Py<PyArray2<f32>>>> {
+    pub fn singleton_points(&self, point_index: u64) -> PyResult<Option<Py<PyArray2<f32>>>> {
         let dim = self.parameters.point_cloud.dim();
-        Ok(self.layer.get_node_and(&point_index,|node| {
+        Ok(self.layer.get_node_and(&point_index, |node| {
             let singletons = node.singletons();
-            let mut centers: Vec<f32> = Vec::with_capacity(singletons.len()*dim);
+            let mut centers: Vec<f32> = Vec::with_capacity(singletons.len() * dim);
             for pi in singletons {
                 centers.extend(self.parameters.point_cloud.get_point(*pi).unwrap());
             }
-            let py_centers = Array2::from_shape_vec((singletons.len(),dim), centers).unwrap();
+            let py_centers = Array2::from_shape_vec((singletons.len(), dim), centers).unwrap();
             let gil = GILGuard::acquire();
             let py = gil.python();
             py_centers.into_pyarray(py).to_owned()
         }))
+    }
+
+    pub fn node(&self, center_index: u64) -> PyResult<PyGrandNode> {
+        Ok(PyGrandNode {
+            parameters: Arc::clone(&self.parameters),
+            center_index,
+            layer: Arc::clone(&self.layer),
+        })
+    }
+}
+
+#[pyclass(module = "pygrandma")]
+pub struct PyGrandNode {
+    parameters: Arc<CoverTreeParameters<L2>>,
+    center_index: PointIndex,
+    layer: Arc<CoverLayerReader<L2>>,
+}
+
+#[pymethods]
+impl PyGrandNode {
+    pub fn cover_mean(&self) -> PyResult<Py<PyArray1<f32>>> {
+        let dim = self.parameters.point_cloud.dim();
+        let mean = self
+            .layer
+            .get_node_plugin_and::<DiagGaussianNode, _, _>(self.center_index, |p| p.mean())
+            .unwrap();
+        let py_mean = Array1::from_shape_vec((dim,), mean).unwrap();
+        let gil = GILGuard::acquire();
+        let py = gil.python();
+        Ok(py_mean.into_pyarray(py).to_owned())
+    }
+
+    pub fn cover_diag_var(&self) -> PyResult<Py<PyArray1<f32>>> {
+        let dim = self.parameters.point_cloud.dim();
+        let var = self
+            .layer
+            .get_node_plugin_and::<DiagGaussianNode, _, _>(self.center_index, |p| p.var())
+            .unwrap();
+        let py_mean = Array1::from_shape_vec((dim,), var).unwrap();
+        let gil = GILGuard::acquire();
+        let py = gil.python();
+        Ok(py_mean.into_pyarray(py).to_owned())
     }
 }
 
@@ -214,4 +302,3 @@ fn pygrandma(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
     m.add_class::<PyGrandma>()?;
     Ok(())
 }
-

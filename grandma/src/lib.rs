@@ -64,7 +64,7 @@ pub mod query_tools;
 mod tree;
 pub mod utils;
 
-mod plugins;
+pub mod plugins;
 
 pub use builders::CoverTreeBuilder;
 pub use tree::*;

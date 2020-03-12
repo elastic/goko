@@ -3,6 +3,7 @@
 members = [
     "grandma",
     "pointcloud",
+    "pygrandma",
 ]
 
 [profile.dev]

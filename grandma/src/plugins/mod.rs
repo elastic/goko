@@ -9,6 +9,8 @@ use std::fmt::Debug;
 
 pub mod diag_gaussian;
 
+pub use diag_gaussian::*;
+
 pub trait NodePlugin<M: Metric>: Send + Sync + Debug {
     fn update(&mut self, my_node: &CoverNode<M>, my_tree: &CoverTreeReader<M>);
 }
