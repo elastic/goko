@@ -42,7 +42,7 @@ use std::sync::{atomic, Arc, RwLock};
 use tree_file_format::*;
 
 use crate::plugins::{GrandmaPlugin, TreePluginSet};
-use crate::query_tools::KnnQueryHeap;
+use crate::query_tools::{KnnQueryHeap,TraceQueryHeap};
 use errors::GrandmaResult;
 use std::iter::Iterator;
 use std::iter::Rev;
@@ -225,33 +225,21 @@ impl<M: Metric> CoverTreeReader<M> {
         Ok(query_heap.unpack())
     }
 
-    /// # The Trace Query
     /// 
-    /// This returns the closest node on each layer, terminating at a leaf, to the query point. It terminates 
-    /// when the closest node is a leaf node. 
-    /// 
-    /// Todo: More Documentation, make this the k closest nodes on each layer.
-    pub fn node_trace(&self, point: &[f32]) -> GrandmaResult<Vec<(f32, NodeAddress)>> {
-        let mut query_heap = KnnQueryHeap::new(1, self.parameters.scale_base);
+    pub fn routing_knn(&self, point: &[f32], k: usize) -> GrandmaResult<Vec<(f32, PointIndex)>> {
+        let mut query_heap = KnnQueryHeap::new(k, self.parameters.scale_base);
 
         let root_center = self.parameters.point_cloud.get_point(self.root_address.1)?;
         let dist_to_root = M::dense(root_center, point);
         query_heap.push_nodes(&[self.root_address], &[dist_to_root], None);
         self.greedy_knn_nodes(&point, &mut query_heap);
 
-        let mut trace_vec = Vec::new();
-        while let Some((dist, nearest_address)) =
-            query_heap.closest_unvisited_child_covering_address()
-        {
-            trace_vec.push((dist, nearest_address));
-        }
-
-        trace_vec.sort_by_key(|(_dist, (si,_pi))| {-si});
-
-        Ok(trace_vec)
+        while self.greedy_knn_nodes(&point, &mut query_heap) {}
+        Ok(query_heap.unpack())
     }
 
-    fn greedy_knn_nodes(&self, point: &[f32], query_heap: &mut KnnQueryHeap) {
+    fn greedy_knn_nodes(&self, point: &[f32], query_heap: &mut KnnQueryHeap) -> bool {
+        let mut did_something = false;
         loop {
             if let Some((dist, nearest_address)) =
                 query_heap.closest_unvisited_child_covering_address()
@@ -266,10 +254,38 @@ impl<M: Metric> CoverTreeReader<M> {
                         n.child_knn(Some(dist), point, &self.parameters.point_cloud, query_heap)
                     });
                 }
+                did_something = true;
             } else {
                 break;
             }
         }
+        did_something
+    }
+
+    /// # The Trace Query
+    /// 
+    /// This returns the closest node on each layer, terminating at a leaf, to the query point. It terminates 
+    /// when the closest node is a leaf node. 
+    /// 
+    /// Todo: More Documentation, make this the k closest nodes on each layer.
+    pub fn node_trace(&self, point: &[f32]) -> GrandmaResult<Vec<(f32, NodeAddress)>> {
+        let mut query_heap = TraceQueryHeap::new(1, self.parameters.scale_base);
+
+        let root_center = self.parameters.point_cloud.get_point(self.root_address.1)?;
+        let dist_to_root = M::dense(root_center, point);
+        query_heap.push_nodes(&[self.root_address], &[dist_to_root], None);
+        self.greedy_knn_nodes(&point, &mut query_heap);
+
+        let mut trace_vec = Vec::new();
+        while let Some((dist, nearest_address)) =
+            query_heap.closest_address()
+        {
+
+        }
+
+        trace_vec.sort_by_key(|(_dist, (si,_pi))| {-si});
+
+        Ok(trace_vec)
     }
 
     /// Checks that there are no node addresses in the child list of any node that don't reference a node in the tree.
@@ -591,7 +607,6 @@ pub(crate) mod tests {
         assert_eq!(trace[0].1,reader.root_address());
         println!("{:?}", trace);
         for i in 0..(trace.len() - 1) {
-
             assert!(trace[i] > trace[i+1]);
         }
     }
