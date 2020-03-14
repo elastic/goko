@@ -262,6 +262,7 @@ impl<M: Metric> CoverTreeReader<M> {
         did_something
     }
 
+    /*
     /// # The Trace Query
     /// 
     /// This returns the closest node on each layer, terminating at a leaf, to the query point. It terminates 
@@ -287,7 +288,7 @@ impl<M: Metric> CoverTreeReader<M> {
 
         Ok(trace_vec)
     }
-
+    */
     /// Checks that there are no node addresses in the child list of any node that don't reference a node in the tree.
     /// Please calmly panic if there are, the tree is very invalid.
     pub(crate) fn no_dangling_refs(&self) -> bool {
