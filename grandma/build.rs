@@ -16,11 +16,12 @@
 * specific language governing permissions and limitations
 * under the License.
 */
-
 extern crate protoc_rust;
 
+#[cfg(not(feature = "docs-only"))]
 use protoc_rust::Customize;
 
+#[cfg(not(feature = "docs-only"))]
 fn main() {
     protoc_rust::run(protoc_rust::Args {
         out_dir: "src",
@@ -29,6 +30,11 @@ fn main() {
         customize: Customize {
             ..Default::default()
         },
-    })
-    .expect("protoc");
+    }).expect("protoc");
+    println!("cargo:rerun-if-changed=protos/tree_file_format.proto");
+}
+
+#[cfg(feature = "docs-only")]
+fn main() {
+    println!("NOT Building proto");
 }

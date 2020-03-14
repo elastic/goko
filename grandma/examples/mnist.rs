@@ -66,9 +66,8 @@ use grandma::utils::*;
 use grandma::CoverTreeWriter;
 use pointcloud::*;
 
-use std::sync::Arc;
 fn build_tree() -> CoverTreeWriter<L2> {
-    let file_name = "data/ember_complex.yml";
+    let file_name = "../data/ember_complex.yml";
     let path = Path::new(file_name);
     if !path.exists() {
         panic!(file_name.to_owned() + &" does not exist".to_string());
@@ -79,7 +78,7 @@ fn build_tree() -> CoverTreeWriter<L2> {
 fn main() {
     for _i in 0..1 {
         let mut ct = build_tree();
-        ct.cluster().unwrap();
+        //ct.cluster().unwrap();
         ct.refresh();
         let ct_reader = ct.reader();
         println!("Tree has {} nodes", ct_reader.node_count());
