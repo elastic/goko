@@ -6,16 +6,16 @@ use super::*;
 
 use std::collections::{HashMap,VecDeque};
 
-pub struct BucketHKLDiver {
+pub struct BucketHKLDivergence {
     running_pdfs: HashMap<NodeAddress,BucketProbs>,
     sequence: VecDeque<Vec<NodeAddress>>,
     length: usize,
 }
 
 
-impl BucketHKLDiver {
-    pub fn new(size:usize) -> BucketHKLDiver {
-        BucketHKLDiver {
+impl BucketHKLDivergence {
+    pub fn new(size:usize) -> BucketHKLDivergence {
+        BucketHKLDivergence {
             running_pdfs: HashMap::new(),
             sequence: VecDeque::new(),
             length: size,
