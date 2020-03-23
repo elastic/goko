@@ -15,11 +15,16 @@ use crate::*;
 use anymap::SendSyncAnyMap;
 use std::fmt::Debug;
 
-pub mod diag_gaussian;
+mod diag_gaussian;
 pub use diag_gaussian::*;
 
-pub mod bucket_prob;
+mod bucket_prob;
 pub use bucket_prob::*;
+
+mod sequence_kl;
+mod utils {
+    pub use super::sequence_kl::*;
+}
 
 /// Mockup for the plugin interface attached to the node. These are meant to be functions that Grandma uses to maintain the plugin.
 pub trait NodePlugin<M: Metric>: Send + Sync + Debug {

@@ -10,9 +10,9 @@ use std::f32::consts::{E,PI};
 #[derive(Debug, Clone)]
 pub struct DiagGaussian {
     /// First Moment
-    pub mom1: Vec<f32>,
+    pub moment1: Vec<f32>,
     /// Second Moment
-    pub mom2: Vec<f32>,
+    pub moment2: Vec<f32>,
     /// Cover count, divide the first moment by this to get the mean.
     pub count: usize,
 }
@@ -21,8 +21,8 @@ impl DiagGaussian {
     /// Creates a new empty diagonal gaussian
     pub fn new() -> DiagGaussian {
         DiagGaussian { 
-            mom1: Vec::new(),
-            mom2: Vec::new(),
+            moment1: Vec::new(),
+            moment2: Vec::new(),
             count: 0,
         }
     }
@@ -30,12 +30,12 @@ impl DiagGaussian {
     /// adds a point to the Diagonal Gaussian
     pub fn add_point(&mut self, point:&[f32]) {
         if self.count == 0 {
-            self.mom1.extend(point);
-            self.mom2.extend(point.iter().map(|v|v*v));
+            self.moment1.extend(point);
+            self.moment2.extend(point.iter().map(|v|v*v));
             self.count = 1;
         } else {
-            self.mom1.iter_mut().zip(point).for_each(|(m,p)| *m += p );
-            self.mom2.iter_mut().zip(point).for_each(|(m,p)| *m += p*p );
+            self.moment1.iter_mut().zip(point).for_each(|(m,p)| *m += p );
+            self.moment2.iter_mut().zip(point).for_each(|(m,p)| *m += p*p );
             self.count += 1;
         }
     }
@@ -43,8 +43,8 @@ impl DiagGaussian {
     /// removes a point from the Diagonal Gaussian
     pub fn remove_point(&mut self, point:&[f32]) {
         if self.count != 0 {
-            self.mom1.iter_mut().zip(point).for_each(|(m,p)| *m -= p );
-            self.mom2.iter_mut().zip(point).for_each(|(m,p)| *m -= p*p );
+            self.moment1.iter_mut().zip(point).for_each(|(m,p)| *m -= p );
+            self.moment2.iter_mut().zip(point).for_each(|(m,p)| *m -= p*p );
             self.count += 1;
         }
     }
@@ -52,37 +52,37 @@ impl DiagGaussian {
     /// Merges two diagonal gaussians together
     pub fn merge(&mut self, other: &DiagGaussian) {
         if self.count == 0 {
-            self.mom1 = other.mom1.clone();
-            self.mom2 = other.mom2.clone();
+            self.moment1 = other.moment1.clone();
+            self.moment2 = other.moment2.clone();
             self.count = other.count;
         } else {
-            self.mom1.iter_mut().zip(other.mom1.iter()).for_each(|(m,p)| *m += *p );
-            self.mom2.iter_mut().zip(other.mom2.iter()).for_each(|(m,p)| *m += *p );
+            self.moment1.iter_mut().zip(other.moment1.iter()).for_each(|(m,p)| *m += *p );
+            self.moment2.iter_mut().zip(other.moment2.iter()).for_each(|(m,p)| *m += *p );
             self.count += other.count;
         }
     }
 
-    /// Mean: `mom1/count`
+    /// Mean: `moment1/count`
     pub fn mean(&self) -> Vec<f32> {
-        self.mom1.iter().map(|x| x / (self.count as f32)).collect()
+        self.moment1.iter().map(|x| x / (self.count as f32)).collect()
     }
-    /// Variance: `mom2/count - (mom1/count)^2`
+    /// Variance: `moment2/count - (moment1/count)^2`
     pub fn var(&self) -> Vec<f32> {
-        self.mom2
+        self.moment2
             .iter()
             .map(|x| x / (self.count as f32))
-            .zip(self.mom1.iter().map(|x| x / (self.count as f32)))
+            .zip(self.moment1.iter().map(|x| x / (self.count as f32)))
             .map(|(x, u)| x - u * u)
             .collect()
     }
 
     /// Computes the probability density function of the gaussian
     pub fn pdf(&self, point:&[f32]) -> f32 {
-        let means = self.mom1.iter().map(|x| x / (self.count as f32));
-        let vars = self.mom2
+        let means = self.moment1.iter().map(|x| x / (self.count as f32));
+        let vars = self.moment2
             .iter()
             .map(|x| x / (self.count as f32))
-            .zip(self.mom1.iter().map(|x| x / (self.count as f32)))
+            .zip(self.moment1.iter().map(|x| x / (self.count as f32)))
             .map(|(x, u)| x - u * u);
         let mean_vars = means.zip(vars);
 
@@ -95,19 +95,19 @@ impl DiagGaussian {
 
     /// Measures the divergence between this and another gaussian
     pub fn kl_divergence(&self, other:&DiagGaussian) -> f32 {
-        let means = self.mom1.iter().map(|x| x / (self.count as f32));
-        let vars = self.mom2
+        let means = self.moment1.iter().map(|x| x / (self.count as f32));
+        let vars = self.moment2
             .iter()
             .map(|x| x / (self.count as f32))
-            .zip(self.mom1.iter().map(|x| x / (self.count as f32)))
+            .zip(self.moment1.iter().map(|x| x / (self.count as f32)))
             .map(|(x, u)| x - u * u);
         let mean_vars = means.zip(vars);
 
-        let other_means = other.mom1.iter().map(|x| x / (other.count as f32));
-        let other_vars = other.mom2
+        let other_means = other.moment1.iter().map(|x| x / (other.count as f32));
+        let other_vars = other.moment2
             .iter()
             .map(|x| x / (other.count as f32))
-            .zip(other.mom1.iter().map(|x| x / (other.count as f32)))
+            .zip(other.moment1.iter().map(|x| x / (other.count as f32)))
             .map(|(x, u)| x - u * u);
         let other_mean_vars = other_means.zip(other_vars);
 
@@ -119,7 +119,7 @@ impl DiagGaussian {
             (trace,mah_dist,det,other_det)
         }).fold((0.0,0.0,1.0f32,1.0f32),|(a,b,c,d),(x,y,z,w)| (a+x,b+y,c*z,d*w));
 
-        (trace + mah_dist - (self.mom1.len() as f32) + (other_det/det).ln())/2.0
+        (trace + mah_dist - (self.moment1.len() as f32) + (other_det/det).ln())/2.0
     }
 }
 
@@ -164,18 +164,18 @@ impl<M: Metric> GrandmaPlugin<M> for GrandmaDiagGaussian {
         my_node: &CoverNode<M>,
         my_tree: &CoverTreeReader<M>,
     ) -> Self::NodeComponent {
-        let mom1 = my_tree
+        let moment1 = my_tree
             .parameters()
             .point_cloud
             .moment_subset(1, my_node.singletons())
             .unwrap();
-        let mom2 = my_tree
+        let moment2 = my_tree
             .parameters()
             .point_cloud
             .moment_subset(2, my_node.singletons())
             .unwrap();
         let count = my_node.singleton_len();
-        let mut my_dg = DiagGaussian { mom1, mom2, count };
+        let mut my_dg = DiagGaussian { moment1, moment2, count };
 
         // If we're a routing node then grab the childen's values
         if let Some((nested_scale, child_addresses)) = my_node.children() {
@@ -211,8 +211,8 @@ pub(crate) mod tests {
     #[test]
     fn recursive_gaussian_sanity_correct() {
         let basic_tree_data = vec![0.499, 0.49, 0.48, -0.49, 0.0];
-        let mom1 = basic_tree_data.iter().fold(0.0, |a, x| a + x);
-        let mom2 = basic_tree_data.iter().fold(0.0, |a, x| a + x * x);
+        let moment1 = basic_tree_data.iter().fold(0.0, |a, x| a + x);
+        let moment2 = basic_tree_data.iter().fold(0.0, |a, x| a + x * x);
         let count = basic_tree_data.len();
         let mut tree = build_basic_tree();
         tree.add_plugin::<GrandmaDiagGaussian>(GrandmaDiagGaussian::recursive());
@@ -236,28 +236,28 @@ pub(crate) mod tests {
                             n.center_index()
                         );
                         let singles = n.singletons();
-                        let mut s_mom1 = singles
+                        let mut s_moment1 = singles
                             .iter()
                             .map(|i| basic_tree_data[*i as usize])
                             .fold(0.0, |a, x| a + x);
-                        let mut s_mom2 = singles
+                        let mut s_moment2 = singles
                             .iter()
                             .map(|i| basic_tree_data[*i as usize])
                             .fold(0.0, |a, x| a + x * x);
-                        s_mom1 += basic_tree_data[*n.center_index() as usize];
-                        s_mom2 += basic_tree_data[*n.center_index() as usize]
+                        s_moment1 += basic_tree_data[*n.center_index() as usize];
+                        s_moment2 += basic_tree_data[*n.center_index() as usize]
                             * basic_tree_data[*n.center_index() as usize];
                         let s_count = singles.len() + 1;
                         println!(
                             "First moment, expected: {:?}, calculated: {:?}",
-                            s_mom1, p.mom1[0]
+                            s_moment1, p.moment1[0]
                         );
-                        assert_approx_eq!(s_mom1, p.mom1[0]);
+                        assert_approx_eq!(s_moment1, p.moment1[0]);
                         println!(
                             "Second moment, expected: {:?}, calculated: {:?}",
-                            s_mom2, p.mom2[0]
+                            s_moment2, p.moment2[0]
                         );
-                        assert_approx_eq!(s_mom2, p.mom2[0]);
+                        assert_approx_eq!(s_moment2, p.moment2[0]);
                         assert_eq!(s_count, p.count);
                         println!(
                             "=====</Leaf ({},{})>=====",
@@ -286,14 +286,14 @@ pub(crate) mod tests {
         reader.get_node_plugin_and::<DiagGaussian, _, _>(reader.root_address(), |p| {
             println!(
                 "First moment, expected: {:?}, calculated: {:?}",
-                mom1, p.mom1[0]
+                moment1, p.moment1[0]
             );
-            assert_approx_eq!(mom1, p.mom1[0]);
+            assert_approx_eq!(moment1, p.moment1[0]);
             println!(
                 "Second moment, expected: {:?}, calculated: {:?}",
-                mom2, p.mom2[0]
+                moment2, p.moment2[0]
             );
-            assert_approx_eq!(mom2, p.mom2[0]);
+            assert_approx_eq!(moment2, p.moment2[0]);
             assert_eq!(count, p.count);
         });
     }

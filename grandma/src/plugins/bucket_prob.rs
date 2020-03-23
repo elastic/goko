@@ -75,17 +75,21 @@ impl BucketProbs {
         }
     }
 
-    /// Pass none if you want to test for a singleton, returns 0 if 
-    pub fn kl_divergence(&self,other:&BucketProbs) -> f32 {
+    /// Computes the KL divergence of two bucket probs. 
+    /// KL(self || other)
+    /// Returns None if the support of the self is not a subset of the support of the other
+    pub fn kl_divergence(&self,other:&BucketProbs) -> Option<f32> {
         let mut sum: f32 = self.pdf(None) * (self.pdf(None)/other.pdf(None)).ln();
         for (k,v) in self.child_counts.iter() {
             if let Some(ov) = other.child_counts.get(k) {
                 let p = (*v as f32)/(self.total as f32);
                 let q = (*ov as f32)/(self.total as f32);
                 sum += p * (p/q).ln();
+            } else {
+                return None;
             }
         }
-        sum
+        Some(sum)
     }
 }
 
