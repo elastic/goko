@@ -258,6 +258,35 @@ impl<M: Metric> CoverNode<M> {
         }
     }
 
+    /// Gives the child that the point would be inserted into if the 
+    /// point just happened to never be picked as a center. This is the first child node that covers
+    /// the point.
+    pub fn covering_child(
+        &self,
+        scale_base: f32,
+        dist_to_center: f32,
+        point: &[f32],
+        point_cloud: &PointCloud<M>,
+    ) -> GrandmaResult<Option<(f32, NodeAddress)>> {
+        if let Some(children) = &self.children {
+            if dist_to_center < scale_base.powi(children.nested_scale) {
+                return Ok(Some((dist_to_center, (children.nested_scale,self.address.1))));
+            } 
+            let children_indexes: Vec<PointIndex> =
+                children.addresses.iter().map(|(_si, pi)| *pi).collect();
+            let distances = point_cloud.distances_to_point(point, &children_indexes[..])?;
+            for (ca,d) in children.addresses.iter().zip(distances) {
+                if d < scale_base.powi(ca.0) {
+                    return Ok(Some((
+                        d,
+                        *ca,
+                    )));
+                }
+            }
+        }
+        Ok(None)
+    }
+
     /// Inserts a routing child into the node. Make sure the child node is also in the tree or you get a dangling reference
     pub(crate) fn insert_child(
         &mut self,

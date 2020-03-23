@@ -18,6 +18,9 @@ use std::fmt::Debug;
 pub mod diag_gaussian;
 pub use diag_gaussian::*;
 
+pub mod bucket_prob;
+pub use bucket_prob::*;
+
 /// Mockup for the plugin interface attached to the node. These are meant to be functions that Grandma uses to maintain the plugin.
 pub trait NodePlugin<M: Metric>: Send + Sync + Debug {
     /// This is currently non-functional, thinking about how to efficiently use this.

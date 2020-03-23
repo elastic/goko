@@ -321,7 +321,7 @@ impl<M: Metric> CoverTreeReader<M> {
         let mut trace = vec![(current_distance,current_address)];
         loop {
             if let Some(nearest) = self.get_node_and(current_address,|n| {
-                n.nearest_covering_child(self.parameters.scale_base, current_distance, point, &self.parameters.point_cloud)
+                n.covering_child(self.parameters.scale_base, current_distance, point, &self.parameters.point_cloud)
             }) {
                 if let Some(nearest) = nearest? {
                     trace.push(nearest);

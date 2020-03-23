@@ -3,10 +3,12 @@
 //! This computes a coordinate bound multivariate Gaussian.
 
 use super::*;
+use std::f32::consts::{E,PI};
+
 
 /// Node component, coded in such a way that it can be efficiently, recursively computed.
 #[derive(Debug, Clone)]
-pub struct DiagGaussianNode {
+pub struct DiagGaussian {
     /// First Moment
     pub mom1: Vec<f32>,
     /// Second Moment
@@ -15,7 +17,51 @@ pub struct DiagGaussianNode {
     pub count: usize,
 }
 
-impl DiagGaussianNode {
+impl DiagGaussian {
+    /// Creates a new empty diagonal gaussian
+    pub fn new() -> DiagGaussian {
+        DiagGaussian { 
+            mom1: Vec::new(),
+            mom2: Vec::new(),
+            count: 0,
+        }
+    }
+
+    /// adds a point to the Diagonal Gaussian
+    pub fn add_point(&mut self, point:&[f32]) {
+        if self.count == 0 {
+            self.mom1.extend(point);
+            self.mom2.extend(point.iter().map(|v|v*v));
+            self.count = 1;
+        } else {
+            self.mom1.iter_mut().zip(point).for_each(|(m,p)| *m += p );
+            self.mom2.iter_mut().zip(point).for_each(|(m,p)| *m += p*p );
+            self.count += 1;
+        }
+    }
+
+    /// removes a point from the Diagonal Gaussian
+    pub fn remove_point(&mut self, point:&[f32]) {
+        if self.count != 0 {
+            self.mom1.iter_mut().zip(point).for_each(|(m,p)| *m -= p );
+            self.mom2.iter_mut().zip(point).for_each(|(m,p)| *m -= p*p );
+            self.count += 1;
+        }
+    }
+
+    /// Merges two diagonal gaussians together
+    pub fn merge(&mut self, other: &DiagGaussian) {
+        if self.count == 0 {
+            self.mom1 = other.mom1.clone();
+            self.mom2 = other.mom2.clone();
+            self.count = other.count;
+        } else {
+            self.mom1.iter_mut().zip(other.mom1.iter()).for_each(|(m,p)| *m += *p );
+            self.mom2.iter_mut().zip(other.mom2.iter()).for_each(|(m,p)| *m += *p );
+            self.count += other.count;
+        }
+    }
+
     /// Mean: `mom1/count`
     pub fn mean(&self) -> Vec<f32> {
         self.mom1.iter().map(|x| x / (self.count as f32)).collect()
@@ -29,9 +75,55 @@ impl DiagGaussianNode {
             .map(|(x, u)| x - u * u)
             .collect()
     }
+
+    /// Computes the probability density function of the gaussian
+    pub fn pdf(&self, point:&[f32]) -> f32 {
+        let means = self.mom1.iter().map(|x| x / (self.count as f32));
+        let vars = self.mom2
+            .iter()
+            .map(|x| x / (self.count as f32))
+            .zip(self.mom1.iter().map(|x| x / (self.count as f32)))
+            .map(|(x, u)| x - u * u);
+        let mean_vars = means.zip(vars);
+
+        let (exponent,det) = point.iter().zip(mean_vars).map(|(xi,(ui,vi))| {
+            ((xi-ui)*(xi-ui)/vi,vi)
+        }).fold((0.0,1.0),|(a,v),(x,u)| (a+x,v*u));
+
+        E.powf(exponent)/(det*(2.0*PI).powi(point.len() as i32))
+    }
+
+    /// Measures the divergence between this and another gaussian
+    pub fn kl_divergence(&self, other:&DiagGaussian) -> f32 {
+        let means = self.mom1.iter().map(|x| x / (self.count as f32));
+        let vars = self.mom2
+            .iter()
+            .map(|x| x / (self.count as f32))
+            .zip(self.mom1.iter().map(|x| x / (self.count as f32)))
+            .map(|(x, u)| x - u * u);
+        let mean_vars = means.zip(vars);
+
+        let other_means = other.mom1.iter().map(|x| x / (other.count as f32));
+        let other_vars = other.mom2
+            .iter()
+            .map(|x| x / (other.count as f32))
+            .zip(other.mom1.iter().map(|x| x / (other.count as f32)))
+            .map(|(x, u)| x - u * u);
+        let other_mean_vars = other_means.zip(other_vars);
+
+        let (trace,mah_dist,det,other_det) = mean_vars.zip(other_mean_vars).map(|((xi,yi),(ui,vi))| {
+            let trace = yi/ui;
+            let mah_dist = (ui-xi)*(ui-xi)/vi;
+            let det = yi;
+            let other_det = vi;
+            (trace,mah_dist,det,other_det)
+        }).fold((0.0,0.0,1.0f32,1.0f32),|(a,b,c,d),(x,y,z,w)| (a+x,b+y,c*z,d*w));
+
+        (trace + mah_dist - (self.mom1.len() as f32) + (other_det/det).ln())/2.0
+    }
 }
 
-impl<M: Metric> NodePlugin<M> for DiagGaussianNode {
+impl<M: Metric> NodePlugin<M> for DiagGaussian {
     fn update(&mut self, _my_node: &CoverNode<M>, _my_tree: &CoverTreeReader<M>) {}
 }
 
@@ -65,24 +157,25 @@ impl GrandmaDiagGaussian {
 }
 
 impl<M: Metric> GrandmaPlugin<M> for GrandmaDiagGaussian {
-    type NodeComponent = DiagGaussianNode;
+    type NodeComponent = DiagGaussian;
     type TreeComponent = DiagGaussianTree;
     fn node_component(
         parameters: &Self::TreeComponent,
         my_node: &CoverNode<M>,
         my_tree: &CoverTreeReader<M>,
     ) -> Self::NodeComponent {
-        let mut mom1 = my_tree
+        let mom1 = my_tree
             .parameters()
             .point_cloud
             .moment_subset(1, my_node.singletons())
             .unwrap();
-        let mut mom2 = my_tree
+        let mom2 = my_tree
             .parameters()
             .point_cloud
             .moment_subset(2, my_node.singletons())
             .unwrap();
-        let mut count = my_node.singleton_len();
+        let count = my_node.singleton_len();
+        let mut my_dg = DiagGaussian { mom1, mom2, count };
 
         // If we're a routing node then grab the childen's values
         if let Some((nested_scale, child_addresses)) = my_node.children() {
@@ -90,43 +183,23 @@ impl<M: Metric> GrandmaPlugin<M> for GrandmaDiagGaussian {
                 my_tree.get_node_plugin_and::<Self::NodeComponent, _, _>(
                     (nested_scale, *my_node.center_index()),
                     |p| {
-                        for (m, yy) in mom1.iter_mut().zip(&p.mom1) {
-                            *m += yy;
-                        }
-                        for (m, yy) in mom2.iter_mut().zip(&p.mom2) {
-                            *m += yy;
-                        }
-                        count += p.count;
+                        my_dg.merge(p);
                     },
                 );
                 for ca in child_addresses {
                     my_tree.get_node_plugin_and::<Self::NodeComponent, _, _>(*ca, |p| {
-                        for (m, yy) in mom1.iter_mut().zip(&p.mom1) {
-                            *m += yy;
-                        }
-                        for (m, yy) in mom2.iter_mut().zip(&p.mom2) {
-                            *m += yy;
-                        }
-                        count += p.count;
+                        my_dg.merge(p);
                     });
                 }
             }
         } else {
-            let my_center = my_tree
+            my_dg.add_point(my_tree
                 .parameters()
                 .point_cloud
                 .get_point(*my_node.center_index())
-                .unwrap();
-            for (m, yy) in mom1.iter_mut().zip(my_center) {
-                *m += yy;
-            }
-            for (m, yy) in mom2.iter_mut().zip(my_center) {
-                *m += yy * yy;
-            }
-            count += 1;
+                .unwrap());
         }
-
-        DiagGaussianNode { mom1, mom2, count }
+        my_dg
     }
 }
 
@@ -136,7 +209,7 @@ pub(crate) mod tests {
     use crate::tree::tests::build_basic_tree;
 
     #[test]
-    fn gaussian_sanity_correct() {
+    fn recursive_gaussian_sanity_correct() {
         let basic_tree_data = vec![0.499, 0.49, 0.48, -0.49, 0.0];
         let mom1 = basic_tree_data.iter().fold(0.0, |a, x| a + x);
         let mom2 = basic_tree_data.iter().fold(0.0, |a, x| a + x * x);
@@ -150,7 +223,7 @@ pub(crate) mod tests {
             println!("Scale Index: {:?}", si);
             layer.for_each_node(|_pi, n| {
                 if n.is_leaf() {
-                    n.get_plugin_and::<DiagGaussianNode, _, _>(|p| {
+                    n.get_plugin_and::<DiagGaussian, _, _>(|p| {
                         println!(
                             "=====<Leaf ({},{})>=====",
                             n.scale_index(),
@@ -193,7 +266,7 @@ pub(crate) mod tests {
                         );
                     });
                 } else {
-                    n.get_plugin_and::<DiagGaussianNode, _, _>(|dp| {
+                    n.get_plugin_and::<DiagGaussian, _, _>(|dp| {
                         println!(
                             "=====<Routing ({},{})>=====",
                             n.scale_index(),
@@ -210,7 +283,7 @@ pub(crate) mod tests {
             });
         }
 
-        reader.get_node_plugin_and::<DiagGaussianNode, _, _>(reader.root_address(), |p| {
+        reader.get_node_plugin_and::<DiagGaussian, _, _>(reader.root_address(), |p| {
             println!(
                 "First moment, expected: {:?}, calculated: {:?}",
                 mom1, p.mom1[0]

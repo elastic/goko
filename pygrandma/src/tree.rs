@@ -108,7 +108,8 @@ impl PyGrandma {
         let builder = self.builder.take();
         self.writer = Some(builder.unwrap().build(pointcloud).unwrap());
         let writer = self.writer.as_mut().unwrap();
-        writer.add_plugin::<GrandmaDiagGaussian>(GrandmaDiagGaussian::recursive());
+        writer.add_plugin::<GrandmaDiagGaussian>(GrandmaDiagGaussian::singleton());
+        writer.add_plugin::<BucketProbsGaussian>(BucketProbsTree {});
         let reader = writer.reader();
         
         self.reader = Some(Arc::new(reader));
