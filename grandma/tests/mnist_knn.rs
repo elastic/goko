@@ -44,7 +44,7 @@ use std::path::Path;
 extern crate grandma;
 extern crate pointcloud;
 use grandma::utils::*;
-use grandma::{CoverTreeWriter,CoverTreeReader};
+use grandma::{CoverTreeReader, CoverTreeWriter};
 use pointcloud::*;
 
 fn build_tree() -> CoverTreeWriter<L2> {
@@ -73,16 +73,24 @@ fn load_tree_and_query() {
 }
 */
 
-fn test_dry_insert(ct_reader: &CoverTreeReader<L2>,query_index:u64) {
+fn test_dry_insert(ct_reader: &CoverTreeReader<L2>, query_index: u64) {
     // Testing dry insert on prebuilt tree
-    
-    let trace = ct_reader.dry_insert(ct_reader.parameters().point_cloud.get_point(query_index).unwrap()).unwrap();
+
+    let trace = ct_reader
+        .dry_insert(
+            ct_reader
+                .parameters()
+                .point_cloud
+                .get_point(query_index)
+                .unwrap(),
+        )
+        .unwrap();
     println!("{:?}", trace);
     assert_eq!((trace[0].1).1, ct_reader.root_address().1);
-    let (_dist,last_node_address) = trace.last().unwrap();
-    let singleton_condition = ct_reader.get_node_and(*last_node_address,|n| {
-        n.singletons().contains(&0)}
-    ).unwrap();
+    let (_dist, last_node_address) = trace.last().unwrap();
+    let singleton_condition = ct_reader
+        .get_node_and(*last_node_address, |n| n.singletons().contains(&0))
+        .unwrap();
     assert!(last_node_address.1 == query_index || singleton_condition);
 }
 //Cover tree on MNIST builds and is queryable
@@ -103,9 +111,9 @@ fn run_knn_query() {
     assert!(query.len() == 5);
 
     println!("Testing root address 59999");
-    test_dry_insert(&ct_reader,59999);
+    test_dry_insert(&ct_reader, 59999);
     println!("Testing other address 0");
-    test_dry_insert(&ct_reader,0);
+    test_dry_insert(&ct_reader, 0);
 }
 
 /*

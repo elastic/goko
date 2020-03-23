@@ -311,17 +311,19 @@ impl<M: Metric> CoverTreeReader<M> {
     }
 
     /// # Dry Insert Query
-    pub fn dry_insert(
-        &self,
-        point: &[f32],
-    ) -> GrandmaResult<Vec<(f32, NodeAddress)>> {
+    pub fn dry_insert(&self, point: &[f32]) -> GrandmaResult<Vec<(f32, NodeAddress)>> {
         let root_center = self.parameters.point_cloud.get_point(self.root_address.1)?;
         let mut current_distance = M::dense(root_center, point);
         let mut current_address = self.root_address;
-        let mut trace = vec![(current_distance,current_address)];
+        let mut trace = vec![(current_distance, current_address)];
         loop {
-            if let Some(nearest) = self.get_node_and(current_address,|n| {
-                n.covering_child(self.parameters.scale_base, current_distance, point, &self.parameters.point_cloud)
+            if let Some(nearest) = self.get_node_and(current_address, |n| {
+                n.covering_child(
+                    self.parameters.scale_base,
+                    current_distance,
+                    point,
+                    &self.parameters.point_cloud,
+                )
             }) {
                 if let Some(nearest) = nearest? {
                     trace.push(nearest);
@@ -330,7 +332,6 @@ impl<M: Metric> CoverTreeReader<M> {
                 } else {
                     break;
                 }
-                
             } else {
                 break;
             }
@@ -655,7 +656,7 @@ pub(crate) mod tests {
         assert!(trace.len() == 4 || trace.len() == 3);
         println!("{:?}", trace);
         for i in 0..(trace.len() - 1) {
-            assert!((trace[i].1).0 > (trace[i+1].1).0);
+            assert!((trace[i].1).0 > (trace[i + 1].1).0);
         }
     }
 

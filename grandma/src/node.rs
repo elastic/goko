@@ -258,7 +258,7 @@ impl<M: Metric> CoverNode<M> {
         }
     }
 
-    /// Gives the child that the point would be inserted into if the 
+    /// Gives the child that the point would be inserted into if the
     /// point just happened to never be picked as a center. This is the first child node that covers
     /// the point.
     pub fn covering_child(
@@ -270,17 +270,17 @@ impl<M: Metric> CoverNode<M> {
     ) -> GrandmaResult<Option<(f32, NodeAddress)>> {
         if let Some(children) = &self.children {
             if dist_to_center < scale_base.powi(children.nested_scale) {
-                return Ok(Some((dist_to_center, (children.nested_scale,self.address.1))));
-            } 
+                return Ok(Some((
+                    dist_to_center,
+                    (children.nested_scale, self.address.1),
+                )));
+            }
             let children_indexes: Vec<PointIndex> =
                 children.addresses.iter().map(|(_si, pi)| *pi).collect();
             let distances = point_cloud.distances_to_point(point, &children_indexes[..])?;
-            for (ca,d) in children.addresses.iter().zip(distances) {
+            for (ca, d) in children.addresses.iter().zip(distances) {
                 if d < scale_base.powi(ca.0) {
-                    return Ok(Some((
-                        d,
-                        *ca,
-                    )));
+                    return Ok(Some((d, *ca)));
                 }
             }
         }
@@ -535,7 +535,9 @@ mod tests {
     fn brute_test_knn_node<M: Metric>(node: &CoverNode<M>, point_cloud: &PointCloud<M>) {
         let zeros: Vec<f32> = vec![0.0; 784];
         let mut heap = KnnQueryHeap::new(10000, 1.3);
-        let dist_to_center = point_cloud.distances_to_point(&zeros, &[node.address.1]).unwrap()[0];
+        let dist_to_center = point_cloud
+            .distances_to_point(&zeros, &[node.address.1])
+            .unwrap()[0];
 
         node.knn(Some(dist_to_center), &zeros, &point_cloud, &mut heap)
             .unwrap();
@@ -585,9 +587,11 @@ mod tests {
 
         // Testing nearest covering child
         match (
-            children_range_calc.iter()
+            children_range_calc
+                .iter()
                 .min_by(|a, b| a.dist_to_center.partial_cmp(&b.dist_to_center).unwrap()),
-            node.nearest_covering_child(1.3, dist_to_center, &zeros, &point_cloud).unwrap(),
+            node.nearest_covering_child(1.3, dist_to_center, &zeros, &point_cloud)
+                .unwrap(),
         ) {
             (Some(query), Some((q_d, q_a))) => {
                 println!("Expected {:?}", query);
@@ -596,7 +600,7 @@ mod tests {
                 assert_eq!(query.address.1, q_a.1);
             }
             (None, None) => {}
-            (Some(query),None) => {
+            (Some(query), None) => {
                 assert!(query.min_dist > 0.0);
             }
             _ => {
@@ -607,14 +611,11 @@ mod tests {
         let children_range_calc: Vec<NodeAddress> =
             children_range_calc.iter().map(|a| a.address).collect();
 
-
         let heap_range: Vec<NodeAddress> = clone_unvisited_nodes(&heap)
             .iter()
             .map(|(_d, a)| *a)
             .collect();
         let heap_knn: Vec<PointIndex> = heap.unpack().iter().map(|(_d, pi)| *pi).collect();
-
-        
 
         let mut correct = true;
         if correct {
@@ -633,7 +634,6 @@ mod tests {
 
             assert!(false);
         }
-        
     }
 
     #[test]

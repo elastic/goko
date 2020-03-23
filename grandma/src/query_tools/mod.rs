@@ -29,7 +29,7 @@ pub use knn_query_heap::KnnQueryHeap;
 pub(crate) mod trace_query_heap;
 pub use trace_query_heap::MultiscaleQueryHeap;
 
-/// If you have a algorithm that does local brute force KNN on just the children, 
+/// If you have a algorithm that does local brute force KNN on just the children,
 /// implement this to use the node fn
 pub trait RoutingQueryHeap {
     /// Shoves data in.
@@ -41,7 +41,7 @@ pub trait RoutingQueryHeap {
     );
 }
 
-/// If you have a algorithm that does local brute force KNN on just the singletons, 
+/// If you have a algorithm that does local brute force KNN on just the singletons,
 /// implement this to use the node fn
 pub trait SingletonQueryHeap {
     /// Shove a bunch of single points onto the heap
