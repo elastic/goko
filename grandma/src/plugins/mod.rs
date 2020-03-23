@@ -1,21 +1,19 @@
 //! # Plugin System
-//! 
+//!
 //! To implement a plugin you need to write 2 components one which implements `NodePlugin` and another that implements `TreePlugin`.
 //! Finally you need to create an object that implements the parent trait that glues the two objects together.
-//! 
-//! The `NodePlugin` is attached to each node. It is created by the `node_component` function in the parent trait when the plugin is 
+//!
+//! The `NodePlugin` is attached to each node. It is created by the `node_component` function in the parent trait when the plugin is
 //! attached to the tree. It can access the `TreePlugin` component, and the tree. These are created recursively, so you can access the
-//! plugin for the child nodes. 
-//! 
+//! plugin for the child nodes.
+//!
 //! None of this is parallelized. We need to move to Tokio to take advantage of the async computation there to || it.
-
 
 use crate::node::CoverNode;
 use crate::tree::CoverTreeReader;
 use crate::*;
 use anymap::SendSyncAnyMap;
 use std::fmt::Debug;
-
 
 pub mod diag_gaussian;
 pub use diag_gaussian::*;
@@ -36,7 +34,7 @@ pub trait TreePlugin<M: Metric>: Send + Sync + Debug {
 pub trait GrandmaPlugin<M: Metric> {
     /// The node component of this plugin, these are attached to each node recursively when the plug in is attached to the tree.
     type NodeComponent: NodePlugin<M> + Clone + 'static;
-    /// This should largely be an object that manages the parameters of the plugin. 
+    /// This should largely be an object that manages the parameters of the plugin.
     type TreeComponent: TreePlugin<M> + Clone + 'static;
     /// The function that actually builds the node components.
     fn node_component(

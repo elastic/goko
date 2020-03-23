@@ -1,6 +1,6 @@
 //! # Diagonal Gaussian
-//! 
-//! This computes a coordinate bound multivariate Gaussian. 
+//!
+//! This computes a coordinate bound multivariate Gaussian.
 
 use super::*;
 
@@ -37,20 +37,38 @@ impl<M: Metric> NodePlugin<M> for DiagGaussianNode {
 
 /// Zero sized type that can be passed around. Equivilant to `()`
 #[derive(Debug, Clone)]
-pub struct DiagGaussianTree {}
+pub struct DiagGaussianTree {
+    recursive: bool,
+}
 
 impl<M: Metric> TreePlugin<M> for DiagGaussianTree {
     fn update(&mut self, _my_tree: &CoverTreeReader<M>) {}
 }
 
 /// Zero sized type that can be passed around. Equivilant to `()`
-pub struct GrandmaDiagGaussian {}   
+pub struct GrandmaDiagGaussian {}
+
+impl GrandmaDiagGaussian {
+    /// Sets this up to build the gaussians recursively, so the gaussian for a node is for the total cover space.
+    pub fn recursive() -> DiagGaussianTree {
+        DiagGaussianTree {
+            recursive: true
+        }
+    }
+
+    /// Produces a gaussian off of just the singletons attached to the node, not the total cover space
+    pub fn singletons() -> DiagGaussianTree {
+        DiagGaussianTree {
+            recursive: false
+        }
+    }
+}
 
 impl<M: Metric> GrandmaPlugin<M> for GrandmaDiagGaussian {
     type NodeComponent = DiagGaussianNode;
     type TreeComponent = DiagGaussianTree;
     fn node_component(
-        _parameters: &Self::TreeComponent,
+        parameters: &Self::TreeComponent,
         my_node: &CoverNode<M>,
         my_tree: &CoverTreeReader<M>,
     ) -> Self::NodeComponent {
@@ -68,28 +86,30 @@ impl<M: Metric> GrandmaPlugin<M> for GrandmaDiagGaussian {
 
         // If we're a routing node then grab the childen's values
         if let Some((nested_scale, child_addresses)) = my_node.children() {
-            my_tree.get_node_plugin_and::<Self::NodeComponent, _, _>(
-                (nested_scale, *my_node.center_index()),
-                |p| {
-                    for (m, yy) in mom1.iter_mut().zip(&p.mom1) {
-                        *m += yy;
-                    }
-                    for (m, yy) in mom2.iter_mut().zip(&p.mom2) {
-                        *m += yy;
-                    }
-                    count += p.count;
-                },
-            );
-            for ca in child_addresses {
-                my_tree.get_node_plugin_and::<Self::NodeComponent, _, _>(*ca, |p| {
-                    for (m, yy) in mom1.iter_mut().zip(&p.mom1) {
-                        *m += yy;
-                    }
-                    for (m, yy) in mom2.iter_mut().zip(&p.mom2) {
-                        *m += yy;
-                    }
-                    count += p.count;
-                });
+            if parameters.recursive {
+                my_tree.get_node_plugin_and::<Self::NodeComponent, _, _>(
+                    (nested_scale, *my_node.center_index()),
+                    |p| {
+                        for (m, yy) in mom1.iter_mut().zip(&p.mom1) {
+                            *m += yy;
+                        }
+                        for (m, yy) in mom2.iter_mut().zip(&p.mom2) {
+                            *m += yy;
+                        }
+                        count += p.count;
+                    },
+                );
+                for ca in child_addresses {
+                    my_tree.get_node_plugin_and::<Self::NodeComponent, _, _>(*ca, |p| {
+                        for (m, yy) in mom1.iter_mut().zip(&p.mom1) {
+                            *m += yy;
+                        }
+                        for (m, yy) in mom2.iter_mut().zip(&p.mom2) {
+                            *m += yy;
+                        }
+                        count += p.count;
+                    });
+                }
             }
         } else {
             let my_center = my_tree
@@ -121,9 +141,8 @@ pub(crate) mod tests {
         let mom1 = basic_tree_data.iter().fold(0.0, |a, x| a + x);
         let mom2 = basic_tree_data.iter().fold(0.0, |a, x| a + x * x);
         let count = basic_tree_data.len();
-        let d = DiagGaussianTree {};
         let mut tree = build_basic_tree();
-        tree.add_plugin::<GrandmaDiagGaussian>(d);
+        tree.add_plugin::<GrandmaDiagGaussian>(GrandmaDiagGaussian::recursive());
         println!("{:?}", tree.reader().len());
         let reader = tree.reader();
 

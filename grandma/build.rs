@@ -30,7 +30,8 @@ fn main() {
         customize: Customize {
             ..Default::default()
         },
-    }).expect("protoc");
+    })
+    .expect("protoc");
     println!("cargo:rerun-if-changed=protos/tree_file_format.proto");
 }
 

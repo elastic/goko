@@ -24,6 +24,8 @@ use pointcloud::*;
 use std::collections::{BinaryHeap, HashMap, HashSet};
 use std::f32;
 
+use super::*;
+
 use super::query_items::{QueryAddress, QuerySingleton};
 
 /// The heaps for doing a fairly efficient KNN query. There are 3 heaps, the child min-heap, singleton min-heap, and distance max-heap.
@@ -48,6 +50,71 @@ pub struct KnnQueryHeap {
     dist_heap: BinaryHeap<QuerySingleton>,
     k: usize,
     scale_base: f32,
+}
+
+impl RoutingQueryHeap for KnnQueryHeap {
+    /// Shove a bunch of nodes onto the heap. Optionally, if you pass a parent node it updates the distance to that parent node.
+    fn push_nodes(
+        &mut self,
+        indexes: &[NodeAddress],
+        dists: &[f32],
+        parent_address: Option<NodeAddress>,
+    ) {
+        let mut max_dist = self.max_dist();
+        let mut parent_est_dist_update = 0.0;
+        for ((si, pi), d) in indexes.iter().zip(dists) {
+            let emd = (d - self.scale_base.powi(*si)).max(0.0);
+            parent_est_dist_update = emd.max(parent_est_dist_update);
+            if emd < max_dist {
+                self.child_heap.push(QueryAddress {
+                    address: (*si, *pi),
+                    dist_to_center: *d,
+                    min_dist: emd,
+                });
+            }
+            if !self.known_indexes.contains(pi) {
+                self.known_indexes.insert(*pi);
+                match self.dist_heap.peek() {
+                    Some(my_dist) => {
+                        if !(my_dist.dist < *d && self.dist_heap.len() >= self.k) {
+                            self.dist_heap.push(QuerySingleton::new(*pi, *d));
+                        }
+                    }
+                    None => self.dist_heap.push(QuerySingleton::new(*pi, *d)),
+                };
+            }
+            while self.dist_heap.len() > self.k {
+                self.dist_heap.pop();
+                max_dist = self.max_dist();
+            }
+        }
+
+        if let Some(a) = parent_address {
+            self.increase_estimated_distance(a, parent_est_dist_update);
+        }
+    }
+}
+
+impl SingletonQueryHeap for KnnQueryHeap {
+    /// Shove a bunch of single points onto the heap
+    fn push_outliers(&mut self, indexes: &[PointIndex], dists: &[f32]) {
+        for (i, d) in indexes.iter().zip(dists) {
+            if !self.known_indexes.contains(i) {
+                self.known_indexes.insert(*i);
+                match self.dist_heap.peek() {
+                    Some(my_dist) => {
+                        if !(my_dist.dist < *d && self.dist_heap.len() >= self.k) {
+                            self.dist_heap.push(QuerySingleton::new(*i, *d));
+                        }
+                    }
+                    None => self.dist_heap.push(QuerySingleton::new(*i, *d)),
+                };
+                while self.dist_heap.len() > self.k {
+                    self.dist_heap.pop();
+                }
+            }
+        }
+    }
 }
 
 impl KnnQueryHeap {
@@ -138,67 +205,6 @@ impl KnnQueryHeap {
         let d = self.est_min_dist.entry(address).or_insert(0.0);
         if *d < new_estimate {
             *d = new_estimate;
-        }
-    }
-
-    /// Shove a bunch of single points onto the heap
-    pub fn push_outliers(&mut self, indexes: &[PointIndex], dists: &[f32]) {
-        for (i, d) in indexes.iter().zip(dists) {
-            if !self.known_indexes.contains(i) {
-                self.known_indexes.insert(*i);
-                match self.dist_heap.peek() {
-                    Some(my_dist) => {
-                        if !(my_dist.dist < *d && self.dist_heap.len() >= self.k) {
-                            self.dist_heap.push(QuerySingleton::new(*i, *d));
-                        }
-                    }
-                    None => self.dist_heap.push(QuerySingleton::new(*i, *d)),
-                };
-                while self.dist_heap.len() > self.k {
-                    self.dist_heap.pop();
-                }
-            }
-        }
-    }
-
-    /// Shove a bunch of nodes onto the heap. Optionally, if you pass a parent node it updates the distance to that parent node.
-    pub fn push_nodes(
-        &mut self,
-        indexes: &[NodeAddress],
-        dists: &[f32],
-        parent_address: Option<NodeAddress>,
-    ) {
-        let mut max_dist = self.max_dist();
-        let mut parent_est_dist_update = 0.0;
-        for ((si, pi), d) in indexes.iter().zip(dists) {
-            let emd = (d - self.scale_base.powi(*si)).max(0.0);
-            parent_est_dist_update = emd.max(parent_est_dist_update);
-            if emd < max_dist {
-                self.child_heap.push(QueryAddress {
-                    address: (*si, *pi),
-                    dist_to_center: *d,
-                    min_dist: emd,
-                });
-            }
-            if !self.known_indexes.contains(pi) {
-                self.known_indexes.insert(*pi);
-                match self.dist_heap.peek() {
-                    Some(my_dist) => {
-                        if !(my_dist.dist < *d && self.dist_heap.len() >= self.k) {
-                            self.dist_heap.push(QuerySingleton::new(*pi, *d));
-                        }
-                    }
-                    None => self.dist_heap.push(QuerySingleton::new(*pi, *d)),
-                };
-            }
-            while self.dist_heap.len() > self.k {
-                self.dist_heap.pop();
-                max_dist = self.max_dist();
-            }
-        }
-
-        if let Some(a) = parent_address {
-            self.increase_estimated_distance(a, parent_est_dist_update);
         }
     }
 }

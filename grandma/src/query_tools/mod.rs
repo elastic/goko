@@ -19,9 +19,31 @@
 
 //! Tools and data structures for assisting cover tree queries.
 
+use crate::NodeAddress;
+use pointcloud::*;
+
 pub(crate) mod query_items;
 
 pub(crate) mod knn_query_heap;
 pub use knn_query_heap::KnnQueryHeap;
 pub(crate) mod trace_query_heap;
-pub use trace_query_heap::TraceQueryHeap;
+pub use trace_query_heap::MultiscaleQueryHeap;
+
+/// If you have a algorithm that does local brute force KNN on just the children, 
+/// implement this to use the node fn
+pub trait RoutingQueryHeap {
+    /// Shoves data in.
+    fn push_nodes(
+        &mut self,
+        indexes: &[NodeAddress],
+        dists: &[f32],
+        parent_address: Option<NodeAddress>,
+    );
+}
+
+/// If you have a algorithm that does local brute force KNN on just the singletons, 
+/// implement this to use the node fn
+pub trait SingletonQueryHeap {
+    /// Shove a bunch of single points onto the heap
+    fn push_outliers(&mut self, indexes: &[PointIndex], dists: &[f32]);
+}

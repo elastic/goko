@@ -17,6 +17,9 @@ license-file = "../LICENSE.txt"
 keywords = ["datasets"]
 categories = ["science", "data-structures"]
 
+[toolchain]
+channel = "nightly"
+
 [dependencies]
 csv = "1"
 libc = "0.2"

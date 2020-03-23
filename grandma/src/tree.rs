@@ -42,8 +42,9 @@ use std::sync::{atomic, Arc, RwLock};
 use tree_file_format::*;
 
 use crate::plugins::{GrandmaPlugin, TreePluginSet};
-use crate::query_tools::{KnnQueryHeap,TraceQueryHeap};
+use crate::query_tools::{KnnQueryHeap, MultiscaleQueryHeap, RoutingQueryHeap};
 use errors::GrandmaResult;
+use std::collections::HashMap;
 use std::iter::Iterator;
 use std::iter::Rev;
 use std::ops::Range;
@@ -74,8 +75,9 @@ pub struct CoverTreeParameters<M: Metric> {
 }
 
 impl<M: Metric> CoverTreeParameters<M> {
+    /// Gets the index of the layer in the vector.
     #[inline]
-    pub(crate) fn internal_index(&self, scale_index: i32) -> usize {
+    pub fn internal_index(&self, scale_index: i32) -> usize {
         if scale_index < self.resolution {
             0
         } else {
@@ -174,7 +176,7 @@ impl<M: Metric> CoverTreeReader<M> {
             .map(transform_fn)
     }
 
-    /// Reads the contents of a plugin, due to the nature of the plugin map we have to access it with a 
+    /// Reads the contents of a plugin, due to the nature of the plugin map we have to access it with a
     /// closure.
     pub fn get_node_plugin_and<T: Send + Sync + 'static, F, S>(
         &self,
@@ -225,7 +227,7 @@ impl<M: Metric> CoverTreeReader<M> {
         Ok(query_heap.unpack())
     }
 
-    /// 
+    /// Same as knn, but only deals with non-singleton points
     pub fn routing_knn(&self, point: &[f32], k: usize) -> GrandmaResult<Vec<(f32, PointIndex)>> {
         let mut query_heap = KnnQueryHeap::new(k, self.parameters.scale_base);
 
@@ -262,33 +264,80 @@ impl<M: Metric> CoverTreeReader<M> {
         did_something
     }
 
-    /*
-    /// # The Trace Query
-    /// 
-    /// This returns the closest node on each layer, terminating at a leaf, to the query point. It terminates 
-    /// when the closest node is a leaf node. 
-    /// 
+    /// # Multiscale KNN
+    ///
+    /// This tries to return the k closest node on each layer to the query point. It terminates
+    /// when the closest node is a leaf node.
+    ///
     /// Todo: More Documentation, make this the k closest nodes on each layer.
-    pub fn node_trace(&self, point: &[f32]) -> GrandmaResult<Vec<(f32, NodeAddress)>> {
-        let mut query_heap = TraceQueryHeap::new(1, self.parameters.scale_base);
+    pub fn multiscale_knn(
+        &self,
+        point: &[f32],
+        k: usize,
+    ) -> GrandmaResult<HashMap<i32, Vec<(f32, NodeAddress)>>> {
+        let mut query_heap = MultiscaleQueryHeap::new(k, self.parameters.scale_base);
 
         let root_center = self.parameters.point_cloud.get_point(self.root_address.1)?;
         let dist_to_root = M::dense(root_center, point);
         query_heap.push_nodes(&[self.root_address], &[dist_to_root], None);
-        self.greedy_knn_nodes(&point, &mut query_heap);
-
-        let mut trace_vec = Vec::new();
-        while let Some((dist, nearest_address)) =
-            query_heap.closest_address()
-        {
-
+        println!("========================");
+        println!("{:#?}", query_heap);
+        for (si, _) in self.layers() {
+            while let Some((q_dist, nearest_address)) = query_heap.pop_closest_unqueried(&si) {
+                println!("========================");
+                println!("{:#?}", query_heap);
+                match query_heap.furthest_node(&si) {
+                    Some((furthest_distance, _)) => {
+                        if q_dist - self.parameters.scale_base.powi(si) < furthest_distance {
+                            self.get_node_and(nearest_address, |n| {
+                                n.child_knn(
+                                    Some(q_dist),
+                                    point,
+                                    &self.parameters.point_cloud,
+                                    &mut query_heap,
+                                )
+                            });
+                        } else {
+                            break;
+                        }
+                    }
+                    None => break,
+                }
+            }
         }
+        println!("========================");
 
-        trace_vec.sort_by_key(|(_dist, (si,_pi))| {-si});
-
-        Ok(trace_vec)
+        Ok(query_heap.unpack())
     }
-    */
+
+    /// # Dry Insert Query
+    pub fn dry_insert(
+        &self,
+        point: &[f32],
+    ) -> GrandmaResult<Vec<(f32, NodeAddress)>> {
+        let root_center = self.parameters.point_cloud.get_point(self.root_address.1)?;
+        let mut current_distance = M::dense(root_center, point);
+        let mut current_address = self.root_address;
+        let mut trace = vec![(current_distance,current_address)];
+        loop {
+            if let Some(nearest) = self.get_node_and(current_address,|n| {
+                n.nearest_covering_child(self.parameters.scale_base, current_distance, point, &self.parameters.point_cloud)
+            }) {
+                if let Some(nearest) = nearest? {
+                    trace.push(nearest);
+                    current_distance = nearest.0;
+                    current_address = nearest.1;
+                } else {
+                    break;
+                }
+                
+            } else {
+                break;
+            }
+        }
+        Ok(trace)
+    }
+
     /// Checks that there are no node addresses in the child list of any node that don't reference a node in the tree.
     /// Please calmly panic if there are, the tree is very invalid.
     pub(crate) fn no_dangling_refs(&self) -> bool {
@@ -392,7 +441,7 @@ impl<M: Metric> CoverTreeWriter<M> {
         Ok(())
     }
 
-    /// 
+    ///
     pub fn add_plugin<P: GrandmaPlugin<M>>(
         &mut self,
         plug_in: <P as plugins::GrandmaPlugin<M>>::TreeComponent,
@@ -404,9 +453,7 @@ impl<M: Metric> CoverTreeWriter<M> {
         for layer in self.layers.iter_mut() {
             layer.reader().for_each_node(|pi, n| {
                 let node_component = P::node_component(&plug_in, n, &reader);
-                unsafe {
-                    layer.update_node(*pi, move |n| n.insert_plugin(node_component.clone()))
-                }
+                unsafe { layer.update_node(*pi, move |n| n.insert_plugin(node_component.clone())) }
             });
             layer.refresh()
         }
@@ -522,7 +569,7 @@ pub(crate) mod tests {
             resolution: -9,
             use_singletons: true,
             cluster_min: 5,
-            verbosity: 2,
+            verbosity: 0,
         };
         builder.build(point_cloud).unwrap()
     }
@@ -601,15 +648,27 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn trace_sanity() {
+    fn dry_insert_sanity() {
         let writer = build_basic_tree();
         let reader = writer.reader();
-        let trace = reader.node_trace(&[0.495]).unwrap();
-        assert_eq!(trace[0].1,reader.root_address());
+        let trace = reader.dry_insert(&[0.495]).unwrap();
+        assert!(trace.len() == 4 || trace.len() == 3);
         println!("{:?}", trace);
         for i in 0..(trace.len() - 1) {
-            assert!(trace[i] > trace[i+1]);
+            assert!((trace[i].1).0 > (trace[i+1].1).0);
         }
+    }
+
+    #[test]
+    fn multiscale_sanity() {
+        let writer = build_basic_tree();
+        let reader = writer.reader();
+        let trace = reader.multiscale_knn(&[0.495], 2).unwrap();
+        assert_eq!(
+            trace.get(&reader.root_address().0).unwrap()[0],
+            (0.495, reader.root_address())
+        );
+        println!("{:?}", trace);
     }
 
     #[test]

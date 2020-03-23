@@ -22,7 +22,7 @@
 //!
 use crate::errors::{GrandmaError, GrandmaResult};
 use crate::plugins::{NodePlugin, NodePluginSet};
-use crate::query_tools::KnnQueryHeap;
+use crate::query_tools::{RoutingQueryHeap, SingletonQueryHeap};
 use crate::tree_file_format::*;
 use crate::NodeAddress;
 use pointcloud::labels::MetaSummary;
@@ -112,7 +112,7 @@ impl<M: Metric> CoverNode<M> {
         }
     }
 
-    /// Reads the contents of a plugin, due to the nature of the plugin map we have to access it with a 
+    /// Reads the contents of a plugin, due to the nature of the plugin map we have to access it with a
     /// closure.
     pub fn get_plugin_and<T: Send + Sync + 'static, F, S>(&self, transform_fn: F) -> Option<S>
     where
@@ -163,12 +163,12 @@ impl<M: Metric> CoverNode<M> {
 
     /// Performs the `singleton_knn` and `child_knn` with a provided query heap. If you have the distance
     /// from the query point to this you can pass it to save a distance calculation.
-    pub fn knn(
+    pub fn knn<T: SingletonQueryHeap + RoutingQueryHeap>(
         &self,
         dist_to_center: Option<f32>,
         point: &[f32],
         point_cloud: &PointCloud<M>,
-        query_heap: &mut KnnQueryHeap,
+        query_heap: &mut T,
     ) -> GrandmaResult<()> {
         self.singleton_knn(point, point_cloud, query_heap)?;
 
@@ -183,11 +183,11 @@ impl<M: Metric> CoverNode<M> {
     }
 
     /// Performs a brute force knn against just the singleton children with a provided query heap.
-    pub fn singleton_knn(
+    pub fn singleton_knn<T: SingletonQueryHeap>(
         &self,
         point: &[f32],
         point_cloud: &PointCloud<M>,
-        query_heap: &mut KnnQueryHeap,
+        query_heap: &mut T,
     ) -> GrandmaResult<()> {
         let distances = point_cloud.distances_to_point(point, &self.singles_indexes[..])?;
         query_heap.push_outliers(&self.singles_indexes[..], &distances[..]);
@@ -196,12 +196,12 @@ impl<M: Metric> CoverNode<M> {
 
     /// Performs a brute force knn against the children of the node with a provided query heap. Does nothing if this is a leaf node.
     /// If you have the distance from the query point to this you can pass it to save a distance calculation.
-    pub fn child_knn(
+    pub fn child_knn<T: RoutingQueryHeap>(
         &self,
         dist_to_center: Option<f32>,
         point: &[f32],
         point_cloud: &PointCloud<M>,
-        query_heap: &mut KnnQueryHeap,
+        query_heap: &mut T,
     ) -> GrandmaResult<()> {
         let dist_to_center =
             dist_to_center.unwrap_or(point_cloud.distances_to_point(point, &[self.address.1])?[0]);
@@ -218,6 +218,44 @@ impl<M: Metric> CoverNode<M> {
             query_heap.push_nodes(&children.addresses[..], &distances, Some(self.address));
         }
         Ok(())
+    }
+
+    /// Gives the closest routing node to the query point.
+    pub fn nearest_covering_child(
+        &self,
+        scale_base: f32,
+        dist_to_center: f32,
+        point: &[f32],
+        point_cloud: &PointCloud<M>,
+    ) -> GrandmaResult<Option<(f32, NodeAddress)>> {
+        if let Some(children) = &self.children {
+            let children_indexes: Vec<PointIndex> =
+                children.addresses.iter().map(|(_si, pi)| *pi).collect();
+            let distances = point_cloud.distances_to_point(point, &children_indexes[..])?;
+            let (min_dist, min_index) = distances
+                .iter()
+                .zip(0..distances.len())
+                .min_by(|(a, _), (b, _)| a.partial_cmp(b).unwrap())
+                .unwrap_or((&std::f32::MAX, 0));
+            if dist_to_center < *min_dist {
+                if dist_to_center < scale_base.powi(children.nested_scale) {
+                    Ok(Some((
+                        dist_to_center,
+                        (children.nested_scale, self.address.1),
+                    )))
+                } else {
+                    Ok(None)
+                }
+            } else {
+                if *min_dist < scale_base.powi(children.addresses[min_index].0) {
+                    Ok(Some((*min_dist, children.addresses[min_index])))
+                } else {
+                    Ok(None)
+                }
+            }
+        } else {
+            Ok(None)
+        }
     }
 
     /// Inserts a routing child into the node. Make sure the child node is also in the tree or you get a dangling reference
@@ -344,8 +382,9 @@ impl<M: Metric> CoverNode<M> {
 mod tests {
     use super::*;
 
-    use crate::query_tools::query_items::QueryAddress;
     use crate::query_tools::knn_query_heap::tests::clone_unvisited_nodes;
+    use crate::query_tools::query_items::QueryAddress;
+    use crate::query_tools::KnnQueryHeap;
     use crate::tree::tests::build_mnist_tree;
 
     fn create_test_node<M: Metric>() -> CoverNode<M> {
@@ -466,13 +505,18 @@ mod tests {
 
     fn brute_test_knn_node<M: Metric>(node: &CoverNode<M>, point_cloud: &PointCloud<M>) {
         let zeros: Vec<f32> = vec![0.0; 784];
+        let mut heap = KnnQueryHeap::new(10000, 1.3);
+        let dist_to_center = point_cloud.distances_to_point(&zeros, &[node.address.1]).unwrap()[0];
 
+        node.knn(Some(dist_to_center), &zeros, &point_cloud, &mut heap)
+            .unwrap();
+
+        // Complete KNN
         let mut all_children = Vec::from(node.singletons());
         if let Some(children) = &node.children {
             all_children.extend(children.addresses.iter().map(|(_si, pi)| *pi));
         }
         all_children.push(node.address.1);
-
         let brute_knn = point_cloud
             .distances_to_point(&zeros, &all_children)
             .unwrap();
@@ -482,7 +526,9 @@ mod tests {
             .map(|(d, i)| (*d, i))
             .collect();
         brute_knn.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+        let brute_knn: Vec<PointIndex> = brute_knn.iter().map(|(_d, pi)| *pi).collect();
 
+        // Children KNN
         let children = match &node.children() {
             Some((si, ca)) => {
                 let mut c: Vec<NodeAddress> = ca.iter().cloned().collect();
@@ -496,6 +542,7 @@ mod tests {
         let children_dist = point_cloud
             .distances_to_point(&zeros, &children_indexes)
             .unwrap();
+
         let mut children_range_calc: Vec<QueryAddress> = children_dist
             .iter()
             .zip(children)
@@ -507,8 +554,30 @@ mod tests {
             .collect();
         children_range_calc.sort();
 
-        let mut heap = KnnQueryHeap::new(10000, 1.3);
-        node.knn(None, &zeros, &point_cloud, &mut heap).unwrap();
+        // Testing nearest covering child
+        match (
+            children_range_calc.iter()
+                .min_by(|a, b| a.dist_to_center.partial_cmp(&b.dist_to_center).unwrap()),
+            node.nearest_covering_child(1.3, dist_to_center, &zeros, &point_cloud).unwrap(),
+        ) {
+            (Some(query), Some((q_d, q_a))) => {
+                println!("Expected {:?}", query);
+                println!("Got {:?}", (q_d, q_a));
+                assert_approx_eq!(query.dist_to_center, q_d);
+                assert_eq!(query.address.1, q_a.1);
+            }
+            (None, None) => {}
+            (Some(query),None) => {
+                assert!(query.min_dist > 0.0);
+            }
+            _ => {
+                assert!(false, "nearest_covering_child is broken");
+            }
+        }
+
+        let children_range_calc: Vec<NodeAddress> =
+            children_range_calc.iter().map(|a| a.address).collect();
+
 
         let heap_range: Vec<NodeAddress> = clone_unvisited_nodes(&heap)
             .iter()
@@ -516,9 +585,7 @@ mod tests {
             .collect();
         let heap_knn: Vec<PointIndex> = heap.unpack().iter().map(|(_d, pi)| *pi).collect();
 
-        let children_range_calc: Vec<NodeAddress> =
-            children_range_calc.iter().map(|a| a.address).collect();
-        let brute_knn: Vec<PointIndex> = brute_knn.iter().map(|(_d, pi)| *pi).collect();
+        
 
         let mut correct = true;
         if correct {
@@ -537,6 +604,7 @@ mod tests {
 
             assert!(false);
         }
+        
     }
 
     #[test]

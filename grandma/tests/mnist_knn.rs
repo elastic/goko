@@ -47,7 +47,6 @@ use grandma::utils::*;
 use grandma::CoverTreeWriter;
 use pointcloud::*;
 
-use std::sync::Arc;
 fn build_tree() -> CoverTreeWriter<L2> {
     let file_name = "../data/mnist_complex.yml";
     let path = Path::new(file_name);
@@ -79,7 +78,7 @@ fn run_knn_query() {
     let ct = build_tree();
     save_tree(Path::new("../data/mnist.tree"), &ct).unwrap();
     let ct_reader = ct.reader();
-    let zeros = Arc::new(vec![0.0; 784]);
+    let zeros = [0.0; 784];
     let query = ct_reader.knn(&zeros, 5).unwrap();
     println!("{:#?}", query);
     println!("Expected: (array([3.56982747, 3.65066243, 3.83593169, 3.84857365, 3.86859321]), array([17664, 21618, 51468,  8080, 37920]))");
@@ -89,4 +88,46 @@ fn run_knn_query() {
     assert!(query[3].1 == 8080);
     assert!(query[4].1 == 37920);
     assert!(query.len() == 5);
+
+    // Testing dry insert on prebuilt tree
+    let trace = ct_reader.dry_insert(ct_reader.parameters().point_cloud.get_point(59999).unwrap()).unwrap();
+    println!("{:?}", trace);
+    for t in &trace {
+        assert!((t.1).1 == ct_reader.root_address().1);
+    }
+    let (_dist,last_node_address) = trace.last().unwrap();
+    let singleton_condition = ct_reader.get_node_and(*last_node_address,|n| {
+        n.singletons().contains(&0)}
+    ).unwrap();
+    assert!(last_node_address.1 == 59999 || singleton_condition);
 }
+
+/*
+#[test]
+fn run_multiscale_knn_query() {
+    let ct = build_tree();
+    save_tree(Path::new("../data/mnist.tree"), &ct).unwrap();
+    let ct_reader = ct.reader();
+    let zeros = Arc::new(vec![0.0; 784]);
+    let multiscale_query = ct_reader.multiscale_knn(&zeros, 3).unwrap();
+
+    let dataset = &ct_reader.parameters().point_cloud;
+    for (si,layer) in ct_reader.layers() {
+        let indexes: Vec<PointIndex> = layer.map_nodes(|si,_| *si);
+        let distances = dataset.distances_to_point(&zeros, &indexes).unwrap();
+        let mut dist_indexes: Vec<(f32,(i32,PointIndex))> = distances.iter().zip(indexes).map(|(d,pi)| (*d,(si,pi))).collect();
+        dist_indexes.sort_by(|(a,_),(b,_)| a.partial_cmp(b).unwrap());
+        if dist_indexes.len() > 0 {
+            println!("=======");
+            if dist_indexes.len() > 3 {
+                println!("{:?}", &dist_indexes[0..3]);
+            } else {
+                println!("{:?}", &dist_indexes);
+            }
+            println!("{:?}", multiscale_query.get(&si));
+        }
+
+    }
+    assert!(false);
+}
+*/

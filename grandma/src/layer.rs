@@ -61,7 +61,7 @@ impl<M: Metric> CoverLayerReader<M> {
         self.node_reader.get_and(pi, |n| f(n))
     }
 
-    /// Reads the contents of a plugin, due to the nature of the plugin map we have to access it with a 
+    /// Reads the contents of a plugin, due to the nature of the plugin map we have to access it with a
     /// closure.
     pub fn get_node_plugin_and<T: Send + Sync + 'static, F, S>(
         &self,
@@ -106,7 +106,7 @@ impl<M: Metric> CoverLayerReader<M> {
     /// Grabs all children indexes and allows you to query against them. Usually used at the tree level so that you
     /// can access the child nodes as they are not on this layer.
     pub fn node_center_indexes(&self) -> Vec<PointIndex> {
-        self.node_reader.map_into(|pi,_| *pi)
+        self.node_reader.map_into(|pi, _| *pi)
     }
 
     #[doc(hidden)]

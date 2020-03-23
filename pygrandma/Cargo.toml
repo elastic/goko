@@ -14,6 +14,9 @@ repository = "https://github.com/elastic/grandma.git"
 
 license = "Apache-2.0"
 
+[toolchain]
+channel = "nightly"
+
 [dependencies]
 grandma = { path = "../grandma" }
 pointcloud = { path = "../pointcloud" }

@@ -93,15 +93,14 @@ impl PartialOrd for QueryAddressRev {
         {
             Ordering::Greater => Some(Ordering::Greater),
             Ordering::Less => Some(Ordering::Less),
-            Ordering::Equal => match other.address.0.cmp(&self.address.0) {
+            Ordering::Equal => match self.address.0.cmp(&other.address.0) {
                 Ordering::Greater => Some(Ordering::Greater),
                 Ordering::Less => Some(Ordering::Less),
-                Ordering::Equal => other.dist_to_center.partial_cmp(&self.dist_to_center),
+                Ordering::Equal => self.dist_to_center.partial_cmp(&other.dist_to_center),
             },
         }
     }
 }
-
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct QuerySingleton {
