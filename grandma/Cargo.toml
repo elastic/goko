@@ -1,6 +1,6 @@
 [package]
 name = "grandma"
-version = "0.1.6"
+version = "0.2.0"
 edition = "2018"
 
 description = "A lock-free, eventually consistent, concurrent covertree."

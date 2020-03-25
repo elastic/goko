@@ -5,6 +5,10 @@ members = [
     "pointcloud",
     "pygrandma",
 ]
+default-members = [
+    "grandma", 
+    "pointcloud",
+]
 
 [profile.dev]
 opt-level = 0
