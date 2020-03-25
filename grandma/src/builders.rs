@@ -17,6 +17,7 @@
 * under the License.
 */
 
+use crate::plugins::TreePluginSet;
 use crate::*;
 use data_caches::*;
 use layer::*;
@@ -24,10 +25,10 @@ use node::*;
 use pbr::ProgressBar;
 //use pointcloud::*;
 use std::cmp::{max, min};
-use std::sync::{atomic, Arc};
+use std::sync::{atomic, Arc, RwLock};
 
 use crossbeam_channel::{unbounded, Receiver, Sender};
-use errors::MalwareBrotResult;
+use errors::GrandmaResult;
 
 use std::time::Instant;
 
@@ -38,7 +39,7 @@ struct BuilderNode {
 }
 
 impl BuilderNode {
-    fn new<M: Metric>(parameters: &CoverTreeParameters<M>) -> MalwareBrotResult<BuilderNode> {
+    fn new<M: Metric>(parameters: &CoverTreeParameters<M>) -> GrandmaResult<BuilderNode> {
         let covered = CoveredData::new(&parameters.point_cloud)?;
         let scale_index = (covered.max_distance()).log(parameters.scale_base).ceil() as i32;
         Ok(BuilderNode {
@@ -55,7 +56,7 @@ impl BuilderNode {
     fn split_parallel<M: Metric>(
         self,
         parameters: &Arc<CoverTreeParameters<M>>,
-        node_sender: &Arc<Sender<MalwareBrotResult<(i32, PointIndex, CoverNode)>>>,
+        node_sender: &Arc<Sender<GrandmaResult<(i32, PointIndex, CoverNode<M>)>>>,
     ) {
         let parameters = Arc::clone(parameters);
         let node_sender = Arc::clone(node_sender);
@@ -76,7 +77,7 @@ impl BuilderNode {
     fn split<M: Metric>(
         self,
         parameters: &Arc<CoverTreeParameters<M>>,
-    ) -> MalwareBrotResult<(CoverNode, Vec<BuilderNode>)> {
+    ) -> GrandmaResult<(CoverNode<M>, Vec<BuilderNode>)> {
         //println!("=====================");
         //println!("Splitting node with address {:?} and covered: {:?}", self.address(),self.covered);
 
@@ -185,17 +186,17 @@ pub struct CoverTreeBuilder {
     pub cutoff: usize,
     /// If a node has scale index less than or equal to this, it becomes a leaf
     pub resolution: i32,
-    /// If you don't want singletons messing with your tree and want everything to be a node or a element of leaf node, make this true. 
+    /// If you don't want singletons messing with your tree and want everything to be a node or a element of leaf node, make this true.
     pub use_singletons: bool,
     /// Unused for now
     pub cluster_min: usize,
-    /// Printing verbosity. 2 is the default and gives a progress bar. Still not fully pulled thru the codebase. 
+    /// Printing verbosity. 2 is the default and gives a progress bar. Still not fully pulled thru the codebase.
     /// This should be replaced by a logging solution
     pub verbosity: u32,
 }
 
 impl CoverTreeBuilder {
-    /// Creates a new builder with sensible defaults. 
+    /// Creates a new builder with sensible defaults.
     pub fn new() -> CoverTreeBuilder {
         CoverTreeBuilder {
             scale_base: 2.0,
@@ -207,7 +208,7 @@ impl CoverTreeBuilder {
         }
     }
 
-    /// 
+    ///
     pub fn set_scale_base(&mut self, x: f32) -> &mut Self {
         self.scale_base = x;
         self
@@ -232,12 +233,12 @@ impl CoverTreeBuilder {
         self.verbosity = x;
         self
     }
-    /// Pass a point cloud object when ready. 
+    /// Pass a point cloud object when ready.
     /// To do, make this point cloud an Arc
     pub fn build<M: Metric>(
         &self,
         point_cloud: PointCloud<M>,
-    ) -> MalwareBrotResult<CoverTreeWriter<M>> {
+    ) -> GrandmaResult<CoverTreeWriter<M>> {
         let parameters = CoverTreeParameters {
             total_nodes: atomic::AtomicUsize::new(1),
             scale_base: self.scale_base,
@@ -247,20 +248,21 @@ impl CoverTreeBuilder {
             cluster_min: self.cluster_min,
             point_cloud: point_cloud,
             verbosity: self.verbosity,
+            plugins: RwLock::new(TreePluginSet::new()),
         };
 
         let root = BuilderNode::new(&parameters)?;
         let root_address = root.address();
         let scale_range = root_address.0 - parameters.resolution;
         let mut layers = Vec::with_capacity(scale_range as usize);
-        layers.push(CoverLayerWriter::new(parameters.resolution));
+        layers.push(CoverLayerWriter::new(parameters.resolution - 1));
         for i in 0..(scale_range + 1) {
             layers.push(CoverLayerWriter::new(parameters.resolution + i as i32));
         }
 
         let (node_sender, node_receiver): (
-            Sender<MalwareBrotResult<(i32, PointIndex, CoverNode)>>,
-            Receiver<MalwareBrotResult<(i32, PointIndex, CoverNode)>>,
+            Sender<GrandmaResult<(i32, PointIndex, CoverNode<M>)>>,
+            Receiver<GrandmaResult<(i32, PointIndex, CoverNode<M>)>>,
         ) = unbounded();
 
         let node_sender = Arc::new(node_sender);
@@ -283,7 +285,9 @@ impl CoverTreeBuilder {
             match node_receiver.recv() {
                 Ok(res) => {
                     let (scale_index, point_index, new_node) = res.unwrap();
-                    unsafe {cover_tree.insert_raw(scale_index, point_index, new_node);}
+                    unsafe {
+                        cover_tree.insert_raw(scale_index, point_index, new_node);
+                    }
                     inserted_nodes += 1;
                     if parameters.verbosity > 1 {
                         pb.total = parameters.total_nodes.load(atomic::Ordering::SeqCst) as u64;
@@ -334,6 +338,7 @@ mod tests {
             cluster_min: 0,
             point_cloud,
             verbosity: 0,
+            plugins: RwLock::new(TreePluginSet::new()),
         })
     }
 
@@ -385,8 +390,8 @@ mod tests {
         let build_node = BuilderNode::new(&test_parameters).unwrap();
 
         let (node_sender, node_receiver): (
-            Sender<MalwareBrotResult<(i32, PointIndex, CoverNode)>>,
-            Receiver<MalwareBrotResult<(i32, PointIndex, CoverNode)>>,
+            Sender<GrandmaResult<(i32, PointIndex, CoverNode<L2>)>>,
+            Receiver<GrandmaResult<(i32, PointIndex, CoverNode<L2>)>>,
         ) = unbounded();
         let node_sender = Arc::new(node_sender);
 

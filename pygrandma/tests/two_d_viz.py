@@ -47,7 +47,7 @@ def show2D(tree,data):
     plt.show()
 
 if __name__ == '__main__':
-    numPoints = 30
+    numPoints = 120
     data = pi*(2*np.random.rand(numPoints,1) - 0.5)
     data = [np.cos(data).reshape(-1,1),np.cos(data)*np.sin(data).reshape(-1,1)]
     data = np.concatenate(data,axis=1).astype(np.float32)

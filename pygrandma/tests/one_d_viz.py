@@ -60,7 +60,7 @@ def show1D(tree,data):
     plt.show()
     
 if __name__ == '__main__':
-    numPoints = 21
+    numPoints = 42
 
     data1 = np.random.normal(loc=0.5,scale=0.2,size=(numPoints//3,)).reshape(numPoints//3,1)
     data2 = np.random.normal(loc=-0.5,scale=0.1,size=(2*numPoints//3,)).reshape(2*numPoints//3,1)

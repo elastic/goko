@@ -206,16 +206,18 @@ impl<M: Metric> PointCloud<M> {
     ///    string: String
     ///    boolean: bool
     /// ```
-    pub fn from_yaml(params: &Yaml) -> PointCloudResult<PointCloud<M>> {
+    pub fn from_yaml<P: AsRef<Path>>(params: &Yaml,yaml_path:P) -> PointCloudResult<PointCloud<M>> {
         let data_paths = &get_file_list(
             params["data_path"]
                 .as_str()
                 .expect("Unable to read the 'labels_path'"),
+            yaml_path.as_ref(),
         );
         let labels_paths = &get_file_list(
             params["labels_path"]
                 .as_str()
                 .expect("Unable to read the 'labels_path'"),
+            yaml_path.as_ref(),
         );
         let data_dim = params["data_dim"]
             .as_i64()
@@ -250,7 +252,7 @@ impl<M: Metric> PointCloud<M> {
             .expect(&format!("Unable to read config file {:?}", &path.as_ref()));
         let params_files = YamlLoader::load_from_str(&config).unwrap();
 
-        PointCloud::<M>::from_yaml(&params_files[0])
+        PointCloud::<M>::from_yaml(&params_files[0],path)
     }
 
 
@@ -456,6 +458,28 @@ impl<M: Metric> PointCloud<M> {
                 .collect()
         }
     }
+
+    /// The main distance function. This paralizes if there are more than 100 points.
+    pub fn moment_subset(
+        &self,
+        moment: i32,
+        indexes: &[PointIndex],
+    ) -> PointCloudResult<Vec<f32>> {
+        let mut moment_vec:Vec<f32> = vec![0.0;self.data_dim];
+        for i in indexes {
+            match self.get_point(*i) {
+                Ok(y) => {
+                    for (m,yy) in moment_vec.iter_mut().zip(y) {
+                        *m += yy.powi(moment);
+                    }
+                },
+                Err(e) => {
+                    return Err(e);
+                }
+            }
+        }
+        Ok(moment_vec)
+    }
 }
 
 fn build_label_schema_yaml(label_scheme: &mut LabelScheme, schema_yaml: &Yaml) {
@@ -480,16 +504,27 @@ fn build_label_schema_yaml(label_scheme: &mut LabelScheme, schema_yaml: &Yaml) {
     }
 }
 
-fn get_file_list(files_reg: &str) -> Vec<PathBuf> {
+fn get_file_list(files_reg: &str, yaml_path:&Path) -> Vec<PathBuf> {
     let options = MatchOptions {
         case_sensitive: false,
         ..Default::default()
     };
     let mut paths = Vec::new();
-    let glob_paths = match glob_with(files_reg, &options) {
-        Ok(expr) => expr,
-        Err(e) => panic!("Pattern reading error {:?}", e),
-    };
+    let glob_paths;
+    let files_reg_path = Path::new(files_reg);
+    if files_reg_path.is_absolute() {
+        glob_paths = match glob_with(&files_reg_path.to_str().unwrap(), &options) {
+            Ok(expr) => expr,
+            Err(e) => panic!("Pattern reading error {:?}", e),
+        };
+    } else {
+        glob_paths = match glob_with(&yaml_path.parent().unwrap().join(files_reg_path).to_str().unwrap(), &options) {
+            Ok(expr) => expr,
+            Err(e) => panic!("Pattern reading error {:?}", e),
+        };
+    }
+    
+
     for entry in glob_paths {
         let path = match entry {
             Ok(expr) => expr,
@@ -500,7 +535,7 @@ fn get_file_list(files_reg: &str) -> Vec<PathBuf> {
     paths
 }
 
-/*
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -515,5 +550,29 @@ mod tests {
         PointCloud::<L2>::simple_from_ram(Box::from(data), data_dim, Box::from(labels), labels_dim)
             .unwrap()
     }
+
+    #[test]
+    fn moment_correct() {
+        let count = 10;
+        let data_dim = 1;
+        let labels_dim = 1;
+        let data: Vec<f32> = (0..count * data_dim)
+            .map(|_i| rand::random::<f32>())
+            .collect();
+        let mom1 = data.iter().fold(0.0,|a,x| a+x);
+        let mom2 = data.iter().fold(0.0,|a,x| a+x*x);
+        let labels: Vec<f32> = (0..count * labels_dim)
+            .map(|_i| rand::random::<f32>())
+            .collect();
+        let pointcloud = PointCloud::<L2>::simple_from_ram(Box::from(data), data_dim, Box::from(labels), labels_dim)
+            .unwrap();
+        
+        let indexes = pointcloud.reference_indexes();
+        let calc_mom1 = pointcloud.moment_subset(1,&indexes).unwrap();
+        assert_eq!(mom1, calc_mom1[0]);
+        let calc_mom2 = pointcloud.moment_subset(2,&indexes).unwrap();
+        assert_eq!(mom2, calc_mom2[0]);
+
+    }
 }
-*/
+

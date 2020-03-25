@@ -1,5 +1,5 @@
 [package]
-name = "pointcloud"
+name = "pygrandma"
 version = "0.1.0"
 edition = "2018"
 
@@ -13,6 +13,9 @@ homepage = "https://github.com/elastic/grandma"
 repository = "https://github.com/elastic/grandma.git"
 
 license = "Apache-2.0"
+
+[toolchain]
+channel = "nightly"
 
 [dependencies]
 grandma = { path = "../grandma" }

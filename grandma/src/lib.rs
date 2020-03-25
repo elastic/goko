@@ -21,11 +21,12 @@
 #![deny(warnings)]
 #![warn(missing_docs)]
 #![doc(test(attr(allow(unused_variables), deny(warnings))))]
+#![feature(binary_heap_into_iter_sorted)]
 
 //! # Grandma
 //! This is an lock-free efficient implementation of a covertree for data science. The traditional
 //! application of this is for KNN, but it can be applied and used in lots of other applications.
-//! 
+//!
 //! ## Parameter Guide
 //! The structure is controlled by 3 parameters, the most important of which
 //! is the scale_base. This should be between 1.2 and 2ish. A higher value will create more outliers.
@@ -34,14 +35,14 @@
 //!
 //! The cutoff value controls how many points a leaf is allowed to cover. A smaller value gives faster
 //! bottom level queries, but at the cost of higher memory useage. Do not expect a value of 100 will give
-//! 1/100 the memory useage of a value of 1. It'd be closer to 1/10 or 1/5th. This is because the distribution 
+//! 1/100 the memory useage of a value of 1. It'd be closer to 1/10 or 1/5th. This is because the distribution
 //! of the number of children of a node. A high cutoff will increase the compute of the true-knn by a little bit.
 //!
 //! The resolution is the minimum scale index, this again reduces memory footprint and increases the query time
 //! for true KNN.
-//! Once a node's resolution dips below this value we stop and covert the remaining coverage into a leaf. 
+//! Once a node's resolution dips below this value we stop and covert the remaining coverage into a leaf.
 //! This is mainly to stop before floating point errors become an issue. Try to choose it to result in a cutoff of about
-//! 2^-9. 
+//! 2^-9.
 //!
 //! See the git readme for a description of the algo.
 //!
@@ -57,7 +58,7 @@ extern crate assert_approx_eq;
 
 use pointcloud::*;
 pub mod errors;
-pub use errors::MalwareBrotResult;
+pub use errors::GrandmaResult;
 
 pub(crate) mod evmap;
 
@@ -70,11 +71,13 @@ pub mod query_tools;
 mod tree;
 pub mod utils;
 
+pub mod plugins;
+
 pub use builders::CoverTreeBuilder;
 pub use tree::*;
 
-/// The data structure explicitly seperates the covertree by layer, and the addressing schema for nodes 
-/// is a pair for the layer index and the center point index of that node. 
+/// The data structure explicitly seperates the covertree by layer, and the addressing schema for nodes
+/// is a pair for the layer index and the center point index of that node.
 pub type NodeAddress = (i32, PointIndex);
 /// Like with a node address, the clusters are segmented by layer so we also reference by layer. The ClusterID is not meaningful, it's just a uint.
 pub type ClusterAddress = (i32, usize);

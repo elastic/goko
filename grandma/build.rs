@@ -28,9 +28,10 @@ fn main() {
         input: &["protos/tree_file_format.proto"],
         includes: &["protos"],
         customize: Customize {
-          ..Default::default()
+            ..Default::default()
         },
-    }).expect("protoc");
+    })
+    .expect("protoc");
     println!("cargo:rerun-if-changed=protos/tree_file_format.proto");
 }
 

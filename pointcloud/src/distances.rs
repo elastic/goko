@@ -23,7 +23,7 @@ use std::fmt::Debug;
 use packed_simd::*;
 
 /// The trait that enables a metric
-pub trait Metric: 'static + Send + Sync + Debug {
+pub trait Metric: 'static + Send + Sync + Debug + Clone {
     /// Dense calculation
     fn dense(x: &[f32], y: &[f32]) -> f32;
     /// Sparse calculation, we assume that the index slices are in accending order and 
@@ -34,7 +34,7 @@ pub trait Metric: 'static + Send + Sync + Debug {
 }
 
 /// L2 norm, the square root of the sum of squares
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct L2 {}
 
 impl Metric for L2 {
@@ -138,7 +138,7 @@ impl Metric for L2 {
 }
 
 /// L infity norm, the max of the absolute values of the elements
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Linfty {}
 
 impl Metric for Linfty {
@@ -242,7 +242,7 @@ impl Metric for Linfty {
 }
 
 /// L1 norm, the sum of absolute values
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct L1 {}
 
 impl Metric for L1 {
@@ -346,7 +346,7 @@ impl Metric for L1 {
 }
 
 /// Not a norm! Still, helpful for document clouds and the like
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CosineSim {}
 
 impl Metric for CosineSim {

@@ -53,14 +53,50 @@ impl PartialOrd for QueryAddress {
         {
             Ordering::Greater => Some(Ordering::Greater),
             Ordering::Less => Some(Ordering::Less),
-            Ordering::Equal => {
-                match other.address.0.cmp(&self.address.0) {
-                    Ordering::Greater => Some(Ordering::Greater),
-                    Ordering::Less => Some(Ordering::Less),
-                    Ordering::Equal => {
-                        other.dist_to_center.partial_cmp(&self.dist_to_center)
-                    }
-                }
+            Ordering::Equal => match other.address.0.cmp(&self.address.0) {
+                Ordering::Greater => Some(Ordering::Greater),
+                Ordering::Less => Some(Ordering::Less),
+                Ordering::Equal => other.dist_to_center.partial_cmp(&self.dist_to_center),
+            },
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct QueryAddressRev {
+    pub(crate) min_dist: f32,
+    pub(crate) dist_to_center: f32,
+    pub(crate) address: NodeAddress,
+}
+
+impl PartialEq for QueryAddressRev {
+    fn eq(&self, other: &QueryAddressRev) -> bool {
+        other.address == self.address
+    }
+}
+
+impl Eq for QueryAddressRev {}
+
+impl Ord for QueryAddressRev {
+    fn cmp(&self, other: &QueryAddressRev) -> Ordering {
+        self.partial_cmp(&other).unwrap_or(Ordering::Less)
+    }
+}
+
+impl PartialOrd for QueryAddressRev {
+    fn partial_cmp(&self, other: &QueryAddressRev) -> Option<Ordering> {
+        // Backwards to make it a max heap.
+        match self
+            .min_dist
+            .partial_cmp(&other.min_dist)
+            .unwrap_or(Ordering::Equal)
+        {
+            Ordering::Greater => Some(Ordering::Greater),
+            Ordering::Less => Some(Ordering::Less),
+            Ordering::Equal => match self.address.0.cmp(&other.address.0) {
+                Ordering::Greater => Some(Ordering::Greater),
+                Ordering::Less => Some(Ordering::Less),
+                Ordering::Equal => self.dist_to_center.partial_cmp(&other.dist_to_center),
             },
         }
     }

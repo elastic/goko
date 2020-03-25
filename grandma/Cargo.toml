@@ -18,8 +18,12 @@ categories = ["concurrency", "data-structures"]
 license-file = "../LICENSE.txt"
 include = ["protos/tree_file_format.proto","build.rs","src/*","Cargo.toml"]
 
+[toolchain]
+channel = "nightly"
+
 [features]
 docs-only = []
+
 
 [lib]
 path = "src/lib.rs"
@@ -36,6 +40,7 @@ crossbeam-channel = "0.4.2"
 pointcloud = { version = "0.1.2", path = "../pointcloud" }
 #evmap = { git = "https://github.com/comath/rust-evmap" }
 smallvec = "1.0"
+anymap = { git = "https://github.com/comath/anymap"}
 
 [dev-dependencies]
 assert_approx_eq = "1.0.0"
