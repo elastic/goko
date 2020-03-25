@@ -1,9 +1,4 @@
 language: rust
 rust:
-  - stable
-  - beta
   - nightly
-jobs:
-  allow_failures:
-    - rust: stable
 fast_finish: true
