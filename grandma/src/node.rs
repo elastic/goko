@@ -637,6 +637,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn mnist_knn_node_on_level() {
         let tree = build_mnist_tree();
         let reader = tree.reader();

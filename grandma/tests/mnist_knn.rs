@@ -95,6 +95,7 @@ fn test_dry_insert(ct_reader: &CoverTreeReader<L2>, query_index: u64) {
 }
 //Cover tree on MNIST builds and is queryable
 #[test]
+#[ignore]
 fn run_knn_query() {
     let ct = build_tree();
     save_tree(Path::new("../data/mnist.tree"), &ct).unwrap();
