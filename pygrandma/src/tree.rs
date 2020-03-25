@@ -19,21 +19,16 @@
 
 use pyo3::prelude::*;
 
-use ndarray::{Array, Array1, Array2};
-use numpy::{IntoPyArray, PyArray1, PyArray2};
-use pyo3::{PyIterProtocol};
+use numpy::{PyArray1, PyArray2};
 
-use grandma::layer::*;
 use grandma::plugins::*;
 use grandma::*;
-use grandma::errors::GrandmaError;
 use pointcloud::*;
 use std::sync::Arc;
 
-use rayon::prelude::*;
-use crate::node::*;
 use crate::layer::*;
- 
+use crate::node::*;
+
 #[pyclass(module = "pygrandma")]
 pub struct PyGrandma {
     builder: Option<CoverTreeBuilder>,
@@ -108,10 +103,10 @@ impl PyGrandma {
         let builder = self.builder.take();
         self.writer = Some(builder.unwrap().build(pointcloud).unwrap());
         let writer = self.writer.as_mut().unwrap();
-        writer.add_plugin::<GrandmaDiagGaussian>(GrandmaDiagGaussian::singleton());
-        writer.add_plugin::<BucketProbsGaussian>(BucketProbsTree {});
+        writer.add_plugin::<GrandmaDiagGaussian>(GrandmaDiagGaussian::singletons());
+        writer.add_plugin::<GrandmaBucketProbs>(BucketProbsTree {});
         let reader = writer.reader();
-        
+
         self.reader = Some(Arc::new(reader));
         Ok(())
     }
@@ -125,13 +120,9 @@ impl PyGrandma {
         self.reader.as_ref().map(|r| r.scale_range().start)
     }
 
-    
     pub fn layers(&self) -> PyResult<IterLayers> {
         let reader = self.reader.as_ref().unwrap();
-        let scale_indexes = reader
-                .layers()
-                .map(|(si, _)| si)
-                .collect();
+        let scale_indexes = reader.layers().map(|(si, _)| si).collect();
         Ok(IterLayers {
             parameters: Arc::clone(reader.parameters()),
             tree: reader.clone(),
@@ -139,7 +130,6 @@ impl PyGrandma {
             index: 0,
         })
     }
-    
 
     pub fn layer(&self, scale_index: i32) -> PyResult<PyGrandLayer> {
         let reader = self.reader.as_ref().unwrap();
@@ -150,15 +140,20 @@ impl PyGrandma {
         })
     }
 
-     pub fn node(&self, address: (i32,u64)) -> PyResult<PyGrandNode> {
+    pub fn node(&self, address: (i32, u64)) -> PyResult<PyGrandNode> {
         let reader = self.reader.as_ref().unwrap();
         // Check node exists
-        reader.get_node_and(address,|_| true).unwrap();
+        reader.get_node_and(address, |_| true).unwrap();
         Ok(PyGrandNode {
             parameters: Arc::clone(reader.parameters()),
             address,
             tree: reader.clone(),
         })
+    }
+
+    pub fn root(&self) -> PyResult<PyGrandNode> {
+        let reader = self.reader.as_ref().unwrap();
+        self.node(reader.root_address())
     }
 
     pub fn knn(&self, point: &PyArray1<f32>, k: usize) -> Vec<u64> {
@@ -168,10 +163,10 @@ impl PyGrandma {
             .unwrap()
             .knn(point.as_slice().unwrap(), k)
             .unwrap();
-        results.iter().map(|(d, i)| *i).collect()
+        results.iter().map(|(_d, i)| *i).collect()
     }
 
-    pub fn dry_insert(&self, point: &PyArray1<f32>) -> Vec<(i32,u64)> {
+    pub fn dry_insert(&self, point: &PyArray1<f32>) -> Vec<(i32, u64)> {
         let results = self
             .reader
             .as_ref()

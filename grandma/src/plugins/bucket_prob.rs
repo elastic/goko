@@ -60,7 +60,7 @@ impl BucketProbs {
                 }
             }
         }
-        self.total += child_coverage;
+        self.total -= child_coverage;
     }
 
     /// Pass none if you want to test for a singleton, returns 0 if
@@ -107,10 +107,10 @@ impl<M: Metric> TreePlugin<M> for BucketProbsTree {
 
 /// Zero sized type that can be passed around. Equivilant to `()`
 #[derive(Debug, Clone)]
-pub struct BucketProbsGrandma {}
+pub struct GrandmaBucketProbs {}
 
 /// Parent trait that make this all work. Ideally this should be included in the `TreePlugin` but rust doesn't like it.
-impl<M: Metric> GrandmaPlugin<M> for BucketProbsGrandma {
+impl<M: Metric> GrandmaPlugin<M> for GrandmaBucketProbs {
     type NodeComponent = BucketProbs;
     type TreeComponent = BucketProbsTree;
     fn node_component(

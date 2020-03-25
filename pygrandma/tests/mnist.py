@@ -14,12 +14,11 @@ tree.fit(data)
 
 print(tree.knn(data[0],5))
 
-layers = [l for l in tree.layers()]
-
-for layer in layers[:2]:
+for i,layer in enumerate(tree.layers()):
     print(f"On layer {layer.scale_index()}")
-    for node in layer.nodes():
-        print(f"\tNode {node.address()} mean: {node.cover_mean().mean()}")
+    if i < 2:
+        for node in layer.nodes():
+            print(f"\tNode {node.address()} mean: {node.cover_mean().mean()}")
 
 print("============= TRACE =============")
 trace = tree.dry_insert(data[59999])

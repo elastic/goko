@@ -25,7 +25,6 @@ pub mod tree;
 
 use tree::PyGrandma;
 
-
 #[pymodule]
 fn pygrandma(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
     m.add_class::<PyGrandma>()?;

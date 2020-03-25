@@ -22,7 +22,8 @@ mod bucket_prob;
 pub use bucket_prob::*;
 
 mod sequence_kl;
-mod utils {
+pub mod utils {
+    //! Utilities to use the plugins
     pub use super::sequence_kl::*;
 }
 

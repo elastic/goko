@@ -1,19 +1,15 @@
 use pyo3::prelude::*;
 
-use ndarray::{Array, Array1, Array2};
+use ndarray::{Array, Array2};
 use numpy::{IntoPyArray, PyArray1, PyArray2};
-use pyo3::{PyIterProtocol};
+use pyo3::PyIterProtocol;
 
 use grandma::layer::*;
-use grandma::plugins::*;
 use grandma::*;
-use grandma::errors::GrandmaError;
 use pointcloud::*;
 use std::sync::Arc;
 
-use rayon::prelude::*;
 use crate::node::*;
-use crate::tree::*;
 
 #[pyclass(module = "py_egs_events")]
 pub struct IterLayers {
@@ -31,7 +27,7 @@ impl std::iter::Iterator for IterLayers {
             Some(PyGrandLayer {
                 parameters: Arc::clone(&self.parameters),
                 tree: Arc::clone(&self.tree),
-                scale_index: self.scale_indexes[self.index-1],
+                scale_index: self.scale_indexes[self.index - 1],
             })
         } else {
             None
@@ -155,7 +151,7 @@ impl PyGrandLayer {
     pub fn node(&self, center_index: u64) -> PyResult<PyGrandNode> {
         Ok(PyGrandNode {
             parameters: Arc::clone(&self.parameters),
-            address: (self.scale_index,center_index),
+            address: (self.scale_index, center_index),
             tree: Arc::clone(&self.tree),
         })
     }
@@ -163,7 +159,12 @@ impl PyGrandLayer {
     pub fn nodes(&self) -> PyResult<IterLayerNode> {
         Ok(IterLayerNode {
             parameters: Arc::clone(&self.parameters),
-            addresses: self.layer().node_center_indexes().iter().map(|pi| (self.scale_index,*pi)).collect(),
+            addresses: self
+                .layer()
+                .node_center_indexes()
+                .iter()
+                .map(|pi| (self.scale_index, *pi))
+                .collect(),
             tree: Arc::clone(&self.tree),
             index: 0,
         })
