@@ -46,6 +46,7 @@ extern crate pointcloud;
 use grandma::utils::*;
 use grandma::{CoverTreeReader, CoverTreeWriter};
 use pointcloud::*;
+use std::env;
 
 fn build_tree() -> CoverTreeWriter<L2> {
     let file_name = "../data/mnist_complex.yml";
@@ -95,26 +96,27 @@ fn test_dry_insert(ct_reader: &CoverTreeReader<L2>, query_index: u64) {
 }
 //Cover tree on MNIST builds and is queryable
 #[test]
-#[ignore]
 fn run_knn_query() {
-    let ct = build_tree();
-    save_tree(Path::new("../data/mnist.tree"), &ct).unwrap();
-    let ct_reader = ct.reader();
-    let zeros = [0.0; 784];
-    let query = ct_reader.knn(&zeros, 5).unwrap();
-    println!("{:#?}", query);
-    println!("Expected: (array([3.56982747, 3.65066243, 3.83593169, 3.84857365, 3.86859321]), array([17664, 21618, 51468,  8080, 37920]))");
-    assert!(query[0].1 == 17664);
-    assert!(query[1].1 == 21618);
-    assert!(query[2].1 == 51468);
-    assert!(query[3].1 == 8080);
-    assert!(query[4].1 == 37920);
-    assert!(query.len() == 5);
+    if env::var("TRAVIS_RUST_VERSION").is_err() {
+        let ct = build_tree();
+        save_tree(Path::new("../data/mnist.tree"), &ct).unwrap();
+        let ct_reader = ct.reader();
+        let zeros = [0.0; 784];
+        let query = ct_reader.knn(&zeros, 5).unwrap();
+        println!("{:#?}", query);
+        println!("Expected: (array([3.56982747, 3.65066243, 3.83593169, 3.84857365, 3.86859321]), array([17664, 21618, 51468,  8080, 37920]))");
+        assert!(query[0].1 == 17664);
+        assert!(query[1].1 == 21618);
+        assert!(query[2].1 == 51468);
+        assert!(query[3].1 == 8080);
+        assert!(query[4].1 == 37920);
+        assert!(query.len() == 5);
 
-    println!("Testing root address 59999");
-    test_dry_insert(&ct_reader, 59999);
-    println!("Testing other address 0");
-    test_dry_insert(&ct_reader, 0);
+        println!("Testing root address 59999");
+        test_dry_insert(&ct_reader, 59999);
+        println!("Testing other address 0");
+        test_dry_insert(&ct_reader, 0);
+    }
 }
 
 /*

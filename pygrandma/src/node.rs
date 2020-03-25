@@ -1,7 +1,7 @@
 use pyo3::prelude::*;
 
-use ndarray::{Array1,Array2};
-use numpy::{IntoPyArray, PyArray1,PyArray2};
+use ndarray::{Array1, Array2};
+use numpy::{IntoPyArray, PyArray1, PyArray2};
 use pyo3::PyIterProtocol;
 
 use grandma::plugins::*;
@@ -58,8 +58,7 @@ impl PyGrandNode {
     }
 
     pub fn coverage_count(&self) -> u64 {
-        self
-            .tree
+        self.tree
             .get_node_plugin_and::<BucketProbs, _, _>(self.address, |p| p.total())
             .unwrap() as u64
     }
@@ -91,23 +90,23 @@ impl PyGrandNode {
     pub fn singletons(&self) -> PyResult<Py<PyArray2<f32>>> {
         let dim = self.parameters.point_cloud.dim();
         let len = self.coverage_count() as usize;
-        let mut ret_matrix = Vec::with_capacity(len*dim);
-        self.tree
-            .get_node_and(self.address, |n| {
-                n.singletons().iter().for_each(|pi| {
-                    ret_matrix.extend(self.parameters.point_cloud.get_point(*pi).unwrap_or(&[]));
-                });
-
-                if n.is_leaf() {
-                    ret_matrix.extend(self.parameters.point_cloud.get_point(*n.center_index( )).unwrap_or(&[]));
-                }
+        let mut ret_matrix = Vec::with_capacity(len * dim);
+        self.tree.get_node_and(self.address, |n| {
+            n.singletons().iter().for_each(|pi| {
+                ret_matrix.extend(self.parameters.point_cloud.get_point(*pi).unwrap_or(&[]));
             });
 
-        let ret_matrix = Array2::from_shape_vec(
-            (len, dim),
-            ret_matrix,
-        )
-        .unwrap();
+            if n.is_leaf() {
+                ret_matrix.extend(
+                    self.parameters
+                        .point_cloud
+                        .get_point(*n.center_index())
+                        .unwrap_or(&[]),
+                );
+            }
+        });
+
+        let ret_matrix = Array2::from_shape_vec((len, dim), ret_matrix).unwrap();
         let gil = GILGuard::acquire();
         let py = gil.python();
         Ok(ret_matrix.into_pyarray(py).to_owned())
@@ -115,9 +114,7 @@ impl PyGrandNode {
 
     pub fn singletons_indexes(&self) -> Vec<u64> {
         self.tree
-            .get_node_and(self.address, |n| {
-                Vec::from(n.singletons())
-            })
+            .get_node_and(self.address, |n| Vec::from(n.singletons()))
             .unwrap_or(vec![])
     }
 

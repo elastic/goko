@@ -19,14 +19,14 @@
 
 //! Supported distances
 
-use std::fmt::Debug;
 use packed_simd::*;
+use std::fmt::Debug;
 
 /// The trait that enables a metric
 pub trait Metric: 'static + Send + Sync + Debug + Clone {
     /// Dense calculation
     fn dense(x: &[f32], y: &[f32]) -> f32;
-    /// Sparse calculation, we assume that the index slices are in accending order and 
+    /// Sparse calculation, we assume that the index slices are in accending order and
     /// that the values correspond to the indexes
     fn sparse(x_ind: &[u32], x_val: &[f32], y_ind: &[u32], y_val: &[f32]) -> f32;
     /// The norm, dense(x,x)
@@ -184,7 +184,10 @@ impl Metric for Linfty {
             d_acc_8 = d_acc_8.max(x_simd);
             x = &x[8..];
         }
-        let leftover = x.iter().map(|xi| xi.abs()).fold(0.0, |acc:f32, xi| acc.max(xi));
+        let leftover = x
+            .iter()
+            .map(|xi| xi.abs())
+            .fold(0.0, |acc: f32, xi| acc.max(xi));
         leftover.max(d_acc_8.max_element().max(d_acc_16.max_element()))
     }
 
@@ -199,7 +202,7 @@ impl Metric for Linfty {
                 Self::norm(y_val)
             }
         } else {
-            let mut max_val:f32 = 0.0;
+            let mut max_val: f32 = 0.0;
             let mut long_iter;
             let short_iter;
             if x_ind.len() > y_ind.len() {
@@ -288,7 +291,7 @@ impl Metric for L1 {
             d_acc_8 += x_simd.abs();
             x = &x[8..];
         }
-        let leftover = x.iter().map(|xi| xi.abs()).fold(0.0, |acc, xi| acc+xi);
+        let leftover = x.iter().map(|xi| xi.abs()).fold(0.0, |acc, xi| acc + xi);
         leftover + d_acc_8.sum() + d_acc_16.sum()
     }
 

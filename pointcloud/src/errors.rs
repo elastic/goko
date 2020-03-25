@@ -24,7 +24,7 @@ use std::io;
 use std::str;
 
 ///
-pub type PointCloudResult<T> = Result<T,PointCloudError>;
+pub type PointCloudResult<T> = Result<T, PointCloudError>;
 
 /// Error type for the Point cloud
 #[derive(Debug)]
@@ -53,16 +53,16 @@ impl fmt::Display for PointCloudError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             // not sure that cause should be included in message
-            &PointCloudError::IoError(ref e) => write!(f,"{}",e),
-            &PointCloudError::ParsingError(ref e) => write!(f,"{}",e),
+            &PointCloudError::IoError(ref e) => write!(f, "{}", e),
+            &PointCloudError::ParsingError(ref e) => write!(f, "{}", e),
             &PointCloudError::DataAccessError { .. } => {
-                write!(f,"there was an issue grabbing a data point or label")
+                write!(f, "there was an issue grabbing a data point or label")
             }
             &PointCloudError::NameNotInTree { .. } => {
-                write!(f,"there was an issue grabbing a name from the known names")
+                write!(f, "there was an issue grabbing a name from the known names")
             }
             &PointCloudError::NodeNestingError { .. } => {
-                write!(f,"There is a temporary node in a working tree")
+                write!(f, "There is a temporary node in a working tree")
             }
         }
     }

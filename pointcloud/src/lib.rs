@@ -24,7 +24,6 @@
 //! # Point Cloud
 //! Abstracts data access over several files and glues metadata files to vector data files
 
-
 #[macro_use]
 extern crate serde;
 
@@ -39,7 +38,6 @@ pub mod errors;
 pub mod labels;
 pub mod utils;
 
-
 pub mod datasources;
 pub use datasources::DataSource;
 
@@ -48,4 +46,3 @@ pub use datasources::DataSource;
 pub type PointIndex = u64;
 /// To make things more obvious, we type the point name that we pull from the label CSV
 pub type PointName = String;
-

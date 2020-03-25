@@ -22,8 +22,8 @@
 use crate::*;
 use std::collections::HashMap;
 
-/// The data structure for an adjacency matrix. This is a simple wrapper around a 
-/// hash-map whose keys are pairs of `PointIndexes` and whose values are the 
+/// The data structure for an adjacency matrix. This is a simple wrapper around a
+/// hash-map whose keys are pairs of `PointIndexes` and whose values are the
 /// distances between the two points. This is usually the method one want to access the data.
 ///
 /// It assumes your data is symmetric and only stores the upper triangular matrix
@@ -45,12 +45,8 @@ impl AdjMatrix {
 
     /// Iterates over all distances and gets the minimum.
     pub fn min(&self) -> f32 {
-        self.vals.iter().fold(1.0/0.0,|a,(_k,v)| {
-            if v < &a {
-                *v
-            } else {
-                a
-            }
-        })
+        self.vals
+            .iter()
+            .fold(1.0 / 0.0, |a, (_k, v)| if v < &a { *v } else { a })
     }
 }

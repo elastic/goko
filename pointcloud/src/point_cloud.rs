@@ -17,37 +17,37 @@
 * under the License.
 */
 
-//! The actual point cloud 
+//! The actual point cloud
 
 use indexmap::IndexMap;
 use std::collections::HashMap;
+use std::fmt;
 use std::fs::File;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use std::fmt;
 
 use glob::{glob_with, MatchOptions};
-use std::io::Read;
-use yaml_rust::{Yaml, YamlLoader};
-use std::marker::PhantomData;
-use std::cmp::min;
 use rayon::prelude::*;
+use std::cmp::min;
+use std::io::Read;
+use std::marker::PhantomData;
+use yaml_rust::{Yaml, YamlLoader};
 
-use super::*;
-use super::errors::*;
-use super::labels::*;
-use super::labels::values::*;
-use crate::datasources::*;
-use crate::datasources::DataSource;
 use super::distances::*;
+use super::errors::*;
+use super::labels::values::*;
+use super::labels::*;
+use super::*;
+use crate::datasources::DataSource;
+use crate::datasources::*;
 use crate::utils::*;
 
 /// This abstracts away data access and the distance calculation. It handles both the labels and
 /// points.
 ///
 pub struct PointCloud<M: Metric> {
-    addresses: IndexMap<PointIndex, (usize,usize)>,
+    addresses: IndexMap<PointIndex, (usize, usize)>,
     names_to_indexes: IndexMap<PointName, PointIndex>,
     indexes_to_names: IndexMap<PointIndex, PointName>,
 
@@ -57,7 +57,7 @@ pub struct PointCloud<M: Metric> {
     loaded_centers: Mutex<IndexMap<PointIndex, Arc<Vec<f32>>>>,
     data_dim: usize,
     labels_scheme: LabelScheme,
-    chunk:usize,
+    chunk: usize,
     metric: PhantomData<M>,
 }
 
@@ -66,7 +66,8 @@ impl<M: Metric> fmt::Debug for PointCloud<M> {
         write!(
             f,
             "PointCloud {{ number of points: {}, number of memmaps: {}}}",
-            self.addresses.len(), self.data_sources.len()
+            self.addresses.len(),
+            self.data_sources.len()
         )
     }
 }
@@ -93,7 +94,7 @@ impl<M: Metric> PointCloud<M> {
         let mut current_count: u64 = 0;
         let mut data_sources = Vec::new();
         let mut label_sources = Vec::new();
-        for (i,(dp,lp)) in data_path.iter().zip(labels_path).enumerate() {
+        for (i, (dp, lp)) in data_path.iter().zip(labels_path).enumerate() {
             let new_data: Box<dyn DataSource>;
             if ram {
                 new_data = Box::new((DataMemmap::new(data_dim, &dp)?).convert_to_ram());
@@ -127,7 +128,7 @@ impl<M: Metric> PointCloud<M> {
         }
 
         // This could possibly be improved to be architecture specific. It depends on the CPU cache size
-        let chunk = min(15000/data_dim,20);
+        let chunk = min(15000 / data_dim, 20);
         Ok(PointCloud {
             data_sources: data_sources,
             label_sources: label_sources,
@@ -141,7 +142,7 @@ impl<M: Metric> PointCloud<M> {
             metric: PhantomData,
         })
     }
-    
+
     /// Builds the point cloud from data in ram.
     /// This is for complex metadata
     pub fn from_ram(
@@ -163,10 +164,10 @@ impl<M: Metric> PointCloud<M> {
             } else {
                 names_to_indexes.insert(name.clone(), j as PointIndex);
                 indexes_to_names.insert(j as PointIndex, name.clone());
-                addresses.insert(j as u64, (0,j));
+                addresses.insert(j as u64, (0, j));
             }
         }
-        let chunk = min(15000/data_dim,20);
+        let chunk = min(15000 / data_dim, 20);
         Ok(PointCloud {
             data_sources: vec![data_source],
             label_sources: vec![label_source],
@@ -206,7 +207,10 @@ impl<M: Metric> PointCloud<M> {
     ///    string: String
     ///    boolean: bool
     /// ```
-    pub fn from_yaml<P: AsRef<Path>>(params: &Yaml,yaml_path:P) -> PointCloudResult<PointCloud<M>> {
+    pub fn from_yaml<P: AsRef<Path>>(
+        params: &Yaml,
+        yaml_path: P,
+    ) -> PointCloudResult<PointCloud<M>> {
         let data_paths = &get_file_list(
             params["data_path"]
                 .as_str()
@@ -252,9 +256,8 @@ impl<M: Metric> PointCloud<M> {
             .expect(&format!("Unable to read config file {:?}", &path.as_ref()));
         let params_files = YamlLoader::load_from_str(&config).unwrap();
 
-        PointCloud::<M>::from_yaml(&params_files[0],path)
+        PointCloud::<M>::from_yaml(&params_files[0], path)
     }
-
 
     /// Builds the point cloud from data in ram. This is for quick things with simple metadata
     pub fn simple_from_ram(
@@ -296,9 +299,9 @@ impl<M: Metric> PointCloud<M> {
     }
 
     #[inline]
-    fn get_address(&self,pn: PointIndex) -> PointCloudResult<(usize,usize)> {
+    fn get_address(&self, pn: PointIndex) -> PointCloudResult<(usize, usize)> {
         match self.addresses.get(&pn) {
-            Some((i, j)) => Ok((*i,*j)),
+            Some((i, j)) => Ok((*i, *j)),
             None => panic!("Index not found"),
         }
     }
@@ -306,7 +309,7 @@ impl<M: Metric> PointCloud<M> {
     /// Returns a slice corresponding to the point in question. Used for rarely referenced points,
     /// like outliers or leaves.
     pub fn get_point(&self, pn: PointIndex) -> PointCloudResult<&[f32]> {
-        let (i,j) = self.get_address(pn)?;
+        let (i, j) = self.get_address(pn)?;
         self.data_sources[i].get(j)
     }
 
@@ -334,7 +337,7 @@ impl<M: Metric> PointCloud<M> {
     ///
     /// This will be changed to return a label structure that can contain many different pieces of info.
     pub fn get_metadata(&self, pn: PointIndex) -> PointCloudResult<Metadata> {
-        let (i,j) = self.get_address(pn)?;
+        let (i, j) = self.get_address(pn)?;
         self.label_sources[i].get(j)
     }
 
@@ -342,7 +345,7 @@ impl<M: Metric> PointCloud<M> {
     pub fn get_metasummary(&self, pns: &[PointIndex]) -> PointCloudResult<MetaSummary> {
         let mut disk_splits: Vec<Vec<usize>> = vec![Vec::new(); self.label_sources.len()];
         for pn in pns.iter() {
-            let (i,j) = self.get_address(*pn)?;
+            let (i, j) = self.get_address(*pn)?;
             disk_splits[i].push(j);
         }
         let disk_summaries: Vec<MetaSummary> = disk_splits
@@ -359,36 +362,37 @@ impl<M: Metric> PointCloud<M> {
         is: &[PointIndex],
         js: &[PointIndex],
     ) -> PointCloudResult<Vec<f32>> {
-        let mut dists: Vec<f32> = vec![0.0;is.len()*js.len()];
-        if is.len()*js.len() > self.chunk  {
+        let mut dists: Vec<f32> = vec![0.0; is.len() * js.len()];
+        if is.len() * js.len() > self.chunk {
             let dist_iter = dists.par_chunks_mut(js.len());
-            let indexes_iter = is.par_iter().map(|i| (i,js));
+            let indexes_iter = is.par_iter().map(|i| (i, js));
             let error: Mutex<Result<(), PointCloudError>> = Mutex::new(Ok(()));
-            dist_iter.zip(indexes_iter).for_each(|(chunk_dists,(i,chunk_indexes))| {
-                match self.get_point(*i) {
-                    Ok(x) => {
-                        for (d,j) in chunk_dists.iter_mut().zip(chunk_indexes) {
-                            match self.get_point(*j) {
-                                Ok(y) => *d = (M::dense)(x, y),
-                                Err(e) => {
-                                    *error.lock().unwrap() = Err(e);
+            dist_iter
+                .zip(indexes_iter)
+                .for_each(|(chunk_dists, (i, chunk_indexes))| {
+                    match self.get_point(*i) {
+                        Ok(x) => {
+                            for (d, j) in chunk_dists.iter_mut().zip(chunk_indexes) {
+                                match self.get_point(*j) {
+                                    Ok(y) => *d = (M::dense)(x, y),
+                                    Err(e) => {
+                                        *error.lock().unwrap() = Err(e);
+                                    }
                                 }
                             }
                         }
-                    },
-                    Err(e) => {
-                        *error.lock().unwrap() = Err(e);
-                    }
-                };
-                
-            });
+                        Err(e) => {
+                            *error.lock().unwrap() = Err(e);
+                        }
+                    };
+                });
             (error.into_inner().unwrap())?;
         } else {
-            for (k,i) in is.iter().enumerate() {
+            for (k, i) in is.iter().enumerate() {
                 let x = self.get_point(*i)?;
-                for (l,j) in js.iter().enumerate() {
+                for (l, j) in js.iter().enumerate() {
                     let y = self.get_point(*j)?;
-                    dists[k*js.len() + l] = (M::dense)(x, y);
+                    dists[k * js.len() + l] = (M::dense)(x, y);
                 }
             }
         }
@@ -401,13 +405,11 @@ impl<M: Metric> PointCloud<M> {
         i: PointIndex,
         indexes: &[PointIndex],
     ) -> PointCloudResult<Vec<f32>> {
-        self.distances_to_point(self.get_point(i)?,indexes)
+        self.distances_to_point(self.get_point(i)?, indexes)
     }
 
     /// Create and adjacency matrix
-    pub fn adj(&self,
-        mut indexes: &[PointIndex],
-    ) -> PointCloudResult<AdjMatrix> {
+    pub fn adj(&self, mut indexes: &[PointIndex]) -> PointCloudResult<AdjMatrix> {
         let mut vals = HashMap::new();
         while indexes.len() > 1 {
             let i = indexes[0];
@@ -432,20 +434,22 @@ impl<M: Metric> PointCloud<M> {
     ) -> PointCloudResult<Vec<f32>> {
         let len = indexes.len();
         if len > self.chunk * 3 {
-            let mut dists: Vec<f32> = vec![0.0;len];
+            let mut dists: Vec<f32> = vec![0.0; len];
             let dist_iter = dists.par_chunks_mut(self.chunk);
             let indexes_iter = indexes.par_chunks(self.chunk);
             let error: Mutex<Result<(), PointCloudError>> = Mutex::new(Ok(()));
-            dist_iter.zip(indexes_iter).for_each(|(chunk_dists,chunk_indexes)| {
-                for (d,i) in chunk_dists.iter_mut().zip(chunk_indexes) {
-                    match self.get_point(*i) {
-                        Ok(y) => *d = (M::dense)(x, y),
-                        Err(e) => {
-                            *error.lock().unwrap() = Err(e);
+            dist_iter
+                .zip(indexes_iter)
+                .for_each(|(chunk_dists, chunk_indexes)| {
+                    for (d, i) in chunk_dists.iter_mut().zip(chunk_indexes) {
+                        match self.get_point(*i) {
+                            Ok(y) => *d = (M::dense)(x, y),
+                            Err(e) => {
+                                *error.lock().unwrap() = Err(e);
+                            }
                         }
                     }
-                }
-            });
+                });
             (error.into_inner().unwrap())?;
             Ok(dists)
         } else {
@@ -460,19 +464,15 @@ impl<M: Metric> PointCloud<M> {
     }
 
     /// The main distance function. This paralizes if there are more than 100 points.
-    pub fn moment_subset(
-        &self,
-        moment: i32,
-        indexes: &[PointIndex],
-    ) -> PointCloudResult<Vec<f32>> {
-        let mut moment_vec:Vec<f32> = vec![0.0;self.data_dim];
+    pub fn moment_subset(&self, moment: i32, indexes: &[PointIndex]) -> PointCloudResult<Vec<f32>> {
+        let mut moment_vec: Vec<f32> = vec![0.0; self.data_dim];
         for i in indexes {
             match self.get_point(*i) {
                 Ok(y) => {
-                    for (m,yy) in moment_vec.iter_mut().zip(y) {
+                    for (m, yy) in moment_vec.iter_mut().zip(y) {
                         *m += yy.powi(moment);
                     }
-                },
+                }
                 Err(e) => {
                     return Err(e);
                 }
@@ -504,7 +504,7 @@ fn build_label_schema_yaml(label_scheme: &mut LabelScheme, schema_yaml: &Yaml) {
     }
 }
 
-fn get_file_list(files_reg: &str, yaml_path:&Path) -> Vec<PathBuf> {
+fn get_file_list(files_reg: &str, yaml_path: &Path) -> Vec<PathBuf> {
     let options = MatchOptions {
         case_sensitive: false,
         ..Default::default()
@@ -518,12 +518,19 @@ fn get_file_list(files_reg: &str, yaml_path:&Path) -> Vec<PathBuf> {
             Err(e) => panic!("Pattern reading error {:?}", e),
         };
     } else {
-        glob_paths = match glob_with(&yaml_path.parent().unwrap().join(files_reg_path).to_str().unwrap(), &options) {
+        glob_paths = match glob_with(
+            &yaml_path
+                .parent()
+                .unwrap()
+                .join(files_reg_path)
+                .to_str()
+                .unwrap(),
+            &options,
+        ) {
             Ok(expr) => expr,
             Err(e) => panic!("Pattern reading error {:?}", e),
         };
     }
-    
 
     for entry in glob_paths {
         let path = match entry {
@@ -534,7 +541,6 @@ fn get_file_list(files_reg: &str, yaml_path:&Path) -> Vec<PathBuf> {
     }
     paths
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -560,20 +566,23 @@ mod tests {
         let data: Vec<f32> = (0..count * data_dim)
             .map(|_i| rand::random::<f32>())
             .collect();
-        let mom1 = data.iter().fold(0.0,|a,x| a+x);
-        let mom2 = data.iter().fold(0.0,|a,x| a+x*x);
+        let mom1 = data.iter().fold(0.0, |a, x| a + x);
+        let mom2 = data.iter().fold(0.0, |a, x| a + x * x);
         let labels: Vec<f32> = (0..count * labels_dim)
             .map(|_i| rand::random::<f32>())
             .collect();
-        let pointcloud = PointCloud::<L2>::simple_from_ram(Box::from(data), data_dim, Box::from(labels), labels_dim)
-            .unwrap();
-        
-        let indexes = pointcloud.reference_indexes();
-        let calc_mom1 = pointcloud.moment_subset(1,&indexes).unwrap();
-        assert_eq!(mom1, calc_mom1[0]);
-        let calc_mom2 = pointcloud.moment_subset(2,&indexes).unwrap();
-        assert_eq!(mom2, calc_mom2[0]);
+        let pointcloud = PointCloud::<L2>::simple_from_ram(
+            Box::from(data),
+            data_dim,
+            Box::from(labels),
+            labels_dim,
+        )
+        .unwrap();
 
+        let indexes = pointcloud.reference_indexes();
+        let calc_mom1 = pointcloud.moment_subset(1, &indexes).unwrap();
+        assert_eq!(mom1, calc_mom1[0]);
+        let calc_mom2 = pointcloud.moment_subset(2, &indexes).unwrap();
+        assert_eq!(mom2, calc_mom2[0]);
     }
 }
-

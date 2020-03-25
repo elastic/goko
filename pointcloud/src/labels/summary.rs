@@ -40,10 +40,10 @@ pub enum ValueSummary {
 pub trait Summary {
     /// Adding a single value to the summary. When implementing please check that your value is compatible with your summary
     fn add(&mut self, v: &Value) -> Result<(), PointCloudError>;
-    /// Merging several summaries of your data source together. This results in a summary of underlying column over 
+    /// Merging several summaries of your data source together. This results in a summary of underlying column over
     /// the union of the indexes used to create the input summaries.
     fn combine(v: &[&ValueSummary]) -> Result<ValueSummary, PointCloudError>;
-    /// Dumps this to a json value. 
+    /// Dumps this to a json value.
     fn to_json(&self) -> String;
 }
 
@@ -86,7 +86,7 @@ impl Summary for ValueSummary {
     }
 }
 
-/// A map that relates summaries to the keys that the values came from. This 
+/// A map that relates summaries to the keys that the values came from. This
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct MetaSummary {
     /// the actual container

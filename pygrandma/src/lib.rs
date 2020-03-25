@@ -21,8 +21,8 @@ use pyo3::prelude::*;
 
 pub mod layer;
 pub mod node;
-pub mod tree;
 pub mod plugins;
+pub mod tree;
 
 use tree::PyGrandma;
 

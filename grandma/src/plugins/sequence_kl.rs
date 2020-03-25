@@ -6,7 +6,7 @@ use super::*;
 
 use std::collections::{HashMap, VecDeque};
 
-/// Computes a frequentist KL divergence calculation on each node the sequence touches. 
+/// Computes a frequentist KL divergence calculation on each node the sequence touches.
 pub struct BucketHKLDivergence {
     running_pdfs: HashMap<NodeAddress, BucketProbs>,
     sequence: VecDeque<Vec<NodeAddress>>,
@@ -56,7 +56,7 @@ impl BucketHKLDivergence {
             .remove_child_pop(None, 1);
     }
 
-    /// Adds an element to the trace 
+    /// Adds an element to the trace
     pub fn add_trace(&mut self, trace: Vec<NodeAddress>) {
         self.add_trace_to_pdfs(&trace);
         self.sequence.push_back(trace);
@@ -95,13 +95,18 @@ impl BucketHKLDivergence {
     pub fn all_node_kl<M: Metric>(
         &self,
         tree_reader: &CoverTreeReader<M>,
-    ) -> Vec<(f32, NodeAddress)> { 
-        self.running_pdfs.iter().map(|(address,sequence_pdf)| {
-            let kl = tree_reader
-                .get_node_plugin_and::<BucketProbs, _, _>(*address, |p| {
-                    sequence_pdf.kl_divergence(p)
-                }).unwrap().unwrap_or(0.0);
-            (kl,*address)
-            }).collect()
+    ) -> Vec<(f32, NodeAddress)> {
+        self.running_pdfs
+            .iter()
+            .map(|(address, sequence_pdf)| {
+                let kl = tree_reader
+                    .get_node_plugin_and::<BucketProbs, _, _>(*address, |p| {
+                        sequence_pdf.kl_divergence(p)
+                    })
+                    .unwrap()
+                    .unwrap_or(0.0);
+                (kl, *address)
+            })
+            .collect()
     }
 }

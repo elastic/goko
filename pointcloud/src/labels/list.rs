@@ -18,8 +18,8 @@
 */
 
 use super::*;
-use crate::*;
 use crate::errors::PointCloudError;
+use crate::*;
 
 #[derive(Debug, Clone)]
 pub(crate) enum ValueList {
@@ -29,7 +29,6 @@ pub(crate) enum ValueList {
     VectorList(VectorList),
     StringList(StringList),
 }
-
 
 pub(crate) trait InternalValueList {
     fn new() -> ValueList;
@@ -174,7 +173,7 @@ impl ValueList {
     }
 }
 
-/// This is a pair of `IndexMap`s. One that stores the name to index, the second that stores the 
+/// This is a pair of `IndexMap`s. One that stores the name to index, the second that stores the
 #[derive(Debug)]
 pub struct MetadataList {
     pub(crate) names: IndexMap<usize, PointName>,
@@ -238,7 +237,7 @@ impl MetadataList {
         Ok(values)
     }
 
-    /// Grabs the metadata for all elements of your subset and returns a smaller MetadataList. 
+    /// Grabs the metadata for all elements of your subset and returns a smaller MetadataList.
     /// Errors out if the data was inaccessible
     pub fn get_set(&self, indexes: &[usize]) -> Result<MetadataList, PointCloudError> {
         let mut subset = MetadataList::new();
@@ -248,7 +247,7 @@ impl MetadataList {
         Ok(subset)
     }
 
-    /// Grabs the metadata for all elements of your subset and returns a summary of the underlying data. 
+    /// Grabs the metadata for all elements of your subset and returns a summary of the underlying data.
     /// Errors out if the data was inaccessible
     pub fn get_summary(&self, indexes: &[usize]) -> Result<MetaSummary, PointCloudError> {
         let mut summaries = MetaSummary::new();
@@ -259,7 +258,7 @@ impl MetadataList {
     }
 
     /// Appends a the values contained in a metadata list to our metadata.
-    /// Errors out if you are missing a key that the map has. 
+    /// Errors out if you are missing a key that the map has.
     pub fn push(
         &mut self,
         name: Option<PointName>,

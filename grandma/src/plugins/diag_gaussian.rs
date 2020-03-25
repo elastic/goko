@@ -104,8 +104,11 @@ impl DiagGaussian {
 
     /// Computes the probability density function of the gaussian
     pub fn pdf(&self, point: &[f32]) -> f32 {
-        let mean_vars = internal_mean!(self.moment1, self.count)
-            .zip(internal_var!(self.moment1, self.moment2, self.count));
+        let mean_vars = internal_mean!(self.moment1, self.count).zip(internal_var!(
+            self.moment1,
+            self.moment2,
+            self.count
+        ));
 
         let (exponent, det) = point
             .iter()
@@ -118,11 +121,17 @@ impl DiagGaussian {
 
     /// Measures the divergence between this and another gaussian
     pub fn kl_divergence(&self, other: &DiagGaussian) -> f32 {
-        let mean_vars = internal_mean!(self.moment1, self.count)
-            .zip(internal_var!(self.moment1, self.moment2, self.count));
+        let mean_vars = internal_mean!(self.moment1, self.count).zip(internal_var!(
+            self.moment1,
+            self.moment2,
+            self.count
+        ));
 
-        let other_mean_vars = internal_mean!(other.moment1, other.count)
-            .zip(internal_var!(other.moment1, other.moment2, other.count));
+        let other_mean_vars = internal_mean!(other.moment1, other.count).zip(internal_var!(
+            other.moment1,
+            other.moment2,
+            other.count
+        ));
 
         let (trace, mah_dist, ln_det) = mean_vars
             .zip(other_mean_vars)

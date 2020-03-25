@@ -20,10 +20,10 @@
 //! Memmapped and Ram allocated data.
 
 use super::memmapf32::Mmapf32;
+use super::DataSource;
 use crate::errors::PointCloudError;
 use std::fs::OpenOptions;
 use std::path::Path;
-use super::DataSource;
 
 /// This is a thin wrapper around `memmapf32` to give it dimensionality, and name so that if there are errors in this memmap we can notify the user.
 #[derive(Debug)]
@@ -56,7 +56,11 @@ impl DataMemmap {
         let name = self.name;
         let mut data = Vec::with_capacity(self.data.len());
         data.extend_from_slice(&*self.data);
-        DataRam { name, data: Box::from(data), dim }
+        DataRam {
+            name,
+            data: Box::from(data),
+            dim,
+        }
     }
 }
 
@@ -91,9 +95,9 @@ pub struct DataRam {
 }
 
 impl DataRam {
-    /// Consumes your box and dimension and gives a dimensioned box. 
+    /// Consumes your box and dimension and gives a dimensioned box.
     pub fn new(dim: usize, data: Box<[f32]>) -> Result<DataRam, PointCloudError> {
-        assert!(data.len()%dim == 0);
+        assert!(data.len() % dim == 0);
         let name = "RAM".to_string();
         Ok(DataRam { name, data, dim })
     }

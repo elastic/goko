@@ -410,6 +410,7 @@ impl<M: Metric> CoverNode<M> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::env;
 
     use crate::query_tools::knn_query_heap::tests::clone_unvisited_nodes;
     use crate::query_tools::query_items::QueryAddress;
@@ -631,35 +632,35 @@ mod tests {
             println!("Brute Range Calc: {:?}", children_range_calc);
             println!("Heap Knn: {:?}", heap_knn);
             println!("Brute Knn: {:?}", brute_knn);
-
-        } 
+        }
         correct
     }
 
     #[test]
-    #[ignore]
     fn mnist_knn_node_on_level() {
-        let tree = build_mnist_tree();
-        let reader = tree.reader();
-        println!("Testing Root");
-        reader
-            .get_node_and(reader.root_address(), |n| {
-                brute_test_knn_node(n, reader.point_cloud())
-            })
-            .unwrap();
+        if env::var("TRAVIS_RUST_VERSION").is_err() {
+            let tree = build_mnist_tree();
+            let reader = tree.reader();
+            println!("Testing Root");
+            reader
+                .get_node_and(reader.root_address(), |n| {
+                    brute_test_knn_node(n, reader.point_cloud())
+                })
+                .unwrap();
 
-        let layer = reader.layer(reader.root_address().0 - 3);
-        println!(
-            "Testing 3 layers below root, with {} nodes",
-            layer.node_count()
-        );
-        // Allowed 3 errors.
-        let mut errors = 0;
-        layer.for_each_node(|_, n| {
-            if !brute_test_knn_node(n, reader.point_cloud()) {
-                errors += 1;
-            }
-        });
-        assert!(errors < 3);
+            let layer = reader.layer(reader.root_address().0 - 3);
+            println!(
+                "Testing 3 layers below root, with {} nodes",
+                layer.node_count()
+            );
+            // Allowed 3 errors.
+            let mut errors = 0;
+            layer.for_each_node(|_, n| {
+                if !brute_test_knn_node(n, reader.point_cloud()) {
+                    errors += 1;
+                }
+            });
+            assert!(errors < 3);
+        }
     }
 }

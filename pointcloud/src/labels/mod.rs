@@ -17,13 +17,13 @@
 * under the License.
 */
 
-//! A apache arrow inspired columnar meta-data storage. 
+//! A apache arrow inspired columnar meta-data storage.
 //! This should probably be phased out in favor of Arrow
 
-use crate::datasources::DataMemmap;
 use super::DataSource;
+use crate::datasources::DataMemmap;
 
-use crate::errors::{PointCloudError, ParsingError};
+use crate::errors::{ParsingError, PointCloudError};
 use flate2::read::GzDecoder;
 use indexmap::IndexMap;
 use std::ffi::OsStr;
