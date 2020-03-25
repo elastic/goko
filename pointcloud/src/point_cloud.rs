@@ -539,6 +539,7 @@ fn get_file_list(files_reg: &str, yaml_path:&Path) -> Vec<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rand;
 
     pub fn build_random_test(count: usize, data_dim: usize, labels_dim: usize) -> PointCloud<L2> {
         let data: Vec<f32> = (0..count * data_dim)
