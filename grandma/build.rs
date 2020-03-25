@@ -20,18 +20,21 @@ extern crate protoc_rust;
 
 #[cfg(not(feature = "docs-only"))]
 use protoc_rust::Customize;
+use std::env;
 
 #[cfg(not(feature = "docs-only"))]
 fn main() {
-    protoc_rust::run(protoc_rust::Args {
-        out_dir: "src",
-        input: &["protos/tree_file_format.proto"],
-        includes: &["protos"],
-        customize: Customize {
-            ..Default::default()
-        },
-    })
-    .expect("protoc");
+    if env::var("TRAVIS_RUST_VERSION").is_err() {
+        protoc_rust::run(protoc_rust::Args {
+            out_dir: "src",
+            input: &["protos/tree_file_format.proto"],
+            includes: &["protos"],
+            customize: Customize {
+                ..Default::default()
+            },
+        })
+        .expect("protoc");
+    }
     println!("cargo:rerun-if-changed=protos/tree_file_format.proto");
 }
 
