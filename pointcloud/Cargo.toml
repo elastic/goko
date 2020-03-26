@@ -17,6 +17,9 @@ license-file = "../LICENSE.txt"
 keywords = ["datasets"]
 categories = ["science", "data-structures"]
 
+[badges]
+travis-ci = { repository = "https://github.com/elastic/grandma.git", branch = "master" }
+
 [toolchain]
 channel = "nightly"
 
