@@ -513,7 +513,7 @@ fn get_file_list(files_reg: &str, yaml_path: &Path) -> Vec<PathBuf> {
     let glob_paths;
     let files_reg_path = Path::new(files_reg);
     if files_reg_path.is_absolute() {
-        glob_paths = match glob_with(&files_reg_path.to_str().unwrap(), &options) {
+        glob_paths = match glob_with(&files_reg_path.to_str().unwrap(), options) {
             Ok(expr) => expr,
             Err(e) => panic!("Pattern reading error {:?}", e),
         };
@@ -525,7 +525,7 @@ fn get_file_list(files_reg: &str, yaml_path: &Path) -> Vec<PathBuf> {
                 .join(files_reg_path)
                 .to_str()
                 .unwrap(),
-            &options,
+            options,
         ) {
             Ok(expr) => expr,
             Err(e) => panic!("Pattern reading error {:?}", e),
