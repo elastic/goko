@@ -1,8 +1,6 @@
 use pyo3::prelude::*;
 
-use ndarray::{Array, Array1, Array2};
-use numpy::{IntoPyArray, PyArray1, PyArray2};
-use pyo3::PyIterProtocol;
+use numpy::PyArray1;
 
 use grandma::plugins::utils::*;
 use grandma::*;
@@ -10,8 +8,8 @@ use pointcloud::*;
 use std::sync::Arc;
 #[pyclass(module = "py_egs_events")]
 pub struct PyBucketHKLDivergence {
-    hkl: BucketHKLDivergence,
-    tree: Arc<CoverTreeReader<L2>>,
+    pub hkl: BucketHKLDivergence,
+    pub tree: Arc<CoverTreeReader<L2>>,
 }
 
 #[pymethods]
@@ -20,5 +18,9 @@ impl PyBucketHKLDivergence {
         let results = self.tree.dry_insert(point.as_slice().unwrap()).unwrap();
         self.hkl
             .add_trace(results.iter().map(|(_, a)| *a).collect());
+    }
+
+    pub fn all_kl(&self) -> Vec<(f32,(i32,u64))> {
+        self.hkl.all_node_kl(&self.tree)
     }
 }

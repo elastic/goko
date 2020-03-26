@@ -21,11 +21,13 @@ use pyo3::prelude::*;
 
 use numpy::{PyArray1, PyArray2};
 
+use grandma::plugins::utils::*;
 use grandma::plugins::*;
 use grandma::*;
 use pointcloud::*;
 use std::sync::Arc;
 
+use crate::plugins::*;
 use crate::layer::*;
 use crate::node::*;
 
@@ -174,5 +176,14 @@ impl PyGrandma {
             .dry_insert(point.as_slice().unwrap())
             .unwrap();
         results.iter().map(|(_, i)| *i).collect()
+    }
+
+    pub fn kl_div_tracker(&self,k:Option<u64>) -> PyBucketHKLDivergence {
+        let reader = self.reader.as_ref().unwrap();
+        let k = k.unwrap_or(0);
+        PyBucketHKLDivergence {
+            hkl: BucketHKLDivergence::new(k as usize),
+            tree: Arc::clone(&reader),
+        }
     }
 }
