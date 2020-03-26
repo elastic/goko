@@ -11,7 +11,7 @@ use std::sync::Arc;
 
 use crate::node::*;
 
-#[pyclass(module = "py_egs_events")]
+#[pyclass]
 pub struct IterLayers {
     pub parameters: Arc<CoverTreeParameters<L2>>,
     pub tree: Arc<CoverTreeReader<L2>>,
@@ -45,7 +45,7 @@ impl PyIterProtocol for IterLayers {
     }
 }
 
-#[pyclass(module = "pygrandma")]
+#[pyclass]
 pub struct PyGrandLayer {
     pub parameters: Arc<CoverTreeParameters<L2>>,
     pub tree: Arc<CoverTreeReader<L2>>,

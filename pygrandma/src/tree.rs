@@ -31,7 +31,7 @@ use crate::plugins::*;
 use crate::layer::*;
 use crate::node::*;
 
-#[pyclass(module = "pygrandma")]
+#[pyclass]
 pub struct PyGrandma {
     builder: Option<CoverTreeBuilder>,
     writer: Option<CoverTreeWriter<L2>>,
@@ -42,14 +42,13 @@ pub struct PyGrandma {
 #[pymethods]
 impl PyGrandma {
     #[new]
-    fn new(obj: &PyRawObject) -> PyResult<()> {
-        obj.init(PyGrandma {
+    fn new() -> PyResult<PyGrandma> {
+        Ok(PyGrandma {
             builder: Some(CoverTreeBuilder::new()),
             writer: None,
             reader: None,
             metric: "L2".to_string(),
-        });
-        Ok(())
+        })
     }
     pub fn set_scale_base(&mut self, x: f32) {
         match &mut self.builder {

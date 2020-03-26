@@ -9,7 +9,7 @@ use grandma::*;
 use pointcloud::*;
 use std::sync::Arc;
 
-#[pyclass(module = "py_egs_events")]
+#[pyclass]
 pub struct IterLayerNode {
     pub parameters: Arc<CoverTreeParameters<L2>>,
     pub addresses: Vec<NodeAddress>,
@@ -44,7 +44,7 @@ impl PyIterProtocol for IterLayerNode {
     }
 }
 
-#[pyclass(module = "pygrandma")]
+#[pyclass]
 pub struct PyGrandNode {
     pub parameters: Arc<CoverTreeParameters<L2>>,
     pub address: NodeAddress,
