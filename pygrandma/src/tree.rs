@@ -177,11 +177,20 @@ impl PyGrandma {
         results.iter().map(|(_, i)| *i).collect()
     }
 
-    pub fn kl_div_tracker(&self,k:Option<u64>) -> PyBucketHKLDivergence {
+    pub fn kl_div_frequentist(&self,k:Option<u64>) -> PyBucketHKLDivergence {
         let reader = self.reader.as_ref().unwrap();
+        let writer = self.writer.as_ref().unwrap();
         let k = k.unwrap_or(0);
         PyBucketHKLDivergence {
-            hkl: BucketHKLDivergence::new(k as usize),
+            hkl: BucketHKLDivergence::new(k as usize, writer.reader()),
+            tree: Arc::clone(&reader),
+        }
+    }
+    pub fn kl_div_sgd(&self,learning_rate:f64,momentum:f64) -> PySGDHKLDivergence {
+        let reader = self.reader.as_ref().unwrap();
+        let writer = self.writer.as_ref().unwrap();
+        PySGDHKLDivergence {
+            hkl: SGDHKLDivergence::new(learning_rate,momentum, writer.reader()),
             tree: Arc::clone(&reader),
         }
     }

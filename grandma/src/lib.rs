@@ -18,7 +18,7 @@
 */
 
 #![allow(dead_code)]
-#![deny(warnings)]
+//#![deny(warnings)]
 #![warn(missing_docs)]
 #![doc(test(attr(allow(unused_variables), deny(warnings))))]
 #![feature(binary_heap_into_iter_sorted)]

@@ -31,8 +31,8 @@ for address in trace:
         print(f"\tNode {node.address()}, MEAN IS BROKEN")
 
 print("============= KL Divergence =============")
-kl_tracker = tree.kl_div_tracker()
-for x in data[:100]:
+kl_tracker = tree.kl_div_sgd(0.001,0.8)
+for x in data[:5]:
     kl_tracker.push(x)
 
 for kl,address in kl_tracker.all_kl():
