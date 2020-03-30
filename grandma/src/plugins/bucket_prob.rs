@@ -134,7 +134,7 @@ impl BucketProbs {
             // We have the component of the tangent space we want to apply.
             // We could solve for the geodesic or work out a safe distance for our update vector.
             // The update vector's components sum to zero, we just need to make sure no values exceed 1 or 0.
-            let max_curvature = self
+            let min_metric_scale = self
                 .probs
                 .iter()
                 .zip(&self.update)
@@ -143,7 +143,7 @@ impl BucketProbs {
                         let r = Self::prob_to_reals(*p);
                         let pr = Self::reals_to_prob(r + u);
                         let correction = (pr - *p).abs();
-                        (p_diff / u).abs()
+                        (correction / u).abs()
                     } else {
                         1.0
                     }
@@ -155,7 +155,7 @@ impl BucketProbs {
             self.probs
                 .iter_mut()
                 .zip(&self.update)
-                .for_each(|(p, u)| *p -= u * curvature);
+                .for_each(|(p, u)| *p -= u * min_metric_scale);
         }
     }
 

@@ -32,9 +32,19 @@ for address in trace:
 
 print("============= KL Divergence =============")
 kl_tracker = tree.kl_div_sgd(0.001,0.8)
-for x in data[:2]:
-    kl_tracker.print()
+print("============= KL Divergence Normal Use =============")
+
+for x in data[:200]:
     kl_tracker.push(x)
 
 for kl,address in kl_tracker.all_kl():
+    print(kl,address)
+
+print("============= KL Divergence Attack =============")
+
+kl_attack_tracker = tree.kl_div_sgd(0.001,0.8)
+for i in range(200):
+    kl_attack_tracker.push(data[0])
+
+for kl,address in kl_attack_tracker.all_kl():
     print(kl,address)
