@@ -133,6 +133,8 @@ impl BucketProbs {
             self.decend_update_vec(index, learning_rate, momentum);
             // We have the component of the tangent space we want to apply.
             // We could solve for the geodesic or work out a safe distance for our update vector.
+            // This calculates an approximation of the length of the geodesic from the current prob vector 
+            // in the direction and magnitude of the update vector.
             // The update vector's components sum to zero, we just need to make sure no values exceed 1 or 0.
             let min_metric_scale = self
                 .probs

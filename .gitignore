@@ -1,6 +1,7 @@
 target
 Cargo.lock
 data
+models
 build
 dist
 *.egg-info
