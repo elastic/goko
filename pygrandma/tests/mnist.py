@@ -3,12 +3,12 @@ from sklearn.neighbors import KDTree
 import pygrandma
 import pandas as pd
 
-data = np.memmap("../../data/mnist.dat", dtype=np.float32)
+data = np.memmap("../data/mnist.dat", dtype=np.float32)
 data = data.reshape([-1,784])
 
 tree = pygrandma.PyGrandma()
 tree.set_cutoff(0)
-tree.set_scale_base(1.3)
+tree.set_scale_base(1.2)
 tree.set_resolution(-30)
 tree.fit(data)
 
@@ -32,7 +32,8 @@ for address in trace:
 
 print("============= KL Divergence =============")
 kl_tracker = tree.kl_div_sgd(0.001,0.8)
-for x in data[:5]:
+for x in data[:2]:
+    kl_tracker.print()
     kl_tracker.push(x)
 
 for kl,address in kl_tracker.all_kl():

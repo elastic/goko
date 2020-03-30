@@ -6,6 +6,24 @@ use grandma::plugins::utils::*;
 use grandma::*;
 use pointcloud::*;
 use std::sync::Arc;
+
+/*
+pub #[derive(Debug)]
+struct PyBucketProbs {
+    probs: BucketProbs
+}
+
+#[pymethods]
+impl PyBucketProbs {
+    pub fn pdfs(&self) -> PyResult<Py<PyArray1<f32>>> {
+        Array1::from_shape_vec((dim,), m)
+            .unwrap()
+            .into_pyarray(py)
+            .to_owned()
+    }
+}
+*/
+
 #[pyclass]
 pub struct PyBucketHKLDivergence {
     pub hkl: BucketHKLDivergence<L2>,
@@ -20,8 +38,8 @@ impl PyBucketHKLDivergence {
             .add_trace(results.iter().map(|(_, a)| *a).collect());
     }
 
-    pub fn all_kl(&self) -> Vec<(f64,(i32,u64))> {
-        self.hkl.all_node_kl()    
+    pub fn all_kl(&self) -> Vec<(f64, (i32, u64))> {
+        self.hkl.all_node_kl()
     }
 }
 
@@ -39,7 +57,11 @@ impl PySGDHKLDivergence {
             .add_trace(results.iter().map(|(_, a)| *a).collect());
     }
 
-    pub fn all_kl(&self) -> Vec<(f64,(i32,u64))> {
-        self.hkl.all_node_kl()    
+    pub fn print(&self) {
+        println!("{:#?}", self.hkl);
+    }
+
+    pub fn all_kl(&self) -> Vec<(f64, (i32, u64))> {
+        self.hkl.all_node_kl()
     }
 }

@@ -3,11 +3,11 @@
 //!
 
 use super::*;
+use std::fmt;
 
 use std::collections::{HashMap, VecDeque};
 
-pub trait InsertDistributionTracker<M:Metric> {
-
+pub trait InsertDistributionTracker<M: Metric> {
     fn add_trace(&mut self, trace: Vec<NodeAddress>);
 
     fn running_pdfs(&self) -> &HashMap<NodeAddress, BucketProbs>;
@@ -17,7 +17,8 @@ pub trait InsertDistributionTracker<M:Metric> {
     fn max_node_kl(&self) -> Option<(f64, NodeAddress)> {
         let mut max_kl: Option<(f64, NodeAddress)> = None;
         for (address, sequence_pdf) in self.running_pdfs().iter() {
-            let kl = self.tree_reader()
+            let kl = self
+                .tree_reader()
                 .get_node_plugin_and::<BucketProbs, _, _>(*address, |p| {
                     sequence_pdf.kl_divergence(p)
                 })
@@ -40,7 +41,8 @@ pub trait InsertDistributionTracker<M:Metric> {
         self.running_pdfs()
             .iter()
             .map(|(address, sequence_pdf)| {
-                let kl = self.tree_reader()
+                let kl = self
+                    .tree_reader()
                     .get_node_plugin_and::<BucketProbs, _, _>(*address, |p| {
                         sequence_pdf.kl_divergence(p)
                     })
@@ -53,14 +55,14 @@ pub trait InsertDistributionTracker<M:Metric> {
 }
 
 /// Computes a frequentist KL divergence calculation on each node the sequence touches.
-pub struct BucketHKLDivergence<M:Metric> {
+pub struct BucketHKLDivergence<M: Metric> {
     running_pdfs: HashMap<NodeAddress, BucketProbs>,
     sequence: VecDeque<Vec<NodeAddress>>,
     length: usize,
     reader: CoverTreeReader<M>,
 }
 
-impl<M:Metric> BucketHKLDivergence<M> {
+impl<M: Metric> BucketHKLDivergence<M> {
     /// Creates a new blank thing with capacity `size`, input 0 for unlimited.
     pub fn new(size: usize, reader: CoverTreeReader<M>) -> BucketHKLDivergence<M> {
         BucketHKLDivergence {
@@ -104,7 +106,7 @@ impl<M:Metric> BucketHKLDivergence<M> {
             .remove_child_pop(None, 1);
     }
 }
-impl<M:Metric> InsertDistributionTracker<M> for BucketHKLDivergence<M> {
+impl<M: Metric> InsertDistributionTracker<M> for BucketHKLDivergence<M> {
     /// Adds an element to the trace
     fn add_trace(&mut self, trace: Vec<NodeAddress>) {
         self.add_trace_to_pdfs(&trace);
@@ -123,15 +125,29 @@ impl<M:Metric> InsertDistributionTracker<M> for BucketHKLDivergence<M> {
 }
 
 /// Computes a frequentist KL divergence calculation on each node the sequence touches.
-pub struct SGDHKLDivergence<M:Metric> {
+pub struct SGDHKLDivergence<M: Metric> {
     learning_rate: f64,
     momentum: f64,
     running_pdfs: HashMap<NodeAddress, BucketProbs>,
     reader: CoverTreeReader<M>,
 }
 
-impl<M:Metric> SGDHKLDivergence<M> {
-    pub fn new(learning_rate: f64, momentum: f64, reader: CoverTreeReader<M>) -> SGDHKLDivergence<M> {
+impl<M: Metric> fmt::Debug for SGDHKLDivergence<M> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "PointCloud {{ learning_rate: {}, momentum: {}, running_pdfs: {:#?}}}",
+            self.learning_rate, self.momentum, self.running_pdfs,
+        )
+    }
+}
+
+impl<M: Metric> SGDHKLDivergence<M> {
+    pub fn new(
+        learning_rate: f64,
+        momentum: f64,
+        reader: CoverTreeReader<M>,
+    ) -> SGDHKLDivergence<M> {
         SGDHKLDivergence {
             running_pdfs: HashMap::new(),
             learning_rate,
@@ -141,7 +157,7 @@ impl<M:Metric> SGDHKLDivergence<M> {
     }
 }
 
-impl<M:Metric> InsertDistributionTracker<M> for SGDHKLDivergence<M> {
+impl<M: Metric> InsertDistributionTracker<M> for SGDHKLDivergence<M> {
     /// Adds an element to the trace
     fn add_trace(&mut self, trace: Vec<NodeAddress>) {
         let parent_address_iter = trace.iter();
@@ -152,7 +168,8 @@ impl<M:Metric> InsertDistributionTracker<M> for SGDHKLDivergence<M> {
                 .entry(*parent)
                 .or_insert(
                     self.reader
-                        .get_node_plugin_and::<BucketProbs, _, _>(*parent, |p| p.clone()).unwrap(),
+                        .get_node_plugin_and::<BucketProbs, _, _>(*parent, |p| p.clone())
+                        .unwrap(),
                 )
                 .sgd_observation(Some(child), self.learning_rate, self.momentum);
         }
@@ -161,7 +178,8 @@ impl<M:Metric> InsertDistributionTracker<M> for SGDHKLDivergence<M> {
             .entry(*last)
             .or_insert(
                 self.reader
-                    .get_node_plugin_and::<BucketProbs, _, _>(*last, |p| p.clone()).unwrap(),
+                    .get_node_plugin_and::<BucketProbs, _, _>(*last, |p| p.clone())
+                    .unwrap(),
             )
             .sgd_observation(None, self.learning_rate, self.momentum);
     }

@@ -27,9 +27,9 @@ use grandma::*;
 use pointcloud::*;
 use std::sync::Arc;
 
-use crate::plugins::*;
 use crate::layer::*;
 use crate::node::*;
+use crate::plugins::*;
 
 #[pyclass]
 pub struct PyGrandma {
@@ -177,7 +177,7 @@ impl PyGrandma {
         results.iter().map(|(_, i)| *i).collect()
     }
 
-    pub fn kl_div_frequentist(&self,k:Option<u64>) -> PyBucketHKLDivergence {
+    pub fn kl_div_frequentist(&self, k: Option<u64>) -> PyBucketHKLDivergence {
         let reader = self.reader.as_ref().unwrap();
         let writer = self.writer.as_ref().unwrap();
         let k = k.unwrap_or(0);
@@ -186,11 +186,11 @@ impl PyGrandma {
             tree: Arc::clone(&reader),
         }
     }
-    pub fn kl_div_sgd(&self,learning_rate:f64,momentum:f64) -> PySGDHKLDivergence {
+    pub fn kl_div_sgd(&self, learning_rate: f64, momentum: f64) -> PySGDHKLDivergence {
         let reader = self.reader.as_ref().unwrap();
         let writer = self.writer.as_ref().unwrap();
         PySGDHKLDivergence {
-            hkl: SGDHKLDivergence::new(learning_rate,momentum, writer.reader()),
+            hkl: SGDHKLDivergence::new(learning_rate, momentum, writer.reader()),
             tree: Arc::clone(&reader),
         }
     }

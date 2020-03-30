@@ -3,17 +3,28 @@
 //! A class for handling the finite probablity distribution of the children
 
 use super::*;
+use std::fmt;
 
 use std::collections::HashMap;
 
 /// Simple probability density function for where things go by count
 ///
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct BucketProbs {
     probs: Vec<f64>,
     update: Vec<f64>,
     child_counts: HashMap<NodeAddress, usize>,
     total: usize,
+}
+
+impl fmt::Debug for BucketProbs {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "BucketProbs {{ probs: {:?}, update: {:?}}}",
+            self.probs, self.update,
+        )
+    }
 }
 
 impl BucketProbs {
@@ -32,6 +43,17 @@ impl BucketProbs {
             Some(ca) => self.child_counts.get(ca).map(|c| *c),
             None => Some(0),
         }
+    }
+
+    fn valid(&self) -> bool {
+        let mut total = 0.0;
+        for p in &self.probs {
+            if !(0.0 <= *p && *p <= 1.0) {
+                return false;
+            }
+            total += p
+        }
+        0 < self.probs.len() && 0.999 < total && total < 1.001
     }
 
     fn mut_index(&mut self, address: Option<NodeAddress>) -> usize {
@@ -56,10 +78,51 @@ impl BucketProbs {
         self.total
     }
 
+    fn prob_to_reals(prob: f64) -> f64 {
+        0.5 * ((2.0 * prob - 1.0).atanh())
+    }
+
+    fn reals_to_prob(real: f64) -> f64 {
+        (0.5 * ((2.0 * real).tanh() + 1.0))
+    }
+
+    /// Computes the gradient of a vector in the tangent space of the probability space.
+    fn decend_update_vec(&mut self, index: usize, learning_rate: f64, momentum: f64) {
+        let mut grad: Vec<f64> = self
+            .probs
+            .iter()
+            .map(|p| {
+                if p != &0.0 && p != &1.0 {
+                    1.0 / (1.0 - *p)
+                } else {
+                    0.0
+                }
+            })
+            .collect();
+        if grad[index] != 0.0 && grad[index] != 1.0 {
+            grad[index] = -1.0 / grad[index];
+        } else {
+            grad[index] = -10.0;
+        }
+        self.update.iter_mut().zip(&grad).for_each(|(u, g)| {
+            if *g != 0.0 {
+                *u = learning_rate * g + momentum * (*u);
+            }
+        });
+        // Make the update vec sum to zero, so when we add it to our PDF it sums to one
+        let update_dot = self.update.iter().map(|x| x).fold(0.0, |x, a| x + a);
+        let unit_norm = (self.probs.len() as f64);
+        let proj = update_dot / unit_norm;
+        self.update.iter_mut().for_each(|u| {
+            *u = *u - proj;
+        });
+    }
+
     /// Updates the probs via a stochiastic gradient decent operation.
     /// The loss function is cross entropy, it does the gradient decent, then reprojects down to the affine plane.
-    /// Momentum is used to make this have some form of memory
+    /// The gradient is calculated wrt a metric inspired by a poicare disk. Sorta.
     /// If the address is not in the hashmap, the update is ignored.
+    ///
     pub fn sgd_observation(
         &mut self,
         child_address: Option<&NodeAddress>,
@@ -67,62 +130,32 @@ impl BucketProbs {
         momentum: f64,
     ) {
         if let Some(index) = self.index(child_address) {
-            let mut grad: Vec<f64> = self.probs.iter().map(|p| 1.0 / (1.0 - *p)).collect();
-            grad[index] = -1.0 / (self.probs[index]);
-            let grad_norm = grad.iter().map(|x| x * x).fold(0.0, |x, a| x + a).sqrt();
-            let grad_dot = grad.iter().map(|x| x).fold(0.0, |x, a| x + a);
-            let unit_norm = (self.probs.len() as f64).sqrt();
-            let proj = grad_dot / (unit_norm * grad_norm);
-            self.update
-                .iter_mut()
-                .zip(grad)
-                .for_each(|(u, g)| *u = learning_rate * (g - proj) + momentum * (*u));
+            self.decend_update_vec(index, learning_rate, momentum);
+            // We have the component of the tangent space we want to apply.
+            // We could solve for the geodesic or work out a safe distance for our update vector.
+            // The update vector's components sum to zero, we just need to make sure no values exceed 1 or 0.
+            let max_curvature = self
+                .probs
+                .iter()
+                .zip(&self.update)
+                .map(|(p, u)| {
+                    if *u != 0.0 {
+                        let r = Self::prob_to_reals(*p);
+                        let pr = Self::reals_to_prob(r + u);
+                        let correction = (pr - *p).abs();
+                        (p_diff / u).abs()
+                    } else {
+                        1.0
+                    }
+                })
+                .min_by(|a, b| a.partial_cmp(b).unwrap())
+                .unwrap();
+
             // This can result in negative values, so we check for that and step back by a bit after the update
             self.probs
                 .iter_mut()
                 .zip(&self.update)
-                .for_each(|(p, u)| *p -= u);
-            // Bring it back to a real PDF
-            let mut not_updated = true;
-            while not_updated {
-                not_updated = false;
-                let (min, bad_update) = self
-                    .probs
-                    .iter()
-                    .zip(&self.update)
-                    .min_by(|(i, _v), (j, _u)| i.partial_cmp(j).unwrap())
-                    .unwrap();
-                if min < &0.0 {
-                    let step_back = min / (learning_rate * (bad_update - proj));
-                    self.update
-                        .iter_mut()
-                        .for_each(|u| *u = step_back * (*u));
-                    self.probs
-                        .iter_mut()
-                        .zip(&self.update)
-                        .for_each(|(p, u)| *p -= step_back * u);
-                    not_updated = false;
-                }
-
-                let (max, bad_update) = self
-                    .probs
-                    .iter()
-                    .zip(&self.update)
-                    .max_by(|(i, _v), (j, _u)| i.partial_cmp(j).unwrap())
-                    .unwrap();
-                if max < &0.0 {
-                    let step_back = (1.0-max) / (learning_rate * (bad_update - proj));
-                    self.update
-                        .iter_mut()
-                        .for_each(|u| *u = step_back * (*u));
-                    self.probs
-                        .iter_mut()
-                        .zip(&self.update)
-                        .for_each(|(p, u)| *p -= step_back * *u);
-                    not_updated = false;
-                }
-            }   
-            
+                .for_each(|(p, u)| *p -= u * curvature);
         }
     }
 
@@ -249,11 +282,27 @@ pub(crate) mod tests {
     //use crate::tree::tests::build_basic_tree;
 
     #[test]
+    fn space_conversion() {
+        let prob = 0.5;
+        let real = 0.0;
+        assert_approx_eq!(prob, BucketProbs::reals_to_prob(real));
+        assert_approx_eq!(real, BucketProbs::prob_to_reals(prob));
+        let test_arr = [0.2, 0.542, 0.734];
+        for t in test_arr.iter() {
+            assert_approx_eq!(
+                t,
+                BucketProbs::reals_to_prob(BucketProbs::prob_to_reals(*t))
+            );
+        }
+    }
+
+    #[test]
     fn empty_bucket_sanity_test() {
         let buckets = BucketProbs::new();
         assert_eq!(buckets.pdf(None), None);
         assert_eq!(buckets.pdf(Some(&(0, 0))), None);
         assert_eq!(buckets.kl_divergence(&buckets), None);
+        assert!(!buckets.valid());
     }
 
     #[test]
@@ -263,6 +312,7 @@ pub(crate) mod tests {
         assert_approx_eq!(buckets.pdf(None).unwrap(), 1.0);
         assert_approx_eq!(buckets.kl_divergence(&buckets).unwrap(), 0.0);
         assert_eq!(buckets.pdf(Some(&(0, 0))), None);
+        assert!(buckets.valid());
     }
 
     #[test]
@@ -272,6 +322,7 @@ pub(crate) mod tests {
         assert_approx_eq!(buckets.pdf(Some(&(0, 0))).unwrap(), 1.0);
         assert_approx_eq!(buckets.kl_divergence(&buckets).unwrap(), 0.0);
         assert_eq!(buckets.pdf(None).unwrap(), 0.0);
+        assert!(buckets.valid());
     }
 
     #[test]
@@ -280,18 +331,22 @@ pub(crate) mod tests {
         bucket1.add_child_pop(None, 6);
         bucket1.add_child_pop(Some((0, 0)), 6);
         println!("{:?}", bucket1);
+        assert!(bucket1.valid());
 
         let mut bucket2 = BucketProbs::new();
         bucket2.add_child_pop(None, 4);
         bucket2.add_child_pop(Some((0, 0)), 8);
         println!("{:?}", bucket2);
+        assert!(bucket2.valid());
 
         assert_approx_eq!(bucket1.pdf(None).unwrap(), 0.5);
         assert_approx_eq!(bucket2.pdf(Some(&(0, 0))).unwrap(), 0.666666666);
         assert_approx_eq!(bucket1.kl_divergence(&bucket1).unwrap(), 0.0);
+        assert!(bucket2.valid());
 
         assert_approx_eq!(bucket1.kl_divergence(&bucket2).unwrap(), 0.05889151782);
         assert_approx_eq!(bucket2.kl_divergence(&bucket1).unwrap(), 0.05663301226);
+        assert!(bucket1.valid());
     }
 
     #[test]
@@ -303,23 +358,43 @@ pub(crate) mod tests {
 
         bucket1.sgd_observation(None, 0.01, 0.0);
         println!("{:?}", bucket1);
-        assert_approx_eq!(bucket1.probs[0], 0.52);
-        assert_approx_eq!(bucket1.probs[1], 0.48);
+        assert!(bucket1.probs[0] > 0.51);
+        assert!(bucket1.probs[1] < 0.49);
+        assert!(bucket1.valid());
     }
 
     #[test]
     fn sgd_bucket_mometum_test() {
         let mut bucket1 = BucketProbs::new();
-        bucket1.add_child_pop(None, 6);
-        bucket1.add_child_pop(Some((0, 0)), 6);
+        bucket1.add_child_pop(None, 11);
+        bucket1.add_child_pop(Some((0, 0)), 1);
         println!("{:?}", bucket1);
 
-        bucket1.sgd_observation(None, 0.01, 0.9);
+        let init_probs = bucket1.probs.clone();
+
         bucket1.sgd_observation(None, 0.01, 0.9);
         println!("{:?}", bucket1);
-        assert!(bucket1.probs[0] > 0.52);
-        assert!(bucket1.probs[1] < 0.48);
-        assert!(false);
+        let init_diff: Vec<f64> = init_probs
+            .iter()
+            .zip(&bucket1.probs)
+            .map(|(a, b)| (a - b).abs())
+            .collect();
+        let second_probs = bucket1.probs.clone();
+        bucket1.sgd_observation(None, 0.01, 0.9);
+        let second_diff: Vec<f64> = second_probs
+            .iter()
+            .zip(&bucket1.probs)
+            .map(|(a, b)| (a - b).abs())
+            .collect();
+
+        println!("{:?}", bucket1);
+        assert!(
+            BucketProbs::prob_to_reals(second_diff[0]) > BucketProbs::prob_to_reals(init_diff[0])
+        );
+        assert!(
+            BucketProbs::prob_to_reals(second_diff[1]) > BucketProbs::prob_to_reals(init_diff[1])
+        );
+        assert!(bucket1.valid());
     }
 
     #[test]
@@ -330,7 +405,6 @@ pub(crate) mod tests {
         println!("{:?}", bucket1);
 
         bucket1.sgd_observation(None, 0.5, 0.0);
-        assert_approx_eq!(bucket1.probs[0], 1.0);
-        assert_approx_eq!(bucket1.probs[1], 0.0);
+        assert!(bucket1.valid());
     }
 }
