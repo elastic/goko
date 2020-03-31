@@ -56,7 +56,7 @@ def main():
 	tree.fit(train_set_array)
 
 	print("============= KL Divergence Normal =============")
-	kl_tracker = tree.kl_div_sgd(0.01,0.8)
+	kl_tracker = tree.kl_div_sgd(0.005,0.9)
 	testloader = mnist.testing()
 	accuracy = testAccuracy(model1,testloader,kl_tracker=kl_tracker)
 	print(accuracy)
@@ -68,7 +68,7 @@ def main():
 	print(kl_arr.mean(),kl_arr.var(),kl_arr.max(),len(kl_arr))
 	print("============= KL Divergence Attack =============")
 
-	kl_attack_tracker = tree.kl_div_sgd(0.01,0.8)
+	kl_attack_tracker = tree.kl_div_sgd(0.005,0.9)
 	accuracy = testAttackAccuracy(model1,testloader,kl_tracker=kl_attack_tracker)
 	print(accuracy)
 	kl_attack_arr = []

@@ -18,14 +18,17 @@
 */
 
 use pyo3::prelude::*;
+use ndarray::{Array1, Array2};
+use numpy::{IntoPyArray,PyArray1, PyArray2};
 
-use numpy::{PyArray1, PyArray2};
+use std::sync::Arc;
+use std::path::Path;
 
 use grandma::plugins::utils::*;
 use grandma::plugins::*;
+use grandma::utils::*;
 use grandma::*;
 use pointcloud::*;
-use std::sync::Arc;
 
 use crate::layer::*;
 use crate::node::*;
@@ -110,6 +113,31 @@ impl PyGrandma {
 
         self.reader = Some(Arc::new(reader));
         Ok(())
+    }
+
+    pub fn fit_yaml(&mut self, file_name: String) -> PyResult<()> {
+        let path = Path::new(&file_name);
+        let mut writer = cover_tree_from_yaml(&path).unwrap();
+        writer.add_plugin::<GrandmaDiagGaussian>(GrandmaDiagGaussian::singletons());
+        writer.add_plugin::<GrandmaBucketProbs>(BucketProbsTree {});
+        self.reader = Some(Arc::new(writer.reader()));
+        self.writer = Some(writer);
+        self.builder = None;
+        Ok(())
+    }
+
+    pub fn data_point(&self, point_index: u64) -> PyResult<Option<Py<PyArray1<f32>>>> {
+        let reader = self.reader.as_ref().unwrap();
+        let dim = reader.parameters().point_cloud.dim();
+        Ok(match reader.parameters().point_cloud.get_point(point_index) {
+            Err(_) => None,
+            Ok(point) => {
+                let py_point = Array1::from_shape_vec((dim,), Vec::from(point)).unwrap();
+                let gil = GILGuard::acquire();
+                let py = gil.python();
+                Some(py_point.into_pyarray(py).to_owned())
+            },
+        })
     }
 
     //pub fn layers(&self) ->
