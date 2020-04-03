@@ -106,7 +106,16 @@ impl BucketProbs {
         }
         self.update.iter_mut().zip(&grad).for_each(|(u, g)| {
             if *g != 0.0 {
-                *u = learning_rate * g + momentum * (*u);
+                let pu = learning_rate * g + momentum * (*u);
+                if pu > 5.0 {
+                    *u = 5.0;
+                } else {
+                    if pu < -5.0 {
+                        *u = -5.0;
+                    } else {
+                        *u = pu;
+                    }
+                }
             }
         });
         // Make the update vec sum to zero, so when we add it to our PDF it sums to one
@@ -116,6 +125,20 @@ impl BucketProbs {
         self.update.iter_mut().for_each(|u| {
             *u = *u - proj;
         });
+    }
+
+    fn calc_scale(p:f64,u:f64) -> f64 {
+        if 0.0 != u {
+            let r = Self::prob_to_reals(p);
+            let pr = Self::reals_to_prob(r - u);
+            let correction = (pr - p).abs();
+            //if p.is_nan() || r.is_nan() || pr.is_nan() || u.is_nan() || correction.is_nan() {
+            //    panic!("p:{:?},r:{},pr:{},u:{},correction:{}",p,r,pr,u,correction);
+            //}
+            (correction / u).abs()
+        } else {
+            1.0
+        }
     }
 
     /// Updates the probs via a stochiastic gradient decent operation.
@@ -129,6 +152,8 @@ impl BucketProbs {
         learning_rate: f64,
         momentum: f64,
     ) {
+        let good_probs = self.probs.clone();
+        let good_update = self.update.clone();
         if let Some(index) = self.index(child_address) {
             self.decend_update_vec(index, learning_rate, momentum);
             // We have the component of the tangent space we want to apply.
@@ -140,24 +165,37 @@ impl BucketProbs {
                 .probs
                 .iter()
                 .zip(&self.update)
-                .map(|(p, u)| {
-                    if *u != 0.0 {
-                        let r = Self::prob_to_reals(*p);
-                        let pr = Self::reals_to_prob(r + u);
-                        let correction = (pr - *p).abs();
-                        (correction / u).abs()
-                    } else {
-                        1.0
-                    }
-                })
+                .map(|(p,u)|Self::calc_scale(*p,*u))
                 .min_by(|a, b| a.partial_cmp(b).unwrap())
                 .unwrap();
-
             // This can result in negative values, so we check for that and step back by a bit after the update
             self.probs
                 .iter_mut()
                 .zip(&self.update)
                 .for_each(|(p, u)| *p -= u * min_metric_scale);
+            if !self.valid() {
+                let scaling: Vec<f64> = good_probs
+                .iter()
+                .zip(&self.update)
+                .map(|(p, u)| {
+                    if 0.0 != *u {
+                        let r = Self::prob_to_reals(*p);
+                        let pr = Self::reals_to_prob(r - u);
+                        let correction = (pr - *p).abs();
+                        println!("p:{:?},r:{},pr:{},u:{},correction:{}",p,r,pr,u,correction);
+                        (correction / u).abs()
+                    } else {
+                        1.0
+                    }
+                }).collect();
+                println!("Good probs {:?}", good_probs);
+                println!("Good update {:?}", good_update);
+                println!("Observation: {:?}, scale:{}", index,min_metric_scale);
+                println!("Bad probs {:?}", self.probs);
+                println!("Bad update {:?}", self.update);
+                println!("Bad scales {:?}", scaling);
+                panic!("INVALID PROB");
+            }
         }
     }
 
@@ -295,6 +333,23 @@ pub(crate) mod tests {
                 t,
                 BucketProbs::reals_to_prob(BucketProbs::prob_to_reals(*t))
             );
+        }
+    }
+
+    #[test]
+    fn scale_conversion() {
+        for p in 0..1000 {
+            for u in 0..1000 {
+                let pf = ((p+1) as f64)/1000.0;
+                let uf = ((u+1) as f64)/1000.0;
+                let scale = BucketProbs::calc_scale(pf,uf);
+                let final_prob = pf - uf * scale;
+                if !(0.0 <= final_prob && final_prob <= 1.0 ){
+                    println!("p:{},u{},s:{} final_prob:{}",pf,uf,scale,final_prob);
+                    assert!(false,"look!");
+                }
+                
+            }
         }
     }
 

@@ -20,20 +20,22 @@ for address in trace:
         print(f"\tNode {node.address()}, MEAN IS BROKEN")
 
 print("============= KL Divergence =============")
-kl_tracker = tree.kl_div_sgd(0.005,0.8)
+normal_stats = tree.kl_div_sgd_basestats(0.005,0.8)
+for i,stats in enumerate(normal_stats):
+    print(stats)
 print("============= KL Divergence Normal Use =============")
-
-for i in range(50):
+kl_tracker = tree.kl_div_sgd(0.005,0.8)
+for i in range(200):
     kl_tracker.push(tree.data_point(i))
+    print(kl_tracker.stats())
 
-for kl,address in kl_tracker.all_kl():
-    print(kl,address)
 
 print("============= KL Divergence Attack =============")
 
 kl_attack_tracker = tree.kl_div_sgd(0.005,0.8)
-for i in range(50):
+for i in range(100):
+    kl_attack_tracker.push(tree.data_point(i))
+    print(kl_attack_tracker.stats())
+for i in range(100):
     kl_attack_tracker.push(tree.data_point(0))
-
-for kl,address in kl_attack_tracker.all_kl():
-    print(kl,address)
+    print(kl_attack_tracker.stats())

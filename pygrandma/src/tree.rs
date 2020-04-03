@@ -222,4 +222,13 @@ impl PyGrandma {
             tree: Arc::clone(&reader),
         }
     }
+
+    pub fn kl_div_sgd_basestats(&self, learning_rate: f64, momentum: f64) -> Vec<PyKLDivergenceStats> {
+        let reader = self.writer.as_ref().unwrap().reader();
+        let mut trainer = KLDivergenceTrainer::new(reader);
+        trainer.set_learning_rate(learning_rate);
+        trainer.set_momentum(momentum);
+        trainer.train().unwrap().drain(0..).map(|stats| PyKLDivergenceStats{stats}).collect()
+
+    }
 }

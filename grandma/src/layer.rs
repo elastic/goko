@@ -45,6 +45,7 @@ use tree_file_format::*;
 /// Actual reader, primarily contains a read head to the hash-map.
 /// This also contains a reference to the scale_index so that it is easy to save and load. It is largely redundant,
 /// but helps with unit tests.
+#[derive(Clone)]
 pub struct CoverLayerReader<M: Metric> {
     scale_index: i32,
     node_reader: MonoReadHandle<PointIndex, CoverNode<M>>,

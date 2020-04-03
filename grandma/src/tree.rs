@@ -98,6 +98,7 @@ pub type LayerIter<'a, M> = Rev<std::iter::Zip<Range<i32>, Iter<'a, CoverLayerRe
 ///
 /// The data structure is just a list of `CoverLayerReader`s, the parameter's object and the root address. Copies are relatively
 /// expensive as each `CoverLayerReader` contains several Arcs that need to be cloned.
+#[derive(Clone)]
 pub struct CoverTreeReader<M: Metric> {
     parameters: Arc<CoverTreeParameters<M>>,
     layers: Vec<CoverLayerReader<M>>,
