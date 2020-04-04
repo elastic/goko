@@ -21,11 +21,15 @@ pub use diag_gaussian::*;
 mod bucket_prob;
 pub use bucket_prob::*;
 
+pub mod bayesian;
+
+/*
 mod sequence_kl;
 pub mod utils {
     //! Utilities to use the plugins
     pub use super::sequence_kl::*;
 }
+*/
 
 /// Mockup for the plugin interface attached to the node. These are meant to be functions that Grandma uses to maintain the plugin.
 pub trait NodePlugin<M: Metric>: Send + Sync + Debug {

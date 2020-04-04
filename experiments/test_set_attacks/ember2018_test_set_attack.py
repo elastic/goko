@@ -8,19 +8,13 @@ from ember import read_vectorized_features
 
 
 def unpack_stats(dataframe,stats):
-	dataframe["mean_max"].append(stats.mean_max)
-	dataframe["var_max"].append(stats.var_max)
-	dataframe["mean_min"].append(stats.mean_min)
-	dataframe["var_min"].append(stats.var_min)
-	dataframe["mean_nz_count"].append(stats.mean_nz_count)
-	dataframe["var_nz_count"].append(stats.var_nz_count)
-	dataframe["mean_mean"].append(stats.mean_mean)
-	dataframe["var_mean"].append(stats.var_mean)
-	dataframe["mean_nz"].append(stats.mean_nz)
-	dataframe["var_nz"].append(stats.var_nz)
-	dataframe["nz_total_count"].append(stats.nz_total_count)
-	dataframe["sequence_count"].append(stats.sequence_count)
+	dataframe["max"].append(stats.max)
+	dataframe["min"].append(stats.min)
+	dataframe["nz_count"].append(stats.nz_count)
+	dataframe["moment1_nz"].append(stats.moment1_nz)
+	dataframe["moment2_nz"].append(stats.moment2_nz)
 	dataframe["sequence_len"].append(stats.sequence_len)
+
 def classify(y,pred,ember_threshold):
 	return (ember_threshold < y and pred == 0) or (y < ember_threshold and pred == 1)
 def main():
@@ -40,23 +34,33 @@ def main():
 	tree = pygrandma.PyGrandma()
 	tree.fit_yaml(args.treeyaml)
 
-	training_expected_stats = defaultdict(list)
+	prior_weight = 1.0
+	observation_weight = 1.3
+	sequence_cap = 50
+	sequence_len = 500
+	sequence_count = 500
 
-	normal_stats = tree.kl_div_sgd_basestats(0.005,0.8)
-	for i,stats in enumerate(normal_stats):
-	    unpack_stats(training_expected_stats,stats)
+	training_runs = []
+	normal_stats = tree.kl_div_dirichlet_basestats(prior_weight,observation_weight,sequence_len,sequence_count,sequence_cap)
+	for i,vstats in enumerate(normal_stats):
+		training_run = defaultdict(list)
+		for stats in vstats:
+		    unpack_stats(training_run,stats)
+
+		training_runs.append(training_run)
 
 	with open("expected_ember_stats.json","w") as file:
-		file.write(json.dumps(training_expected_stats))
+		for training_run in training_runs:
+			file.write(json.dumps(training_run)+"\n")
 
 	ember_threshold = 0.8336 # 1% fpr
 
 	normal_runs = []
-	for normal in range(200):
+	for normal in range(sequence_count):
 		normal_run = []
-		normal_test_tracker = tree.kl_div_sgd(0.005,0.8)
+		normal_test_tracker = tree.kl_div_dirichlet(prior_weight,observation_weight,sequence_cap)
 		normal_test_stats = defaultdict(list)
-		for i in range(1000):
+		for i in range(sequence_len):
 			i = np.random.randint(0,len(X_test))
 			x = X_test[i]
 			y = y_test[i]
@@ -72,12 +76,12 @@ def main():
 		for normal_run in normal_runs:
 			file.write(json.dumps(normal_run)+"\n")
 	attack_runs = []
-	for attack in range(200):
+	for attack in range(sequence_count):
 		attack_index = None
 		attack_run = []
-		attack_test_tracker = tree.kl_div_sgd(0.005,0.8)
+		attack_test_tracker = tree.kl_div_dirichlet(prior_weight,observation_weight,sequence_cap)
 		attack_test_stats = defaultdict(list)
-		for i in range(1000):
+		for i in range(sequence_len):
 			if attack_index is None:
 				i = np.random.randint(0,len(X_test))
 			else:

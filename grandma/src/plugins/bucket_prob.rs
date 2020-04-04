@@ -127,7 +127,7 @@ impl BucketProbs {
         });
     }
 
-    fn calc_scale(p:f64,u:f64) -> f64 {
+    fn calc_scale(p: f64, u: f64) -> f64 {
         if 0.0 != u {
             let r = Self::prob_to_reals(p);
             let pr = Self::reals_to_prob(r - u);
@@ -158,14 +158,14 @@ impl BucketProbs {
             self.decend_update_vec(index, learning_rate, momentum);
             // We have the component of the tangent space we want to apply.
             // We could solve for the geodesic or work out a safe distance for our update vector.
-            // This calculates an approximation of the length of the geodesic from the current prob vector 
+            // This calculates an approximation of the length of the geodesic from the current prob vector
             // in the direction and magnitude of the update vector.
             // The update vector's components sum to zero, we just need to make sure no values exceed 1 or 0.
             let min_metric_scale = self
                 .probs
                 .iter()
                 .zip(&self.update)
-                .map(|(p,u)|Self::calc_scale(*p,*u))
+                .map(|(p, u)| Self::calc_scale(*p, *u))
                 .min_by(|a, b| a.partial_cmp(b).unwrap())
                 .unwrap();
             // This can result in negative values, so we check for that and step back by a bit after the update
@@ -175,22 +175,26 @@ impl BucketProbs {
                 .for_each(|(p, u)| *p -= u * min_metric_scale);
             if !self.valid() {
                 let scaling: Vec<f64> = good_probs
-                .iter()
-                .zip(&self.update)
-                .map(|(p, u)| {
-                    if 0.0 != *u {
-                        let r = Self::prob_to_reals(*p);
-                        let pr = Self::reals_to_prob(r - u);
-                        let correction = (pr - *p).abs();
-                        println!("p:{:?},r:{},pr:{},u:{},correction:{}",p,r,pr,u,correction);
-                        (correction / u).abs()
-                    } else {
-                        1.0
-                    }
-                }).collect();
+                    .iter()
+                    .zip(&self.update)
+                    .map(|(p, u)| {
+                        if 0.0 != *u {
+                            let r = Self::prob_to_reals(*p);
+                            let pr = Self::reals_to_prob(r - u);
+                            let correction = (pr - *p).abs();
+                            println!(
+                                "p:{:?},r:{},pr:{},u:{},correction:{}",
+                                p, r, pr, u, correction
+                            );
+                            (correction / u).abs()
+                        } else {
+                            1.0
+                        }
+                    })
+                    .collect();
                 println!("Good probs {:?}", good_probs);
                 println!("Good update {:?}", good_update);
-                println!("Observation: {:?}, scale:{}", index,min_metric_scale);
+                println!("Observation: {:?}, scale:{}", index, min_metric_scale);
                 println!("Bad probs {:?}", self.probs);
                 println!("Bad update {:?}", self.update);
                 println!("Bad scales {:?}", scaling);
@@ -340,15 +344,14 @@ pub(crate) mod tests {
     fn scale_conversion() {
         for p in 0..1000 {
             for u in 0..1000 {
-                let pf = ((p+1) as f64)/1000.0;
-                let uf = ((u+1) as f64)/1000.0;
-                let scale = BucketProbs::calc_scale(pf,uf);
+                let pf = ((p + 1) as f64) / 1000.0;
+                let uf = ((u + 1) as f64) / 1000.0;
+                let scale = BucketProbs::calc_scale(pf, uf);
                 let final_prob = pf - uf * scale;
-                if !(0.0 <= final_prob && final_prob <= 1.0 ){
-                    println!("p:{},u{},s:{} final_prob:{}",pf,uf,scale,final_prob);
-                    assert!(false,"look!");
+                if !(0.0 <= final_prob && final_prob <= 1.0) {
+                    println!("p:{},u{},s:{} final_prob:{}", pf, uf, scale, final_prob);
+                    assert!(false, "look!");
                 }
-                
             }
         }
     }

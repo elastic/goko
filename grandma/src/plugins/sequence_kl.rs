@@ -12,6 +12,7 @@ use crossbeam_channel::{unbounded, Receiver, Sender};
 use crate::*;
 
 pub trait InsertDistributionTracker<M: Metric>: Debug {
+
     fn add_trace(&mut self, trace: Vec<NodeAddress>);
 
     fn running_pdfs(&self) -> &HashMap<NodeAddress, BucketProbs>;
