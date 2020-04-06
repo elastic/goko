@@ -128,7 +128,7 @@ impl KnnQueryHeap {
             dist_heap: BinaryHeap::new(),
             known_indexes: HashSet::new(),
             k,
-            scale_base: scale_base,
+            scale_base,
         }
     }
 

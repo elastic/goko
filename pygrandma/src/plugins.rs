@@ -2,7 +2,7 @@ use numpy::PyArray1;
 use pyo3::prelude::*;
 use pyo3::PyObjectProtocol;
 
-use grandma::plugins::bayesian::*;
+use grandma::plugins::distributions::*;
 use grandma::*;
 use pointcloud::*;
 use std::sync::Arc;
@@ -35,7 +35,7 @@ impl PyBayesCategoricalTracker {
     pub fn push(&mut self, point: &PyArray1<f32>) {
         let results = self.tree.dry_insert(point.as_slice().unwrap()).unwrap();
         self.hkl
-            .add_trace(results.iter().map(|(_, a)| *a).collect());
+            .add_dry_insert(results);
     }
 
     pub fn print(&self) {

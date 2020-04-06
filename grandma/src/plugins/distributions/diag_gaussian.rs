@@ -2,8 +2,11 @@
 //!
 //! This computes a coordinate bound multivariate Gaussian.
 
+use crate::node::CoverNode;
+use crate::plugins::*;
+use crate::tree::CoverTreeReader;
+use std::f32::consts::PI;
 use super::*;
-use std::f32::consts::{E, PI};
 
 /// Node component, coded in such a way that it can be efficiently, recursively computed.
 #[derive(Debug, Clone)]
@@ -28,6 +31,52 @@ macro_rules! internal_var {
             .zip($m1.iter().map(|x| x / ($c as f32)))
             .map(|(x, u)| x - u * u)
     }};
+}
+
+impl ContinousDistribution for DiagGaussian {
+    fn ln_prob(&self, point: &[f32]) -> Option<f64> {
+        let mean_vars = internal_mean!(self.moment1, self.count).zip(internal_var!(
+            self.moment1,
+            self.moment2,
+            self.count
+        ));
+
+        let (exponent, det) = point
+            .iter()
+            .zip(mean_vars)
+            .map(|(xi, (ui, vi))| ((xi - ui) * (xi - ui) / vi, vi))
+            .fold((0.0, 1.0), |(a, v), (x, u)| (a + x, v * u));
+
+        Some((exponent - det + (point.len() as f32)*(2.0 * PI).ln()) as f64)
+    }
+
+    fn kl_divergence(&self, other: &DiagGaussian) -> Option<f64> {
+        let mean_vars = internal_mean!(self.moment1, self.count).zip(internal_var!(
+            self.moment1,
+            self.moment2,
+            self.count
+        ));
+
+        let other_mean_vars = internal_mean!(other.moment1, other.count).zip(internal_var!(
+            other.moment1,
+            other.moment2,
+            other.count
+        ));
+
+        let (trace, mah_dist, ln_det) = mean_vars
+            .zip(other_mean_vars)
+            .map(|((xi, yi), (ui, vi))| {
+                let trace = yi / ui;
+                let mah_dist = (ui - xi) * (ui - xi) / vi;
+                let ln_det = vi.ln() - yi.ln();
+                (trace, mah_dist, ln_det)
+            })
+            .fold((0.0, 0.0, 0.0), |(a, b, c), (x, y, z)| {
+                (a + x, b + y, c + z)
+            });
+
+        Some(((trace + mah_dist - (self.moment1.len() as f32) + ln_det) / 2.0) as f64)
+    }
 }
 
 impl DiagGaussian {
@@ -100,52 +149,6 @@ impl DiagGaussian {
     /// Variance: `moment2/count - (moment1/count)^2`
     pub fn var(&self) -> Vec<f32> {
         internal_var!(self.moment1, self.moment2, self.count).collect()
-    }
-
-    /// Computes the probability density function of the gaussian
-    pub fn pdf(&self, point: &[f32]) -> f32 {
-        let mean_vars = internal_mean!(self.moment1, self.count).zip(internal_var!(
-            self.moment1,
-            self.moment2,
-            self.count
-        ));
-
-        let (exponent, det) = point
-            .iter()
-            .zip(mean_vars)
-            .map(|(xi, (ui, vi))| ((xi - ui) * (xi - ui) / vi, vi))
-            .fold((0.0, 1.0), |(a, v), (x, u)| (a + x, v * u));
-
-        E.powf(exponent) / (det * (2.0 * PI).powi(point.len() as i32))
-    }
-
-    /// Measures the divergence between this and another gaussian
-    pub fn kl_divergence(&self, other: &DiagGaussian) -> f32 {
-        let mean_vars = internal_mean!(self.moment1, self.count).zip(internal_var!(
-            self.moment1,
-            self.moment2,
-            self.count
-        ));
-
-        let other_mean_vars = internal_mean!(other.moment1, other.count).zip(internal_var!(
-            other.moment1,
-            other.moment2,
-            other.count
-        ));
-
-        let (trace, mah_dist, ln_det) = mean_vars
-            .zip(other_mean_vars)
-            .map(|((xi, yi), (ui, vi))| {
-                let trace = yi / ui;
-                let mah_dist = (ui - xi) * (ui - xi) / vi;
-                let ln_det = vi.ln() - yi.ln();
-                (trace, mah_dist, ln_det)
-            })
-            .fold((0.0, 0.0, 0.0), |(a, b, c), (x, y, z)| {
-                (a + x, b + y, c + z)
-            });
-
-        (trace + mah_dist - (self.moment1.len() as f32) + ln_det) / 2.0
     }
 }
 

@@ -20,7 +20,6 @@
 use super::*;
 use crate::errors::PointCloudError;
 use serde::{Deserialize, Serialize};
-use serde_json;
 
 #[derive(Debug, Clone)]
 pub struct NumberList {
@@ -46,7 +45,7 @@ impl NumberList {
 }
 
 impl InternalValueList for NumberList {
-    fn new() -> ValueList {
+    fn empty() -> ValueList {
         ValueList::NumberList(NumberList {
             data: Vector::Real(Vec::new()),
         })
@@ -104,7 +103,7 @@ impl InternalValueList for NumberList {
     }
     fn push(&mut self, x: Value) {
         if let Value::Number(x_val) = x {
-            if self.data.len() == 0 {
+            if self.data.is_empty() {
                 match x_val {
                     Number::Real(..) => self.data = Vector::Real(vec![]),
                     Number::Natural(..) => self.data = Vector::Natural(vec![]),
@@ -125,6 +124,9 @@ impl InternalValueList for NumberList {
 
     fn len(&self) -> usize {
         self.data.len()
+    }
+    fn is_empty(&self) -> bool {
+        self.data.is_empty()
     }
 }
 

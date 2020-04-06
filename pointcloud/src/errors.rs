@@ -51,17 +51,17 @@ pub enum PointCloudError {
 
 impl fmt::Display for PointCloudError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
+        match *self {
             // not sure that cause should be included in message
-            &PointCloudError::IoError(ref e) => write!(f, "{}", e),
-            &PointCloudError::ParsingError(ref e) => write!(f, "{}", e),
-            &PointCloudError::DataAccessError { .. } => {
+            PointCloudError::IoError(ref e) => write!(f, "{}", e),
+            PointCloudError::ParsingError(ref e) => write!(f, "{}", e),
+            PointCloudError::DataAccessError { .. } => {
                 write!(f, "there was an issue grabbing a data point or label")
             }
-            &PointCloudError::NameNotInTree { .. } => {
+            PointCloudError::NameNotInTree { .. } => {
                 write!(f, "there was an issue grabbing a name from the known names")
             }
-            &PointCloudError::NodeNestingError { .. } => {
+            PointCloudError::NodeNestingError { .. } => {
                 write!(f, "There is a temporary node in a working tree")
             }
         }
@@ -71,29 +71,29 @@ impl fmt::Display for PointCloudError {
 #[allow(deprecated)]
 impl Error for PointCloudError {
     fn description(&self) -> &str {
-        match self {
+        match *self {
             // not sure that cause should be included in message
-            &PointCloudError::IoError(ref e) => e.description(),
-            &PointCloudError::ParsingError(ref e) => e.description(),
-            &PointCloudError::DataAccessError { .. } => {
+            PointCloudError::IoError(ref e) => e.description(),
+            PointCloudError::ParsingError(ref e) => e.description(),
+            PointCloudError::DataAccessError { .. } => {
                 "there was an issue grabbing a data point or label"
             }
-            &PointCloudError::NameNotInTree { .. } => {
+            PointCloudError::NameNotInTree { .. } => {
                 "there was an issue grabbing a name from the known names"
             }
-            &PointCloudError::NodeNestingError { .. } => {
+            PointCloudError::NodeNestingError { .. } => {
                 "There is a temporary node in a working tree"
             }
         }
     }
 
     fn cause(&self) -> Option<&dyn Error> {
-        match self {
-            &PointCloudError::IoError(ref e) => Some(e),
-            &PointCloudError::ParsingError(ref e) => Some(e),
-            &PointCloudError::DataAccessError { .. } => None,
-            &PointCloudError::NameNotInTree { .. } => None,
-            &PointCloudError::NodeNestingError { .. } => None,
+        match *self {
+            PointCloudError::IoError(ref e) => Some(e),
+            PointCloudError::ParsingError(ref e) => Some(e),
+            PointCloudError::DataAccessError { .. } => None,
+            PointCloudError::NameNotInTree { .. } => None,
+            PointCloudError::NodeNestingError { .. } => None,
         }
     }
 }
@@ -163,21 +163,21 @@ impl fmt::Display for ParsingError {
 
 impl Error for ParsingError {
     fn description(&self) -> &str {
-        match self {
+        match *self {
             // not sure that cause should be included in message
-            &ParsingError::MalformedYamlError { .. } => "there is a error reading a yaml entry",
-            &ParsingError::MissingYamlError { .. } => "not all message fields set",
-            &ParsingError::CSVReadError { .. } => "issue reading a CSV entry",
-            &ParsingError::RegularParsingError(..) => "Error parsing a string",
+            ParsingError::MalformedYamlError { .. } => "there is a error reading a yaml entry",
+            ParsingError::MissingYamlError { .. } => "not all message fields set",
+            ParsingError::CSVReadError { .. } => "issue reading a CSV entry",
+            ParsingError::RegularParsingError(..) => "Error parsing a string",
         }
     }
 
     fn cause(&self) -> Option<&dyn Error> {
-        match self {
-            &ParsingError::MalformedYamlError { .. } => None,
-            &ParsingError::MissingYamlError { .. } => None,
-            &ParsingError::CSVReadError { .. } => None,
-            &ParsingError::RegularParsingError(..) => None,
+        match *self {
+            ParsingError::MalformedYamlError { .. } => None,
+            ParsingError::MissingYamlError { .. } => None,
+            ParsingError::CSVReadError { .. } => None,
+            ParsingError::RegularParsingError(..) => None,
         }
     }
 }

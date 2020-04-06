@@ -15,13 +15,7 @@ use crate::*;
 use anymap::SendSyncAnyMap;
 use std::fmt::Debug;
 
-mod diag_gaussian;
-pub use diag_gaussian::*;
-
-mod bucket_prob;
-pub use bucket_prob::*;
-
-pub mod bayesian;
+pub mod distributions;
 
 /*
 mod sequence_kl;

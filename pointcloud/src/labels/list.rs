@@ -31,16 +31,17 @@ pub(crate) enum ValueList {
 }
 
 pub(crate) trait InternalValueList {
-    fn new() -> ValueList;
+    fn empty() -> ValueList;
     fn get(&self, i: usize) -> Result<Value, PointCloudError>;
     fn get_set(&self, i: &[usize]) -> Result<ValueList, PointCloudError>;
     fn get_summary(&self, i: &[usize]) -> Result<ValueSummary, PointCloudError>;
     fn len(&self) -> usize;
+    fn is_empty(&self) -> bool;
     fn push(&mut self, x: Value);
 }
 
 impl InternalValueList for ValueList {
-    fn new() -> ValueList {
+    fn empty() -> ValueList {
         ValueList::Null
     }
     fn get(&self, i: usize) -> Result<Value, PointCloudError> {
@@ -88,6 +89,15 @@ impl InternalValueList for ValueList {
             ValueList::StringList(sl) => sl.len(),
         }
     }
+    fn is_empty(&self) -> bool {
+        match self {
+            ValueList::Null => true,
+            ValueList::BoolList(bl) => bl.is_empty(),
+            ValueList::NumberList(nl) => nl.is_empty(),
+            ValueList::VectorList(vl) => vl.is_empty(),
+            ValueList::StringList(sl) => sl.is_empty(),
+        }
+    }
     fn push(&mut self, x: Value) {
         match self {
             ValueList::BoolList(bl) => bl.push(x),
@@ -97,19 +107,19 @@ impl InternalValueList for ValueList {
             ValueList::Null => match x {
                 Value::Null => {}
                 Value::Bool(b) => {
-                    *self = BoolList::new();
+                    *self = BoolList::empty();
                     self.push(Value::Bool(b));
                 }
                 Value::Number(n) => {
-                    *self = NumberList::new();
+                    *self = NumberList::empty();
                     self.push(Value::Number(n));
                 }
                 Value::Vector(v) => {
-                    *self = VectorList::new();
+                    *self = VectorList::empty();
                     self.push(Value::Vector(v));
                 }
                 Value::String(v) => {
-                    *self = StringList::new();
+                    *self = StringList::empty();
                     self.push(Value::String(v));
                 }
             },
@@ -182,7 +192,7 @@ pub struct MetadataList {
 }
 
 impl MetadataList {
-    pub(crate) fn new() -> MetadataList {
+    pub(crate) fn new() -> Self {
         MetadataList {
             names: IndexMap::new(),
             lists: IndexMap::new(),
@@ -220,7 +230,7 @@ impl MetadataList {
     }
 
     pub(crate) fn get_name(&self, i: usize) -> Option<String> {
-        if self.names.len() > 0 {
+        if !self.names.is_empty() {
             Some(self.names[&i].clone())
         } else {
             None
@@ -265,7 +275,7 @@ impl MetadataList {
         label: Metadata,
     ) -> Result<(), PointCloudError> {
         if let Some(n) = name {
-            self.names.insert(self.count, n.clone());
+            self.names.insert(self.count, n);
         }
         for (k, list) in self.lists.iter_mut() {
             match label.get(k) {
@@ -299,5 +309,9 @@ impl MetadataList {
     ///
     pub fn len(&self) -> usize {
         self.count
+    }
+    ///
+    pub fn is_empty(&self) -> bool {
+        self.count > 0
     }
 }

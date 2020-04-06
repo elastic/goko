@@ -24,7 +24,7 @@ use pyo3::prelude::*;
 use std::path::Path;
 use std::sync::Arc;
 
-use grandma::plugins::bayesian::*;
+use grandma::plugins::distributions::*;
 use grandma::plugins::*;
 use grandma::utils::*;
 use grandma::*;

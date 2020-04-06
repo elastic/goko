@@ -16,13 +16,15 @@
 * specific language governing permissions and limitations
 * under the License.
 */
-
-#![allow(dead_code)]
-#![deny(warnings)]
-#![warn(missing_docs)]
-
 //! # Point Cloud
 //! Abstracts data access over several files and glues metadata files to vector data files
+
+#![allow(dead_code)]
+//#![deny(warnings)]
+#![warn(missing_docs)]
+#![allow(clippy::cast_ptr_alignment)]
+
+
 
 #[macro_use]
 extern crate serde;

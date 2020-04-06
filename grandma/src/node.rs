@@ -246,12 +246,10 @@ impl<M: Metric> CoverNode<M> {
                 } else {
                     Ok(None)
                 }
+            } else if *min_dist < scale_base.powi(children.addresses[min_index].0) {
+                Ok(Some((*min_dist, children.addresses[min_index])))
             } else {
-                if *min_dist < scale_base.powi(children.addresses[min_index].0) {
-                    Ok(Some((*min_dist, children.addresses[min_index])))
-                } else {
-                    Ok(None)
-                }
+                Ok(None)
             }
         } else {
             Ok(None)

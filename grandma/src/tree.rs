@@ -64,8 +64,6 @@ pub struct CoverTreeParameters<M: Metric> {
     pub resolution: i32,
     /// If you don't want singletons messing with your tree and want everything to be a node or a element of leaf node, make this true.
     pub use_singletons: bool,
-    /// Clustering is currently slow, avoid
-    pub cluster_min: usize,
     /// The point cloud this tree references
     pub point_cloud: PointCloud<M>,
     /// This should be replaced by a logging solution
@@ -362,48 +360,6 @@ impl<M: Metric> CoverTreeReader<M> {
         }
         true
     }
-
-    fn cluster_children(
-        &self,
-        si: i32,
-        pis: &[PointIndex],
-    ) -> GrandmaResult<Vec<(usize, i32, Vec<PointIndex>)>> {
-        //println!("\tClustering children of {:?}", (si,pis));
-        let mut children_addresses = Vec::new();
-        for pi in pis {
-            self.layer(si).get_node_children_and(&pi, |na, nas| {
-                children_addresses.push(na);
-                children_addresses.extend(nas);
-            });
-        }
-        println!(
-            "\t There are {:?} total children, with an average spawn of {}",
-            children_addresses.len(),
-            (children_addresses.len() as f32) / (pis.len() as f32)
-        );
-
-        let mut scale_indexes: Vec<i32> = children_addresses.iter().map(|(si, _pi)| *si).collect();
-        ////println!("\t Child addresses are {:?}", children_addresses);
-        scale_indexes.dedup();
-        let mut clusters = Vec::new();
-        for child_si in scale_indexes {
-            let unclustered: Vec<PointIndex> = children_addresses
-                .iter()
-                .filter(|(osi, _pi)| osi == &child_si)
-                .map(|(_si, pi)| *pi)
-                .collect();
-            //println!("\t\t[{}] Clustering on {:?} points", child_si, unclustered.len());
-            let mut components = self
-                .layer(child_si)
-                .get_components(unclustered, &self.parameters.point_cloud)?;
-            //println!("\t\t[{}] Obtained {:?} clusters", child_si, components);
-
-            while let Some((id, component)) = components.pop() {
-                clusters.push((id, child_si, component));
-            }
-        }
-        Ok(clusters)
-    }
 }
 
 ///
@@ -414,35 +370,6 @@ pub struct CoverTreeWriter<M: Metric> {
 }
 
 impl<M: Metric> CoverTreeWriter<M> {
-    #[doc(hidden)]
-    pub fn cluster(&mut self) -> GrandmaResult<()> {
-        let reader = self.reader();
-        let mut pending_clusters = vec![(0, self.root_address.0, vec![self.root_address.1])];
-        while let Some((i, si, pis)) = pending_clusters.pop() {
-            println!(
-                "Clustering children of cluster_id:{:?}, len: {}",
-                (i, si),
-                pis.len()
-            );
-            let mut children_clusters = reader.cluster_children(si, &pis[..])?;
-            let mut children_ids = Vec::new();
-            while let Some((id, nsi, npis)) = children_clusters.pop() {
-                pending_clusters.push((id, nsi, npis));
-                children_ids.push((nsi, id));
-            }
-            unsafe {
-                self.layer(si).insert_cluster(
-                    i,
-                    CoverCluster {
-                        indexes: pis,
-                        children_ids,
-                    },
-                );
-            }
-        }
-        Ok(())
-    }
-
     ///
     pub fn add_plugin<P: GrandmaPlugin<M>>(
         &mut self,
@@ -503,7 +430,6 @@ impl<M: Metric> CoverTreeWriter<M> {
             scale_base: cover_proto.scale_base as f32,
             cutoff: cover_proto.cutoff as usize,
             resolution: cover_proto.resolution as i32,
-            cluster_min: 5,
             point_cloud,
             verbosity: 2,
             plugins: RwLock::new(TreePluginSet::new()),
@@ -570,7 +496,6 @@ pub(crate) mod tests {
             cutoff: 1,
             resolution: -9,
             use_singletons: true,
-            cluster_min: 5,
             verbosity: 0,
         };
         builder.build(point_cloud).unwrap()
@@ -617,7 +542,6 @@ pub(crate) mod tests {
             cutoff: 1,
             resolution: -9,
             use_singletons: false,
-            cluster_min: 5,
             verbosity: 0,
         };
         let tree = builder.build(point_cloud).unwrap();
@@ -696,7 +620,6 @@ pub(crate) mod tests {
             cutoff: 1,
             resolution: -9,
             use_singletons: false,
-            cluster_min: 5,
             verbosity: 0,
         };
         let tree = builder.build(point_cloud).unwrap();

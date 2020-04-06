@@ -46,7 +46,7 @@ impl DataMemmap {
                 panic!("unable to open {:?} in from_proto, {:?}", path, er);
             }
         };
-        let data = unsafe { Mmapf32::map(&file).map_err(|e| PointCloudError::from(e)) }?;
+        let data = unsafe { Mmapf32::map(&file).map_err(PointCloudError::from)}?;
         Ok(DataMemmap { name, data, dim })
     }
 
@@ -79,6 +79,10 @@ impl DataSource for DataMemmap {
     #[inline]
     fn len(&self) -> usize {
         self.data.len() / self.dim
+    }
+    #[inline]
+    fn is_empty(&self) -> bool {
+        self.data.is_empty()
     }
     #[inline]
     fn name(&self) -> String {
@@ -118,6 +122,10 @@ impl DataSource for DataRam {
     #[inline]
     fn len(&self) -> usize {
         self.data.len() / self.dim
+    }
+    #[inline]
+    fn is_empty(&self) -> bool {
+        self.data.is_empty()
     }
     #[inline]
     fn name(&self) -> String {

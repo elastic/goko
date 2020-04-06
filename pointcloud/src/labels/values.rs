@@ -49,6 +49,14 @@ impl Vector {
             Vector::Integer(x_vec) => x_vec.len(),
         }
     }
+    ///
+    pub fn is_empty(&self) -> bool {
+        match self {
+            Vector::Real(x_vec) => x_vec.is_empty(),
+            Vector::Natural(x_vec) => x_vec.is_empty(),
+            Vector::Integer(x_vec) => x_vec.is_empty(),
+        }
+    }
 }
 
 /// A value
@@ -70,10 +78,10 @@ impl Value {
     #[doc(hidden)]
     pub(crate) fn blank_list(&self) -> ValueList {
         match self {
-            Value::Null => ValueList::new(),
-            Value::Bool(..) => BoolList::new(),
-            Value::Number(..) => NumberList::new(),
-            Value::String(..) => StringList::new(),
+            Value::Null => ValueList::empty(),
+            Value::Bool(..) => BoolList::empty(),
+            Value::Number(..) => NumberList::empty(),
+            Value::String(..) => StringList::empty(),
             Value::Vector(v) => match v {
                 Vector::Real(v) => VectorList::from_f32(vec![], v.len()),
                 Vector::Natural(v) => VectorList::from_u32(vec![], v.len()),

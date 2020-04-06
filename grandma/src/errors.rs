@@ -49,19 +49,19 @@ pub enum GrandmaError {
 
 impl fmt::Display for GrandmaError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
+        match *self {
             // not sure that cause should be included in message
-            &GrandmaError::IoError(ref e) => write!(f, "{}", e),
-            &GrandmaError::ParsingError(ref e) => write!(f, "{}", e),
-            &GrandmaError::PointCloudError(ref e) => write!(f, "{}", e),
-            &GrandmaError::NameNotInTree { .. } => {
+            GrandmaError::IoError(ref e) => write!(f, "{}", e),
+            GrandmaError::ParsingError(ref e) => write!(f, "{}", e),
+            GrandmaError::PointCloudError(ref e) => write!(f, "{}", e),
+            GrandmaError::NameNotInTree { .. } => {
                 write!(f, "there was an issue grabbing a name from the known names")
             }
-            &GrandmaError::DoubleNest => write!(
+            GrandmaError::DoubleNest => write!(
                 f,
                 "Inserted a nested node into a node that already had a nested child"
             ),
-            &GrandmaError::InsertBeforeNest => write!(
+            GrandmaError::InsertBeforeNest => write!(
                 f,
                 "Inserted a node into a node that does not have a nested child"
             ),
@@ -72,31 +72,31 @@ impl fmt::Display for GrandmaError {
 #[allow(deprecated)]
 impl Error for GrandmaError {
     fn description(&self) -> &str {
-        match self {
+        match *self {
             // not sure that cause should be included in message
-            &GrandmaError::IoError(ref e) => e.description(),
-            &GrandmaError::ParsingError(ref e) => e.description(),
-            &GrandmaError::PointCloudError(ref e) => e.description(),
-            &GrandmaError::NameNotInTree { .. } => {
+            GrandmaError::IoError(ref e) => e.description(),
+            GrandmaError::ParsingError(ref e) => e.description(),
+            GrandmaError::PointCloudError(ref e) => e.description(),
+            GrandmaError::NameNotInTree { .. } => {
                 "there was an issue grabbing a name from the known names"
             }
-            &GrandmaError::DoubleNest => {
+            GrandmaError::DoubleNest => {
                 "Inserted a nested node into a node that already had a nested child"
             }
-            &GrandmaError::InsertBeforeNest => {
+            GrandmaError::InsertBeforeNest => {
                 "Inserted a node into a node that does not have a nested child"
             }
         }
     }
 
     fn cause(&self) -> Option<&dyn Error> {
-        match self {
-            &GrandmaError::IoError(ref e) => Some(e),
-            &GrandmaError::ParsingError(ref e) => Some(e),
-            &GrandmaError::PointCloudError(ref e) => Some(e),
-            &GrandmaError::NameNotInTree { .. } => None,
-            &GrandmaError::DoubleNest => None,
-            &GrandmaError::InsertBeforeNest => None,
+        match *self {
+            GrandmaError::IoError(ref e) => Some(e),
+            GrandmaError::ParsingError(ref e) => Some(e),
+            GrandmaError::PointCloudError(ref e) => Some(e),
+            GrandmaError::NameNotInTree { .. } => None,
+            GrandmaError::DoubleNest => None,
+            GrandmaError::InsertBeforeNest => None,
         }
     }
 }
@@ -162,15 +162,15 @@ pub enum ParsingError {
 
 impl fmt::Display for ParsingError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
+        match *self {
             // not sure that cause should be included in message
-            &ParsingError::ProtobufError(ref e) => write!(f, "{}", e),
-            &ParsingError::MalformedYamlError { .. } => {
+            ParsingError::ProtobufError(ref e) => write!(f, "{}", e),
+            ParsingError::MalformedYamlError { .. } => {
                 write!(f, "there is a error reading a yaml entry")
             }
-            &ParsingError::MissingYamlError { .. } => write!(f, "not all message fields set"),
-            &ParsingError::CSVReadError { .. } => write!(f, "issue reading a CSV entry"),
-            &ParsingError::RegularParsingError(..) => write!(f, "Error parsing a string"),
+            ParsingError::MissingYamlError { .. } => write!(f, "not all message fields set"),
+            ParsingError::CSVReadError { .. } => write!(f, "issue reading a CSV entry"),
+            ParsingError::RegularParsingError(..) => write!(f, "Error parsing a string"),
         }
     }
 }
@@ -178,23 +178,23 @@ impl fmt::Display for ParsingError {
 #[allow(deprecated)]
 impl Error for ParsingError {
     fn description(&self) -> &str {
-        match self {
+        match *self {
             // not sure that cause should be included in message
-            &ParsingError::ProtobufError(ref e) => e.description(),
-            &ParsingError::MalformedYamlError { .. } => "there is a error reading a yaml entry",
-            &ParsingError::MissingYamlError { .. } => "not all message fields set",
-            &ParsingError::CSVReadError { .. } => "issue reading a CSV entry",
-            &ParsingError::RegularParsingError(..) => "Error parsing a string",
+            ParsingError::ProtobufError(ref e) => e.description(),
+            ParsingError::MalformedYamlError { .. } => "there is a error reading a yaml entry",
+            ParsingError::MissingYamlError { .. } => "not all message fields set",
+            ParsingError::CSVReadError { .. } => "issue reading a CSV entry",
+            ParsingError::RegularParsingError(..) => "Error parsing a string",
         }
     }
 
     fn cause(&self) -> Option<&dyn Error> {
-        match self {
-            &ParsingError::ProtobufError(ref e) => Some(e),
-            &ParsingError::MalformedYamlError { .. } => None,
-            &ParsingError::MissingYamlError { .. } => None,
-            &ParsingError::CSVReadError { .. } => None,
-            &ParsingError::RegularParsingError(..) => None,
+        match *self {
+            ParsingError::ProtobufError(ref e) => Some(e),
+            ParsingError::MalformedYamlError { .. } => None,
+            ParsingError::MissingYamlError { .. } => None,
+            ParsingError::CSVReadError { .. } => None,
+            ParsingError::RegularParsingError(..) => None,
         }
     }
 }

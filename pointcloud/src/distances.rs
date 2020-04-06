@@ -85,26 +85,22 @@ impl Metric for L2 {
     }
 
     fn sparse(x_ind: &[u32], x_val: &[f32], y_ind: &[u32], y_val: &[f32]) -> f32 {
-        if x_val.len() == 0 || y_val.len() == 0 {
-            if x_val.len() == 0 && y_val.len() == 0 {
+        if x_val.is_empty() || y_val.is_empty() {
+            if x_val.is_empty() && y_val.is_empty() {
                 return 0.0;
             }
-            if x_val.len() > 0 && y_val.len() == 0 {
+            if !x_val.is_empty() && y_val.is_empty() {
                 Self::norm(x_val)
             } else {
                 Self::norm(y_val)
             }
         } else {
             let mut total = 0.0;
-            let mut long_iter;
-            let short_iter;
-            if x_ind.len() > y_ind.len() {
-                long_iter = x_ind.iter().zip(x_val);
-                short_iter = y_ind.iter().zip(y_val);
+            let (short_iter, mut long_iter) = if x_ind.len() > y_ind.len() {
+                (y_ind.iter().zip(y_val), x_ind.iter().zip(x_val))
             } else {
-                long_iter = y_ind.iter().zip(y_val);
-                short_iter = x_ind.iter().zip(x_val);
-            }
+                (x_ind.iter().zip(x_val), y_ind.iter().zip(y_val))
+            };
 
             let mut l_tr: Option<(&u32, &f32)> = long_iter.next();
             for (si, sv) in short_iter {
@@ -192,26 +188,22 @@ impl Metric for Linfty {
     }
 
     fn sparse(x_ind: &[u32], x_val: &[f32], y_ind: &[u32], y_val: &[f32]) -> f32 {
-        if x_val.len() == 0 || y_val.len() == 0 {
-            if x_val.len() == 0 && y_val.len() == 0 {
+        if x_val.is_empty() || y_val.is_empty() {
+            if x_val.is_empty() && y_val.is_empty() {
                 return 0.0;
             }
-            if x_val.len() > 0 && y_val.len() == 0 {
+            if !x_val.is_empty() && y_val.is_empty() {
                 Self::norm(x_val)
             } else {
                 Self::norm(y_val)
             }
         } else {
             let mut max_val: f32 = 0.0;
-            let mut long_iter;
-            let short_iter;
-            if x_ind.len() > y_ind.len() {
-                long_iter = x_ind.iter().zip(x_val);
-                short_iter = y_ind.iter().zip(y_val);
+            let (short_iter, mut long_iter) = if x_ind.len() > y_ind.len() {
+                (y_ind.iter().zip(y_val), x_ind.iter().zip(x_val))
             } else {
-                long_iter = y_ind.iter().zip(y_val);
-                short_iter = x_ind.iter().zip(x_val);
-            }
+                (x_ind.iter().zip(x_val), y_ind.iter().zip(y_val))
+            };
 
             let mut l_tr: Option<(&u32, &f32)> = long_iter.next();
             for (si, sv) in short_iter {
@@ -296,26 +288,22 @@ impl Metric for L1 {
     }
 
     fn sparse(x_ind: &[u32], x_val: &[f32], y_ind: &[u32], y_val: &[f32]) -> f32 {
-        if x_val.len() == 0 || y_val.len() == 0 {
-            if x_val.len() == 0 && y_val.len() == 0 {
+        if x_val.is_empty() || y_val.is_empty() {
+            if x_val.is_empty() && y_val.is_empty() {
                 return 0.0;
             }
-            if x_val.len() > 0 && y_val.len() == 0 {
+            if !x_val.is_empty() && y_val.is_empty() {
                 Self::norm(x_val)
             } else {
                 Self::norm(y_val)
             }
         } else {
             let mut total = 0.0;
-            let mut long_iter;
-            let short_iter;
-            if x_ind.len() > y_ind.len() {
-                long_iter = x_ind.iter().zip(x_val);
-                short_iter = y_ind.iter().zip(y_val);
+            let (short_iter, mut long_iter) = if x_ind.len() > y_ind.len() {
+                (y_ind.iter().zip(y_val), x_ind.iter().zip(x_val))
             } else {
-                long_iter = y_ind.iter().zip(y_val);
-                short_iter = x_ind.iter().zip(x_val);
-            }
+                (x_ind.iter().zip(x_val), y_ind.iter().zip(y_val))
+            };
 
             let mut l_tr: Option<(&u32, &f32)> = long_iter.next();
             for (si, sv) in short_iter {
@@ -397,19 +385,15 @@ impl Metric for CosineSim {
     }
 
     fn sparse(x_ind: &[u32], x_val: &[f32], y_ind: &[u32], y_val: &[f32]) -> f32 {
-        if x_val.len() == 0 || y_val.len() == 0 {
+        if x_val.is_empty() || y_val.is_empty() {
             0.0
         } else {
             let mut dotprod = 0.0;
-            let mut long_iter;
-            let short_iter;
-            if x_ind.len() > y_ind.len() {
-                long_iter = x_ind.iter().zip(x_val);
-                short_iter = y_ind.iter().zip(y_val);
+            let (short_iter, mut long_iter) = if x_ind.len() > y_ind.len() {
+                (y_ind.iter().zip(y_val), x_ind.iter().zip(x_val))
             } else {
-                long_iter = y_ind.iter().zip(y_val);
-                short_iter = x_ind.iter().zip(x_val);
-            }
+                (x_ind.iter().zip(x_val), y_ind.iter().zip(y_val))
+            };
 
             let mut l_tr: Option<(&u32, &f32)> = long_iter.next();
             for (si, sv) in short_iter {

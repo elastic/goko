@@ -20,7 +20,6 @@
 use super::*;
 use crate::errors::PointCloudError;
 use serde::{Deserialize, Serialize};
-use serde_json;
 
 /*
 enum Vector {
@@ -30,7 +29,7 @@ enum Vector {
 }
 */
 
-fn get_row<T: Clone>(data: &Vec<T>, i: usize, dim: usize) -> Result<Vec<T>, PointCloudError> {
+fn get_row<T: Clone>(data: &[T], i: usize, dim: usize) -> Result<Vec<T>, PointCloudError> {
     match data.get(dim * i..(dim * i + dim)) {
         None => Err(PointCloudError::data_access(
             i,
@@ -40,11 +39,7 @@ fn get_row<T: Clone>(data: &Vec<T>, i: usize, dim: usize) -> Result<Vec<T>, Poin
     }
 }
 
-fn get_set<T: Clone>(
-    data: &Vec<T>,
-    indexes: &[usize],
-    dim: usize,
-) -> Result<Vec<T>, PointCloudError> {
+fn get_set<T: Clone>(data: &[T], indexes: &[usize], dim: usize) -> Result<Vec<T>, PointCloudError> {
     let mut v: Vec<T> = Vec::new();
     for i in indexes {
         match data.get(dim * i..(dim * i + dim)) {
@@ -94,7 +89,7 @@ impl VectorList {
 }
 
 impl InternalValueList for VectorList {
-    fn new() -> ValueList {
+    fn empty() -> ValueList {
         ValueList::VectorList(VectorList {
             dim: 0,
             data: Vector::Real(Vec::new()),
@@ -134,10 +129,10 @@ impl InternalValueList for VectorList {
                         }
                         Some(x) => {
                             for (x_i, y_i) in sum_power1.iter_mut().zip(x) {
-                                *x_i = *x_i + *y_i as f32;
+                                *x_i += *y_i as f32;
                             }
                             for (x_i, y_i) in sum_power2.iter_mut().zip(x) {
-                                *x_i = *x_i + (y_i * y_i) as f32;
+                                *x_i += (y_i * y_i) as f32;
                             }
                         }
                     };
@@ -154,10 +149,10 @@ impl InternalValueList for VectorList {
                         }
                         Some(x) => {
                             for (x_i, y_i) in sum_power1.iter_mut().zip(x) {
-                                *x_i = *x_i + *y_i as f32;
+                                *x_i += *y_i as f32;
                             }
                             for (x_i, y_i) in sum_power2.iter_mut().zip(x) {
-                                *x_i = *x_i + (y_i * y_i) as f32;
+                                *x_i += (y_i * y_i) as f32;
                             }
                         }
                     };
@@ -174,10 +169,10 @@ impl InternalValueList for VectorList {
                         }
                         Some(x) => {
                             for (x_i, y_i) in sum_power1.iter_mut().zip(x) {
-                                *x_i = *x_i + *y_i as f32;
+                                *x_i += *y_i as f32;
                             }
                             for (x_i, y_i) in sum_power2.iter_mut().zip(x) {
-                                *x_i = *x_i + (y_i * y_i) as f32;
+                                *x_i += (y_i * y_i) as f32;
                             }
                         }
                     };
@@ -233,11 +228,14 @@ impl InternalValueList for VectorList {
         if self.dim == 0 {
             0
         } else {
-            match &self.data {
-                Vector::Real(data) => data.len() / self.dim,
-                Vector::Natural(data) => data.len() / self.dim,
-                Vector::Integer(data) => data.len() / self.dim,
-            }
+            self.data.len() / self.dim 
+        }
+    }
+    fn is_empty(&self) -> bool {
+        if self.dim == 0 {
+            true
+        } else {
+            self.data.is_empty()
         }
     }
 }
@@ -305,17 +303,17 @@ impl Summary for VectorSummary {
         let mut count = 0;
         for vs in summaries {
             if let ValueSummary::VectorSummary(vs) = vs {
-                if vs.sum_power1.len() > 0 {
-                    if sum_power1.len() == 0 {
+                if !vs.sum_power1.is_empty() {
+                    if sum_power1.is_empty() {
                         sum_power1 = vs.sum_power1.clone();
                         sum_power2 = vs.sum_power2.clone();
                         count = vs.count;
                     } else {
                         for (x_i, y_i) in sum_power1.iter_mut().zip(&vs.sum_power1) {
-                            *x_i = *x_i + *y_i;
+                            *x_i += *y_i;
                         }
                         for (x_i, y_i) in sum_power2.iter_mut().zip(&vs.sum_power2) {
-                            *x_i = *x_i + *y_i;
+                            *x_i += *y_i;
                         }
                         count += vs.count;
                     }
@@ -339,43 +337,43 @@ impl Summary for VectorSummary {
         if let Value::Vector(v) = v {
             match v {
                 Vector::Real(v) => {
-                    if self.sum_power1.len() == 0 {
+                    if self.sum_power1.is_empty() {
                         self.sum_power1 = v.clone();
                         self.sum_power2 = v.iter().map(|x| x * x).collect();
                     } else {
                         for (x_i, y_i) in self.sum_power1.iter_mut().zip(v) {
-                            *x_i = *x_i + (*y_i) as f32;
+                            *x_i += (*y_i) as f32;
                         }
                         for (x_i, y_i) in self.sum_power2.iter_mut().zip(v) {
-                            *x_i = *x_i + ((*y_i) * (*y_i)) as f32;
+                            *x_i += ((*y_i) * (*y_i)) as f32;
                         }
                         self.count += 1;
                     }
                 }
                 Vector::Natural(v) => {
-                    if self.sum_power1.len() == 0 {
+                    if self.sum_power1.is_empty() {
                         self.sum_power1 = v.iter().map(|x| *x as f32).collect();
                         self.sum_power2 = v.iter().map(|x| (*x * *x) as f32).collect();
                     } else {
                         for (x_i, y_i) in self.sum_power1.iter_mut().zip(v) {
-                            *x_i = *x_i + (*y_i) as f32;
+                            *x_i += (*y_i) as f32;
                         }
                         for (x_i, y_i) in self.sum_power2.iter_mut().zip(v) {
-                            *x_i = *x_i + ((*y_i) * (*y_i)) as f32;
+                            *x_i += ((*y_i) * (*y_i)) as f32;
                         }
                         self.count += 1;
                     }
                 }
                 Vector::Integer(v) => {
-                    if self.sum_power1.len() == 0 {
+                    if self.sum_power1.is_empty() {
                         self.sum_power1 = v.iter().map(|x| *x as f32).collect();
                         self.sum_power2 = v.iter().map(|x| (*x * *x) as f32).collect();
                     } else {
                         for (x_i, y_i) in self.sum_power1.iter_mut().zip(v) {
-                            *x_i = *x_i + (*y_i) as f32;
+                            *x_i += (*y_i) as f32;
                         }
                         for (x_i, y_i) in self.sum_power2.iter_mut().zip(v) {
-                            *x_i = *x_i + ((*y_i) * (*y_i)) as f32;
+                            *x_i += ((*y_i) * (*y_i)) as f32;
                         }
                         self.count += 1;
                     }

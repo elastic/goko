@@ -46,10 +46,9 @@ fn main() {
         println!("Tree has {} nodes", ct_reader.node_count());
         for scale_index in ct_reader.scale_range() {
             println!(
-                "Layer {} has {} nodes and {} clusters in scale {}",
+                "Layer {} has {} nodes in scale {}",
                 scale_index,
                 ct_reader.layer(scale_index).node_count(),
-                ct_reader.layer(scale_index).cluster_count(),
                 ct_reader.scale(scale_index)
             );
         }
