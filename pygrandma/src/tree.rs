@@ -187,24 +187,24 @@ impl PyGrandma {
         self.node(reader.root_address())
     }
 
-    pub fn knn(&self, point: &PyArray1<f32>, k: usize) -> Vec<u64> {
+    pub fn knn(&self, point: &PyArray1<f32>, k: usize) -> Vec<(f32,u64)> {
         let results = self
             .reader
             .as_ref()
             .unwrap()
             .knn(point.as_slice().unwrap(), k)
             .unwrap();
-        results.iter().map(|(_d, i)| *i).collect()
+        results
     }
 
-    pub fn dry_insert(&self, point: &PyArray1<f32>) -> Vec<(i32, u64)> {
+    pub fn dry_insert(&self, point: &PyArray1<f32>) -> Vec<(f32,(i32, u64))> {
         let results = self
             .reader
             .as_ref()
             .unwrap()
             .dry_insert(point.as_slice().unwrap())
             .unwrap();
-        results.iter().map(|(_, i)| *i).collect()
+        results
     }
 
     pub fn kl_div_dirichlet(
