@@ -27,6 +27,7 @@ pyo3 = { version = "0.9.1", features = ["extension-module"] }
 numpy = "0.8.0"
 ndarray = "0.13"
 rayon = "1.2"
+rustc-hash = "1.1.0"
 
 [lib]
 name = "pygrandma"

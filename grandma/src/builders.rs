@@ -38,6 +38,8 @@ struct BuilderNode {
     covered: CoveredData,
 }
 
+type NodeSplitResult<M> = GrandmaResult<(i32, PointIndex, CoverNode<M>)>;
+
 impl BuilderNode {
     fn new<M: Metric>(parameters: &CoverTreeParameters<M>) -> GrandmaResult<BuilderNode> {
         let covered = CoveredData::new(&parameters.point_cloud)?;
@@ -56,7 +58,7 @@ impl BuilderNode {
     fn split_parallel<M: Metric>(
         self,
         parameters: &Arc<CoverTreeParameters<M>>,
-        node_sender: &Arc<Sender<GrandmaResult<(i32, PointIndex, CoverNode<M>)>>>,
+        node_sender: &Arc<Sender<NodeSplitResult<M>>>,
     ) {
         let parameters = Arc::clone(parameters);
         let node_sender = Arc::clone(node_sender);
@@ -92,7 +94,7 @@ impl BuilderNode {
         */
         if covered.len() <= parameters.cutoff || scale_index < parameters.resolution {
             //println!("== This is getting cut down by parameters ==");
-            node.insert_singletons(covered.to_indexes());
+            node.insert_singletons(covered.into_indexes());
         } else {
             let next_scale_index = min(
                 scale_index - 1,
@@ -168,7 +170,7 @@ impl BuilderNode {
             parameters
                 .total_nodes
                 .fetch_sub(1, atomic::Ordering::SeqCst);
-            node.insert_singletons(new_nodes.pop().unwrap().covered.to_indexes());
+            node.insert_singletons(new_nodes.pop().unwrap().covered.into_indexes());
         }
 
         node.update_metasummary(&parameters.point_cloud)?;
@@ -179,6 +181,7 @@ impl BuilderNode {
 }
 
 /// A construction object for a covertree.
+#[derive(Debug, Default)]
 pub struct CoverTreeBuilder {
     /// See paper or main description, governs the number of children of each node. Higher is more.
     pub scale_base: f32,
@@ -188,8 +191,6 @@ pub struct CoverTreeBuilder {
     pub resolution: i32,
     /// If you don't want singletons messing with your tree and want everything to be a node or a element of leaf node, make this true.
     pub use_singletons: bool,
-    /// Unused for now
-    pub cluster_min: usize,
     /// Printing verbosity. 2 is the default and gives a progress bar. Still not fully pulled thru the codebase.
     /// This should be replaced by a logging solution
     pub verbosity: u32,
@@ -203,7 +204,6 @@ impl CoverTreeBuilder {
             cutoff: 1,
             resolution: -10,
             use_singletons: true,
-            cluster_min: 5,
             verbosity: 2,
         }
     }
@@ -245,8 +245,7 @@ impl CoverTreeBuilder {
             cutoff: self.cutoff,
             resolution: self.resolution,
             use_singletons: self.use_singletons,
-            cluster_min: self.cluster_min,
-            point_cloud: point_cloud,
+            point_cloud,
             verbosity: self.verbosity,
             plugins: RwLock::new(TreePluginSet::new()),
         };
@@ -261,8 +260,8 @@ impl CoverTreeBuilder {
         }
 
         let (node_sender, node_receiver): (
-            Sender<GrandmaResult<(i32, PointIndex, CoverNode<M>)>>,
-            Receiver<GrandmaResult<(i32, PointIndex, CoverNode<M>)>>,
+            Sender<NodeSplitResult<M>>,
+            Receiver<NodeSplitResult<M>>,
         ) = unbounded();
 
         let node_sender = Arc::new(node_sender);
@@ -282,19 +281,16 @@ impl CoverTreeBuilder {
         let mut inserted_nodes: usize = 0;
         let now = Instant::now();
         loop {
-            match node_receiver.recv() {
-                Ok(res) => {
-                    let (scale_index, point_index, new_node) = res.unwrap();
-                    unsafe {
-                        cover_tree.insert_raw(scale_index, point_index, new_node);
-                    }
-                    inserted_nodes += 1;
-                    if parameters.verbosity > 1 {
-                        pb.total = parameters.total_nodes.load(atomic::Ordering::SeqCst) as u64;
-                        pb.inc();
-                    }
+            if let Ok(res) = node_receiver.recv() {
+                let (scale_index, point_index, new_node) = res.unwrap();
+                unsafe {
+                    cover_tree.insert_raw(scale_index, point_index, new_node);
                 }
-                Err(_) => {}
+                inserted_nodes += 1;
+                if parameters.verbosity > 1 {
+                    pb.total = parameters.total_nodes.load(atomic::Ordering::SeqCst) as u64;
+                    pb.inc();
+                }
             }
             // Stop if there are enough done, and there are no more outstanding parameter references
             if inserted_nodes == parameters.total_nodes.load(atomic::Ordering::SeqCst) {
@@ -335,7 +331,6 @@ mod tests {
             cutoff: 0,
             resolution: -9,
             use_singletons: true,
-            cluster_min: 0,
             point_cloud,
             verbosity: 0,
             plugins: RwLock::new(TreePluginSet::new()),
@@ -431,7 +426,6 @@ mod tests {
             cutoff: 1,
             resolution: -9,
             use_singletons: true,
-            cluster_min: 5,
             verbosity: 0,
         };
         let tree = builder.build(point_cloud).unwrap();
@@ -475,7 +469,6 @@ mod tests {
             cutoff: 1,
             resolution: -9,
             use_singletons: false,
-            cluster_min: 5,
             verbosity: 0,
         };
         let tree = builder.build(point_cloud).unwrap();

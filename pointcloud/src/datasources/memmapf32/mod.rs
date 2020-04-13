@@ -20,7 +20,7 @@
 //! A cross-platform Rust API for memory mapped buffers. Modified to be f32 specific.
 
 #![doc(html_root_url = "https://docs.rs/memmap/0.7.0")]
-
+#![allow(warnings)]
 #[cfg(windows)]
 extern crate winapi;
 #[cfg(windows)]
@@ -83,27 +83,24 @@ impl MmapOptionsf32 {
     }
 
     pub unsafe fn map(&self, file: &File) -> Result<Mmapf32> {
-        MmapInner::map(self.get_len(file)?, file, self.offset).map(|inner| Mmapf32 { inner: inner })
+        MmapInner::map(self.get_len(file)?, file, self.offset).map(|inner| Mmapf32 { inner })
     }
 
     pub unsafe fn map_exec(&self, file: &File) -> Result<Mmapf32> {
-        MmapInner::map_exec(self.get_len(file)?, file, self.offset)
-            .map(|inner| Mmapf32 { inner: inner })
+        MmapInner::map_exec(self.get_len(file)?, file, self.offset).map(|inner| Mmapf32 { inner })
     }
 
     pub unsafe fn map_mut(&self, file: &File) -> Result<MmapMutf32> {
-        MmapInner::map_mut(self.get_len(file)?, file, self.offset)
-            .map(|inner| MmapMutf32 { inner: inner })
+        MmapInner::map_mut(self.get_len(file)?, file, self.offset).map(|inner| MmapMutf32 { inner })
     }
 
     pub unsafe fn map_copy(&self, file: &File) -> Result<MmapMutf32> {
         MmapInner::map_copy(self.get_len(file)?, file, self.offset)
-            .map(|inner| MmapMutf32 { inner: inner })
+            .map(|inner| MmapMutf32 { inner })
     }
 
     pub fn map_anon(&self) -> Result<MmapMutf32> {
-        MmapInner::map_anon(self.len.unwrap_or(0), self.stack)
-            .map(|inner| MmapMutf32 { inner: inner })
+        MmapInner::map_anon(self.len.unwrap_or(0), self.stack).map(|inner| MmapMutf32 { inner })
     }
 }
 

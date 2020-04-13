@@ -87,7 +87,7 @@ impl Summary for ValueSummary {
 }
 
 /// A map that relates summaries to the keys that the values came from. This
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct MetaSummary {
     /// the actual container
     pub summaries: IndexMap<String, ValueSummary>,

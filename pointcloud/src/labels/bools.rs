@@ -33,7 +33,7 @@ impl BoolList {
 }
 
 impl InternalValueList for BoolList {
-    fn new() -> ValueList {
+    fn empty() -> ValueList {
         ValueList::BoolList(BoolList { data: Vec::new() })
     }
     fn get(&self, i: usize) -> Result<Value, PointCloudError> {
@@ -69,6 +69,9 @@ impl InternalValueList for BoolList {
     }
     fn len(&self) -> usize {
         self.data.len()
+    }
+    fn is_empty(&self) -> bool {
+        self.data.is_empty()
     }
 }
 

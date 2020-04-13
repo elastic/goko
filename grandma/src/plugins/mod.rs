@@ -12,20 +12,18 @@
 use crate::node::CoverNode;
 use crate::tree::CoverTreeReader;
 use crate::*;
-use anymap::SendSyncAnyMap;
 use std::fmt::Debug;
+use type_map::concurrent::TypeMap;
 
-mod diag_gaussian;
-pub use diag_gaussian::*;
+pub mod distributions;
 
-mod bucket_prob;
-pub use bucket_prob::*;
-
+/*
 mod sequence_kl;
 pub mod utils {
     //! Utilities to use the plugins
     pub use super::sequence_kl::*;
 }
+*/
 
 /// Mockup for the plugin interface attached to the node. These are meant to be functions that Grandma uses to maintain the plugin.
 pub trait NodePlugin<M: Metric>: Send + Sync + Debug {
@@ -53,8 +51,8 @@ pub trait GrandmaPlugin<M: Metric> {
     ) -> Self::NodeComponent;
 }
 
-pub(crate) type NodePluginSet = SendSyncAnyMap;
-pub(crate) type TreePluginSet = SendSyncAnyMap;
+pub(crate) type NodePluginSet = TypeMap;
+pub(crate) type TreePluginSet = TypeMap;
 
 #[cfg(test)]
 pub(crate) mod tests {

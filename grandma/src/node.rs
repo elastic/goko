@@ -101,7 +101,7 @@ impl<M: Metric> CoverNode<M> {
     /// Throws an error if the node is already a routing node with a nested node.
     pub fn insert_nested_child(&mut self, scale_index: i32, coverage: usize) -> GrandmaResult<()> {
         self.cover_count += coverage;
-        if let Some(_) = &self.children {
+        if self.children.is_some() {
             Err(GrandmaError::DoubleNest)
         } else {
             self.children = Some(NodeChildren {
@@ -232,11 +232,11 @@ impl<M: Metric> CoverNode<M> {
             let children_indexes: Vec<PointIndex> =
                 children.addresses.iter().map(|(_si, pi)| *pi).collect();
             let distances = point_cloud.distances_to_point(point, &children_indexes[..])?;
-            let (min_dist, min_index) = distances
+            let (min_index, min_dist) = distances
                 .iter()
-                .zip(0..distances.len())
-                .min_by(|(a, _), (b, _)| a.partial_cmp(b).unwrap())
-                .unwrap_or((&std::f32::MAX, 0));
+                .enumerate()
+                .min_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
+                .unwrap_or((0, &std::f32::MAX));
             if dist_to_center < *min_dist {
                 if dist_to_center < scale_base.powi(children.nested_scale) {
                     Ok(Some((
@@ -246,12 +246,10 @@ impl<M: Metric> CoverNode<M> {
                 } else {
                     Ok(None)
                 }
+            } else if *min_dist < scale_base.powi(children.addresses[min_index].0) {
+                Ok(Some((*min_dist, children.addresses[min_index])))
             } else {
-                if *min_dist < scale_base.powi(children.addresses[min_index].0) {
-                    Ok(Some((*min_dist, children.addresses[min_index])))
-                } else {
-                    Ok(None)
-                }
+                Ok(None)
             }
         } else {
             Ok(None)
@@ -339,9 +337,8 @@ impl<M: Metric> CoverNode<M> {
         let radius = node_proto.get_radius();
         let address = (scale_index, node_proto.get_center_index());
         let cover_count = node_proto.get_cover_count() as usize;
-        let children;
-        if node_proto.get_is_leaf() {
-            children = None;
+        let children = if node_proto.get_is_leaf() {
+            None
         } else {
             let nested_scale = node_proto.get_nested_scale_index() as i32;
             let addresses = node_proto
@@ -350,11 +347,11 @@ impl<M: Metric> CoverNode<M> {
                 .zip(node_proto.get_children_point_indexes())
                 .map(|(si, pi)| (*si as i32, *pi as PointIndex))
                 .collect();
-            children = Some(NodeChildren {
+            Some(NodeChildren {
                 nested_scale,
                 addresses,
-            });
-        }
+            })
+        };
         CoverNode {
             address,
             radius,

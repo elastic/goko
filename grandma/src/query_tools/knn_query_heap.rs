@@ -128,7 +128,7 @@ impl KnnQueryHeap {
             dist_heap: BinaryHeap::new(),
             known_indexes: HashSet::new(),
             k,
-            scale_base: scale_base,
+            scale_base,
         }
     }
 
@@ -173,6 +173,11 @@ impl KnnQueryHeap {
     /// The current number of points on the distance heap
     pub fn len(&self) -> usize {
         self.dist_heap.len()
+    }
+
+    /// The current number of points on the distance heap
+    pub fn is_empty(&self) -> bool {
+        self.dist_heap.is_empty()
     }
 
     /// The current number of points still on the

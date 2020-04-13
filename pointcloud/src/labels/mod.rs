@@ -52,7 +52,7 @@ mod summary;
 pub use summary::*;
 
 /// The schema defined by a user to build a more complex metadata system from a CSV
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct LabelScheme {
     name_column: String,
     schema: IndexMap<String, Value>,

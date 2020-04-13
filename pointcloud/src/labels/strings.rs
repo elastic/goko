@@ -20,7 +20,6 @@
 use super::*;
 use crate::errors::PointCloudError;
 use serde::{Deserialize, Serialize};
-use serde_json;
 use std::collections::BinaryHeap;
 
 #[derive(Debug, Clone)]
@@ -35,7 +34,7 @@ impl StringList {
 }
 
 impl InternalValueList for StringList {
-    fn new() -> ValueList {
+    fn empty() -> ValueList {
         ValueList::StringList(StringList { data: Vec::new() })
     }
     fn get(&self, i: usize) -> Result<Value, PointCloudError> {
@@ -65,6 +64,9 @@ impl InternalValueList for StringList {
     fn len(&self) -> usize {
         self.data.len()
     }
+    fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
 }
 
 /// The count of the unique strings that produced this summary
@@ -81,11 +83,9 @@ impl Summary for StringSummary {
         for (k, v) in self.unique_strings.iter() {
             if min_heap.len() < 10 {
                 min_heap.push((-(*v as i64), k));
-            } else {
-                if min_heap.peek().unwrap().0 > -(*v as i64) {
-                    min_heap.pop();
-                    min_heap.push((-(*v as i64), k));
-                }
+            } else if min_heap.peek().unwrap().0 > -(*v as i64) {
+                min_heap.pop();
+                min_heap.push((-(*v as i64), k));
             }
         }
 

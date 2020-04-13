@@ -4,6 +4,7 @@ use ndarray::{Array1, Array2};
 use numpy::{IntoPyArray, PyArray1, PyArray2};
 use pyo3::PyIterProtocol;
 
+use grandma::plugins::distributions::*;
 use grandma::plugins::*;
 use grandma::*;
 use pointcloud::*;
@@ -59,7 +60,7 @@ impl PyGrandNode {
 
     pub fn coverage_count(&self) -> u64 {
         self.tree
-            .get_node_plugin_and::<BucketProbs, _, _>(self.address, |p| p.total())
+            .get_node_plugin_and::<Categorical, _, _>(self.address, |p| p.total())
             .unwrap() as u64
     }
 

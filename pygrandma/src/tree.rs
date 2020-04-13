@@ -17,19 +17,22 @@
 * under the License.
 */
 
+use ndarray::{Array1, Array2};
+use numpy::{IntoPyArray, PyArray1, PyArray2};
 use pyo3::prelude::*;
 
-use numpy::{PyArray1, PyArray2};
-
-use grandma::plugins::utils::*;
-use grandma::plugins::*;
-use grandma::*;
-use pointcloud::*;
+use std::path::Path;
 use std::sync::Arc;
 
-use crate::plugins::*;
+use grandma::plugins::distributions::*;
+use grandma::plugins::*;
+use grandma::utils::*;
+use grandma::*;
+use pointcloud::*;
+
 use crate::layer::*;
 use crate::node::*;
+use crate::plugins::*;
 
 #[pyclass]
 pub struct PyGrandma {
@@ -105,11 +108,38 @@ impl PyGrandma {
         self.writer = Some(builder.unwrap().build(pointcloud).unwrap());
         let writer = self.writer.as_mut().unwrap();
         writer.add_plugin::<GrandmaDiagGaussian>(GrandmaDiagGaussian::singletons());
-        writer.add_plugin::<GrandmaBucketProbs>(BucketProbsTree {});
+        writer.add_plugin::<GrandmaDirichlet>(DirichletTree {});
         let reader = writer.reader();
 
         self.reader = Some(Arc::new(reader));
         Ok(())
+    }
+
+    pub fn fit_yaml(&mut self, file_name: String) -> PyResult<()> {
+        let path = Path::new(&file_name);
+        let mut writer = cover_tree_from_yaml(&path).unwrap();
+        writer.add_plugin::<GrandmaDiagGaussian>(GrandmaDiagGaussian::singletons());
+        writer.add_plugin::<GrandmaDirichlet>(DirichletTree {});
+        self.reader = Some(Arc::new(writer.reader()));
+        self.writer = Some(writer);
+        self.builder = None;
+        Ok(())
+    }
+
+    pub fn data_point(&self, point_index: u64) -> PyResult<Option<Py<PyArray1<f32>>>> {
+        let reader = self.reader.as_ref().unwrap();
+        let dim = reader.parameters().point_cloud.dim();
+        Ok(
+            match reader.parameters().point_cloud.get_point(point_index) {
+                Err(_) => None,
+                Ok(point) => {
+                    let py_point = Array1::from_shape_vec((dim,), Vec::from(point)).unwrap();
+                    let gil = GILGuard::acquire();
+                    let py = gil.python();
+                    Some(py_point.into_pyarray(py).to_owned())
+                }
+            },
+        )
     }
 
     //pub fn layers(&self) ->
@@ -157,32 +187,70 @@ impl PyGrandma {
         self.node(reader.root_address())
     }
 
-    pub fn knn(&self, point: &PyArray1<f32>, k: usize) -> Vec<u64> {
+    pub fn knn(&self, point: &PyArray1<f32>, k: usize) -> Vec<(f32, u64)> {
         let results = self
             .reader
             .as_ref()
             .unwrap()
             .knn(point.as_slice().unwrap(), k)
             .unwrap();
-        results.iter().map(|(_d, i)| *i).collect()
+        results
     }
 
-    pub fn dry_insert(&self, point: &PyArray1<f32>) -> Vec<(i32, u64)> {
+    pub fn dry_insert(&self, point: &PyArray1<f32>) -> Vec<(f32, (i32, u64))> {
         let results = self
             .reader
             .as_ref()
             .unwrap()
             .dry_insert(point.as_slice().unwrap())
             .unwrap();
-        results.iter().map(|(_, i)| *i).collect()
+        results
     }
 
-    pub fn kl_div_tracker(&self,k:Option<u64>) -> PyBucketHKLDivergence {
+    pub fn kl_div_dirichlet(
+        &self,
+        prior_weight: f64,
+        observation_weight: f64,
+        size: u64,
+    ) -> PyBayesCategoricalTracker {
         let reader = self.reader.as_ref().unwrap();
-        let k = k.unwrap_or(0);
-        PyBucketHKLDivergence {
-            hkl: BucketHKLDivergence::new(k as usize),
+        let writer = self.writer.as_ref().unwrap();
+        PyBayesCategoricalTracker {
+            hkl: BayesCategoricalTracker::new(
+                prior_weight,
+                observation_weight,
+                size as usize,
+                writer.reader(),
+            ),
             tree: Arc::clone(&reader),
         }
+    }
+
+    pub fn kl_div_dirichlet_basestats(
+        &self,
+        prior_weight: f64,
+        observation_weight: f64,
+        sequence_len: u64,
+        sequence_count: u64,
+        sequence_cap: u64,
+    ) -> Vec<Vec<PyKLDivergenceStats>> {
+        let reader = self.writer.as_ref().unwrap().reader();
+        let mut trainer = DirichletBaseline::new(reader);
+        trainer.set_prior_weight(prior_weight);
+        trainer.set_observation_weight(observation_weight);
+        trainer.set_sequence_len(sequence_len as usize);
+        trainer.set_sequence_count(sequence_count as usize);
+        trainer.set_sequence_cap(sequence_cap as usize);
+        trainer
+            .train()
+            .unwrap()
+            .drain(0..)
+            .map(|mut vstats| {
+                vstats
+                    .drain(0..)
+                    .map(|stats| PyKLDivergenceStats { stats })
+                    .collect()
+            })
+            .collect()
     }
 }

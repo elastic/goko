@@ -24,8 +24,7 @@ use crate::tree_file_format::*;
 use pointcloud::*;
 use protobuf::{CodedInputStream, CodedOutputStream, Message};
 use std::fs::File;
-use std::fs::{remove_file, OpenOptions};
-use std::io::Read;
+use std::fs::{read_to_string,remove_file, OpenOptions};
 use std::path::Path;
 use yaml_rust::{Yaml, YamlLoader};
 
@@ -69,13 +68,8 @@ use crate::tree::CoverTreeWriter;
 /// ```
 ///
 pub fn cover_tree_from_yaml<P: AsRef<Path>>(path: P) -> GrandmaResult<CoverTreeWriter<L2>> {
-    let mut config_file = File::open(&path).expect("Unable to open config file");
-
-    let mut config = String::new();
-
-    config_file
-        .read_to_string(&mut config)
-        .expect("Unable to read config file");
+    let config = read_to_string(&path).expect("Unable to read config file");
+        
     let params_files = YamlLoader::load_from_str(&config).unwrap();
     let params = &params_files[0];
 
@@ -169,27 +163,21 @@ pub fn save_tree<P: AsRef<Path>, M: Metric>(
             None => panic!("Unicode error with the tree path"),
         };
         println!("\t \t {:?} exists, removing", tree_path_str);
-        remove_file(&tree_path).map_err(|e| GrandmaError::from(e))?;
+        remove_file(&tree_path).map_err(GrandmaError::from)?;
     }
 
     let cover_proto = cover_tree.save();
 
-    let mut core_file = match OpenOptions::new()
+    let mut core_file = OpenOptions::new()
         .read(true)
         .write(true)
         .create(true)
-        .open(&tree_path)
-    {
-        Ok(core_file) => core_file,
-        Err(_) => {
-            panic!("unable to open {:?}", &tree_path_ref);
-        }
-    };
+        .open(&tree_path).unwrap();
 
     let mut cos = CodedOutputStream::new(&mut core_file);
     cover_proto
         .write_to(&mut cos)
-        .map_err(|e| GrandmaError::from(e))?;
-    cos.flush().map_err(|e| GrandmaError::from(e))?;
+        .map_err(GrandmaError::from)?;
+    cos.flush().map_err(GrandmaError::from)?;
     Ok(())
 }

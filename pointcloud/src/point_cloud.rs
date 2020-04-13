@@ -22,7 +22,7 @@
 use indexmap::IndexMap;
 use std::collections::HashMap;
 use std::fmt;
-use std::fs::File;
+use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -30,7 +30,6 @@ use std::sync::{Arc, Mutex};
 use glob::{glob_with, MatchOptions};
 use rayon::prelude::*;
 use std::cmp::min;
-use std::io::Read;
 use std::marker::PhantomData;
 use yaml_rust::{Yaml, YamlLoader};
 
@@ -95,12 +94,11 @@ impl<M: Metric> PointCloud<M> {
         let mut data_sources = Vec::new();
         let mut label_sources = Vec::new();
         for (i, (dp, lp)) in data_path.iter().zip(labels_path).enumerate() {
-            let new_data: Box<dyn DataSource>;
-            if ram {
-                new_data = Box::new((DataMemmap::new(data_dim, &dp)?).convert_to_ram());
+            let new_data: Box<dyn DataSource> = if ram {
+                Box::new((DataMemmap::new(data_dim, &dp)?).convert_to_ram())
             } else {
-                new_data = Box::new(DataMemmap::new(data_dim, &dp)?);
-            }
+                Box::new(DataMemmap::new(data_dim, &dp)?)
+            };
             let new_labels = labels_scheme.open(&lp)?;
             if new_data.len() != new_labels.len() {
                 panic!("The data count {:?} differs from the label count {:?} for the {}th data and label files", new_data.len(), new_labels.len(), i);
@@ -130,11 +128,11 @@ impl<M: Metric> PointCloud<M> {
         // This could possibly be improved to be architecture specific. It depends on the CPU cache size
         let chunk = min(15000 / data_dim, 20);
         Ok(PointCloud {
-            data_sources: data_sources,
-            label_sources: label_sources,
-            names_to_indexes: names_to_indexes,
-            indexes_to_names: indexes_to_names,
-            addresses: addresses,
+            data_sources,
+            label_sources,
+            names_to_indexes,
+            indexes_to_names,
+            addresses,
             data_dim,
             labels_scheme,
             loaded_centers: Mutex::new(IndexMap::new()),
@@ -171,9 +169,9 @@ impl<M: Metric> PointCloud<M> {
         Ok(PointCloud {
             data_sources: vec![data_source],
             label_sources: vec![label_source],
-            names_to_indexes: names_to_indexes,
-            indexes_to_names: indexes_to_names,
-            addresses: addresses,
+            names_to_indexes,
+            indexes_to_names,
+            addresses,
             data_dim,
             loaded_centers: Mutex::new(IndexMap::new()),
             labels_scheme,
@@ -247,13 +245,9 @@ impl<M: Metric> PointCloud<M> {
 
     /// Runs `from_yaml` on the file at a given path
     pub fn from_file<P: AsRef<Path>>(path: P) -> PointCloudResult<PointCloud<M>> {
-        let mut config_file =
-            File::open(&path).expect(&format!("Unable to read config file {:?}", &path.as_ref()));
-        let mut config = String::new();
+        let config = fs::read_to_string(&path)
+            .unwrap_or_else(|_| panic!("Unable to read config file {:?}", &path.as_ref()));
 
-        config_file
-            .read_to_string(&mut config)
-            .expect(&format!("Unable to read config file {:?}", &path.as_ref()));
         let params_files = YamlLoader::load_from_str(&config).unwrap();
 
         PointCloud::<M>::from_yaml(&params_files[0], path)
@@ -274,6 +268,15 @@ impl<M: Metric> PointCloud<M> {
     /// Total number of points in the point cloud
     pub fn len(&self) -> usize {
         self.data_sources.iter().fold(0, |acc, mm| acc + mm.len())
+    }
+
+    /// Total number of points in the point cloud
+    pub fn is_empty(&self) -> bool {
+        if self.data_sources.is_empty() {
+            false
+        } else {
+            self.data_sources.iter().all(|m| m.is_empty())
+        }
     }
 
     /// Dimension of the data in the point cloud
@@ -314,13 +317,13 @@ impl<M: Metric> PointCloud<M> {
     }
 
     /// Gets the name from an index
-    pub fn get_name(&self, pi: &PointIndex) -> Option<&PointName> {
-        self.indexes_to_names.get(pi)
+    pub fn get_name(&self, pi: PointIndex) -> Option<&PointName> {
+        self.indexes_to_names.get(&pi)
     }
 
     /// Gets the index from the name
-    pub fn get_index(&self, pn: &PointName) -> Option<&PointIndex> {
-        self.names_to_indexes.get(pn)
+    pub fn get_index(&self, pn: PointName) -> Option<&PointIndex> {
+        self.names_to_indexes.get(&pn)
     }
 
     /// Gets all names in the point cloud

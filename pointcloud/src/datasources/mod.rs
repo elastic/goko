@@ -38,6 +38,8 @@ pub trait DataSource: Send + Sync + Debug {
     fn dim(&self) -> usize;
     /// This should always be the number of points contained in this portion of the dataset.
     fn len(&self) -> usize;
+    ///
+    fn is_empty(&self) -> bool;
     /// The name of this portion of the dataset. Useful for reporting errors to the user.
     fn name(&self) -> String;
 }
