@@ -46,7 +46,7 @@ impl DataMemmap {
                 panic!("unable to open {:?} in from_proto, {:?}", path, er);
             }
         };
-        let data = unsafe { Mmapf32::map(&file).map_err(PointCloudError::from)}?;
+        let data = unsafe { Mmapf32::map(&file).map_err(PointCloudError::from) }?;
         Ok(DataMemmap { name, data, dim })
     }
 

@@ -1,15 +1,16 @@
-//! # Bucket probability
+//! # Categorical Distribution
 //!
-//! A class for handling the finite probablity distribution of the children
+//! Simple probability distribution that enables you to simulated the rough 
+//! distribution of data in the tree. 
 
 use crate::node::CoverNode;
-use crate::plugins::*;
 use crate::plugins::distributions::DiscreteDistribution;
+use crate::plugins::*;
 use crate::tree::CoverTreeReader;
 
 /// Simple probability density function for where things go by count
 /// Stored as a flat vector in the order of the node addresses.
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Categorical {
     child_counts: Vec<(NodeAddress, f64)>,
     singleton_count: f64,
@@ -42,16 +43,17 @@ impl DiscreteDistribution for Categorical {
         if my_total == 0.0 || other_total == 0.0 {
             None
         } else {
-            let ln_total =  my_total.ln() - other_total.ln();
+            let ln_total = my_total.ln() - other_total.ln();
             let mut sum: f64 = 0.0;
             if self.singleton_count > 0.0 && other.singleton_count > 0.0 {
-                sum += (self.singleton_count/my_total) * (self.singleton_count.ln() - other.singleton_count.ln() - ln_total);
+                sum += (self.singleton_count / my_total)
+                    * (self.singleton_count.ln() - other.singleton_count.ln() - ln_total);
             }
             for ((ca, ca_count), (other_ca, other_ca_count)) in
                 self.child_counts.iter().zip(other.child_counts.iter())
             {
                 assert_eq!(ca, other_ca);
-                sum += (ca_count/my_total) * (ca_count.ln() - other_ca_count.ln() - ln_total);
+                sum += (ca_count / my_total) * (ca_count.ln() - other_ca_count.ln() - ln_total);
             }
             Some(sum)
         }
@@ -67,7 +69,7 @@ impl Categorical {
         }
     }
 
-    /// Total input to this categorical distribution. 
+    /// Total input to this categorical distribution.
     pub fn total(&self) -> f64 {
         self.singleton_count
             + self
@@ -141,7 +143,10 @@ impl<M: Metric> GrandmaPlugin<M> for GrandmaCategorical {
             my_tree.get_node_plugin_and::<Self::NodeComponent, _, _>(
                 (nested_scale, *my_node.center_index()),
                 |p| {
-                    bucket.add_child_pop(Some((nested_scale, *my_node.center_index())), p.total() as f64);
+                    bucket.add_child_pop(
+                        Some((nested_scale, *my_node.center_index())),
+                        p.total() as f64,
+                    );
                 },
             );
             for ca in child_addresses {
@@ -201,7 +206,10 @@ pub(crate) mod tests {
         println!("{:?}", bucket2);
 
         assert_approx_eq!(bucket1.ln_prob(None).unwrap(), (0.5f64).ln());
-        assert_approx_eq!(bucket2.ln_prob(Some(&(0, 0))).unwrap(), (0.666666666f64).ln());
+        assert_approx_eq!(
+            bucket2.ln_prob(Some(&(0, 0))).unwrap(),
+            (0.666666666f64).ln()
+        );
         assert_approx_eq!(bucket1.kl_divergence(&bucket1).unwrap(), 0.0);
 
         assert_approx_eq!(bucket1.kl_divergence(&bucket2).unwrap(), 0.05889151782);

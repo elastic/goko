@@ -187,7 +187,7 @@ impl PyGrandma {
         self.node(reader.root_address())
     }
 
-    pub fn knn(&self, point: &PyArray1<f32>, k: usize) -> Vec<(f32,u64)> {
+    pub fn knn(&self, point: &PyArray1<f32>, k: usize) -> Vec<(f32, u64)> {
         let results = self
             .reader
             .as_ref()
@@ -197,7 +197,7 @@ impl PyGrandma {
         results
     }
 
-    pub fn dry_insert(&self, point: &PyArray1<f32>) -> Vec<(f32,(i32, u64))> {
+    pub fn dry_insert(&self, point: &PyArray1<f32>) -> Vec<(f32, (i32, u64))> {
         let results = self
             .reader
             .as_ref()

@@ -34,8 +34,7 @@ pub struct PyBayesCategoricalTracker {
 impl PyBayesCategoricalTracker {
     pub fn push(&mut self, point: &PyArray1<f32>) {
         let results = self.tree.dry_insert(point.as_slice().unwrap()).unwrap();
-        self.hkl
-            .add_dry_insert(results);
+        self.hkl.add_dry_insert(results);
     }
 
     pub fn print(&self) {

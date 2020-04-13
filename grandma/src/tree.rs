@@ -126,7 +126,17 @@ impl<M: Metric> CoverTreeReader<M> {
         F: FnOnce(&CoverNode<M>) -> T,
     {
         self.layers[self.parameters.internal_index(node_address.0)]
-            .get_node_and(&node_address.1, |n| f(n))
+            .get_node_and(node_address.1, |n| f(n))
+    }
+
+    /// Grabs all children indexes and allows you to query against them. Usually used at the tree level so that you
+    /// can access the child nodes as they are not on this layer.
+    pub fn get_node_children_and<F, T>(&self, node_address: (i32, PointIndex), f: F) -> Option<T>
+    where
+        F: FnOnce(NodeAddress, &[NodeAddress]) -> T,
+    {
+        self.layers[self.parameters.internal_index(node_address.0)]
+            .get_node_children_and(node_address.1, f)
     }
 
     /// The root of the tree. Pass this to `get_node_and` to get the root node's content and start a traversal of the tree.
@@ -135,7 +145,7 @@ impl<M: Metric> CoverTreeReader<M> {
     }
 
     /// An iterator for accessing the layers starting from the layer who holds the root.
-    pub fn layers<'a>(&'a self) -> LayerIter<M> {
+    pub fn layers(&self) -> LayerIter<M> {
         ((self.parameters.resolution - 1)
             ..(self.layers.len() as i32 + self.parameters.resolution - 1))
             .zip(self.layers.iter())
@@ -145,6 +155,11 @@ impl<M: Metric> CoverTreeReader<M> {
     /// Returns the number of layers in the tree. This is _not_ the number of non-zero layers.
     pub fn len(&self) -> usize {
         self.layers.len()
+    }
+
+    /// Returns the number of layers in the tree. This is _not_ the number of non-zero layers.
+    pub fn is_empty(&self) -> bool {
+        self.layers.is_empty()
     }
 
     /// If you want to build a new tree with shared parameters, this is helpful.
@@ -186,7 +201,7 @@ impl<M: Metric> CoverTreeReader<M> {
         F: FnOnce(&T) -> S,
     {
         self.layers[self.parameters.internal_index(node_address.0)]
-            .get_node_and(&node_address.1, |n| n.get_plugin_and(transform_fn))
+            .get_node_and(node_address.1, |n| n.get_plugin_and(transform_fn))
             .flatten()
     }
 
@@ -241,24 +256,20 @@ impl<M: Metric> CoverTreeReader<M> {
 
     fn greedy_knn_nodes(&self, point: &[f32], query_heap: &mut KnnQueryHeap) -> bool {
         let mut did_something = false;
-        loop {
-            if let Some((dist, nearest_address)) =
-                query_heap.closest_unvisited_child_covering_address()
+        while let Some((dist, nearest_address)) =
+            query_heap.closest_unvisited_child_covering_address()
+        {
+            if self
+                .get_node_and(nearest_address, |n| n.is_leaf())
+                .unwrap_or(true)
             {
-                if self
-                    .get_node_and(nearest_address, |n| n.is_leaf())
-                    .unwrap_or(true)
-                {
-                    break;
-                } else {
-                    self.get_node_and(nearest_address, |n| {
-                        n.child_knn(Some(dist), point, &self.parameters.point_cloud, query_heap)
-                    });
-                }
-                did_something = true;
-            } else {
                 break;
+            } else {
+                self.get_node_and(nearest_address, |n| {
+                    n.child_knn(Some(dist), point, &self.parameters.point_cloud, query_heap)
+                });
             }
+            did_something = true;
         }
         did_something
     }
@@ -282,10 +293,10 @@ impl<M: Metric> CoverTreeReader<M> {
         println!("========================");
         println!("{:#?}", query_heap);
         for (si, _) in self.layers() {
-            while let Some((q_dist, nearest_address)) = query_heap.pop_closest_unqueried(&si) {
+            while let Some((q_dist, nearest_address)) = query_heap.pop_closest_unqueried(si) {
                 println!("========================");
                 println!("{:#?}", query_heap);
-                match query_heap.furthest_node(&si) {
+                match query_heap.furthest_node(si) {
                     Some((furthest_distance, _)) => {
                         if q_dist - self.parameters.scale_base.powi(si) < furthest_distance {
                             self.get_node_and(nearest_address, |n| {
@@ -315,8 +326,7 @@ impl<M: Metric> CoverTreeReader<M> {
         let mut current_distance = M::dense(root_center, point);
         let mut current_address = self.root_address;
         let mut trace = vec![(current_distance, current_address)];
-        loop {
-            if let Some(nearest) = self.get_node_and(current_address, |n| {
+        while let Some(nearest) = self.get_node_and(current_address, |n| {
                 n.covering_child(
                     self.parameters.scale_base,
                     current_distance,
@@ -331,9 +341,6 @@ impl<M: Metric> CoverTreeReader<M> {
                 } else {
                     break;
                 }
-            } else {
-                break;
-            }
         }
         Ok(trace)
     }
@@ -343,18 +350,11 @@ impl<M: Metric> CoverTreeReader<M> {
     pub(crate) fn no_dangling_refs(&self) -> bool {
         let mut refs_to_check = vec![self.root_address];
         while let Some(node_addr) = refs_to_check.pop() {
-            if self
-                .get_node_and(node_addr, |n| {
-                    match n.children() {
-                        None => {}
-                        Some((nested_scale, other_children)) => {
-                            refs_to_check.push((nested_scale, node_addr.1));
-                            refs_to_check.extend(&other_children[..]);
-                        }
-                    };
-                })
-                .is_none()
-            {
+            let has_children = self.get_node_children_and(node_addr, |nested_address, other_children| {
+                    refs_to_check.push(nested_address);
+                    refs_to_check.extend(&other_children[..]);
+                });
+            if has_children.is_none() {
                 return false;
             }
         }

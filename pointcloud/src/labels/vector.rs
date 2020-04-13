@@ -228,7 +228,7 @@ impl InternalValueList for VectorList {
         if self.dim == 0 {
             0
         } else {
-            self.data.len() / self.dim 
+            self.data.len() / self.dim
         }
     }
     fn is_empty(&self) -> bool {

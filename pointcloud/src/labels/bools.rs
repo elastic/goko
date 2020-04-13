@@ -69,7 +69,7 @@ impl InternalValueList for BoolList {
     }
     fn len(&self) -> usize {
         self.data.len()
-    } 
+    }
     fn is_empty(&self) -> bool {
         self.data.is_empty()
     }

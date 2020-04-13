@@ -1,11 +1,12 @@
-//!
-//!
-//!
+//! # Probability Distributions Plugins
+//! 
+//! This module containes plugins that simulate probability distributions on the nodes. 
+//! It also has trackers used to see when queries and sequences are out of distribution.
 
-use std::collections::HashMap;
-use std::fmt::Debug;
 use super::*;
 use crate::*;
+use std::collections::HashMap;
+use std::fmt::Debug;
 
 mod diag_gaussian;
 pub use diag_gaussian::*;
@@ -23,30 +24,33 @@ pub trait DiscreteDistribution: Clone + 'static {
 
     /// Computes the KL divergence of two bucket probs.
     /// KL(self || other)
-    /// Returns None if the support of the self is not a subset of the support of the other
+    /// Returns None if the support of the self is not a subset of the support of the other, or the calculation is undefined.
     fn kl_divergence(&self, other: &Self) -> Option<f64>;
 }
 
 ///
 pub trait ContinousDistribution: Clone + 'static {
     /// Pass none if you want to test for a singleton, returns 0 if
-    fn ln_prob(&self, point:&[f32]) -> Option<f64>;
+    fn ln_prob(&self, point: &[f32]) -> Option<f64>;
 
     /// Computes the KL divergence of two bucket probs.
     /// KL(self || other)
-    /// Returns None if the support of the self is not a subset of the support of the other
+    /// Returns None if the support of the self is not a subset of the support of the other, or the calculation is undefined.
     fn kl_divergence(&self, other: &Self) -> Option<f64>;
 }
 
-/// 
-pub trait DiscreteBayesianDistribution: Clone + 'static {
-    /// Adds an observation to the distribution. 
+///
+pub trait DiscreteBayesianDistribution: DiscreteDistribution + Clone + 'static {
+    /// Adds an observation to the distribution.
     /// This currently shifts the underlying parameters of the distribution rather than be tracked.
     fn add_observation(&mut self, loc: Option<NodeAddress>);
-    /// Pass None to get the code for a singleton. Returns None if the prob is undefined.
-    fn ln_prob(&self, loc: Option<&NodeAddress>) -> Option<f64>;
-    /// Computes KL(self || other), Returns None if the divergence is undefined.
-    fn kl_divergence(&self, other: &Self) -> Option<f64>;
+}
+
+///
+pub trait ContinousBayesianDistribution: ContinousDistribution + Clone + 'static {
+    /// Adds an observation to the distribution.
+    /// This currently shifts the underlying parameters of the distribution rather than be tracked.
+    fn add_observation(&mut self, point: &[f32]);
 }
 
 ///
@@ -55,7 +59,7 @@ pub trait DiscreteBayesianSequenceTracker<M: Metric>: Debug {
     type Distribution: DiscreteBayesianDistribution + NodePlugin<M> + 'static;
 
     /// Adds a dry insert.
-    fn add_dry_insert(&mut self, trace: Vec<(f32,NodeAddress)>);
+    fn add_dry_insert(&mut self, trace: Vec<(f32, NodeAddress)>);
     /// The current distributions that a dry insert touched.
     fn running_distributions(&self) -> &HashMap<NodeAddress, Self::Distribution>;
     /// Helper function, each sequence tracker should carry it's own reader.
@@ -121,7 +125,7 @@ pub trait DiscreteBayesianSequenceTracker<M: Metric>: Debug {
 /// Tracks the non-zero (all KL divergences above 1e-10)
 #[derive(Debug)]
 pub struct KLDivergenceStats {
-    /// The maximum non-zero KL divergence 
+    /// The maximum non-zero KL divergence
     pub max: f64,
     /// The minimum non-zero KL divergence
     pub min: f64,
@@ -131,7 +135,7 @@ pub struct KLDivergenceStats {
     pub moment1_nz: f64,
     /// The second moment, use this with the `nz_count` and first moment to get the variance
     pub moment2_nz: f64,
-    /// The number of sequence elements that went into calculating this stat. This is not the total lenght 
+    /// The number of sequence elements that went into calculating this stat. This is not the total lenght
     /// We can drop old sequence elements
     pub sequence_len: usize,
 }

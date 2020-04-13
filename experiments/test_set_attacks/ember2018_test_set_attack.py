@@ -5,7 +5,8 @@ from collections import defaultdict
 import argparse,os
 import json
 from ember import read_vectorized_features
-
+import pandas as pd
+import plotly.graph_objects as go
 
 def unpack_stats(dataframe,stats):
 	dataframe["max"].append(stats.max)
@@ -18,37 +19,11 @@ def unpack_stats(dataframe,stats):
 def classify(y,pred,ember_threshold):
 	return (ember_threshold < y and pred == 0) or (y < ember_threshold and pred == 1)
 
-def uniform_generator_factory():
-	def generator():
-		np.random.randint(0,len(X_test))
-	return generator
-
-def normal_generator_factory():
-	def generator():
-		np.random.randint(0,len(X_test))
-	return generator
 ember_threshold = 0.8336
-base_parameters = {
-	"prior_weight" : 1.0,
-	"observation_weight" : 1.3,
-	"sequence_cap" : 50,
-	"sequence_len" : 40,
-	"sequence_count" : 20,
-	"file_folder_prefix" : "uniform",
-	"index_factory": uniform_generator_factory,
-}
-
-non_uniform_parameters = {
-	"prior_weight" : 1.0,
-	"observation_weight" : 1.3,
-	"sequence_cap" : 50,
-	"sequence_len" : 400,
-	"sequence_count" : 200,
-	"file_folder_prefix" : "normal",
-	"index_factory": normal_generator_factory,
-}
+skip = 5
 
 def baseline(parameters,tree):
+	print(f"Creating the baseline for {parameters['file_folder']}")
 	training_runs = []
 	normal_stats = tree.kl_div_dirichlet_basestats(
 		parameters["prior_weight"],
@@ -59,7 +34,7 @@ def baseline(parameters,tree):
 	for i,vstats in enumerate(normal_stats):
 		training_run = defaultdict(list)
 		for stats in vstats:
-		    unpack_stats(training_run,stats)
+			unpack_stats(training_run,stats)
 
 		training_runs.append(training_run)
 
@@ -67,9 +42,10 @@ def baseline(parameters,tree):
 		for training_run in training_runs:
 			file.write(json.dumps(training_run)+"\n")
 
-def run_normal(parameters,tree):
+def run_normal(parameters,tree,bst,X_test,y_test):
+	print(f"Creating the normal runs for {parameters['file_folder']}")
 	normal_runs = []
-	for normal in range(sequence_count):
+	for normal in range(parameters["sequence_count"]):
 		normal_run = []
 		normal_test_tracker = tree.kl_div_dirichlet(
 			parameters["prior_weight"],
@@ -77,7 +53,7 @@ def run_normal(parameters,tree):
 			parameters["sequence_cap"])
 		normal_test_stats = defaultdict(list)
 		index_generator = parameters["index_factory"]()
-		for i in range(sequence_len):
+		for i in range(parameters["sequence_len"]):
 			i = index_generator()
 			x = X_test[i]
 			y = y_test[i]
@@ -93,9 +69,10 @@ def run_normal(parameters,tree):
 		for normal_run in normal_runs:
 			file.write(json.dumps(normal_run)+"\n")
 
-def run_attacks(parameters,tree):
+def run_attacks(parameters,tree,bst,X_test,y_test):
+	print(f"Creating the attack runs for {parameters['file_folder']}")
 	attack_runs = []
-	for attack in range(sequence_count):
+	for attack in range(parameters["sequence_count"]):
 		attack_index = None
 		attack_run = []
 		attack_test_tracker = tree.kl_div_dirichlet(
@@ -104,7 +81,7 @@ def run_attacks(parameters,tree):
 			parameters["sequence_cap"])
 		attack_test_stats = defaultdict(list)
 		index_generator = parameters["index_factory"]()
-		for i in range(sequence_len):
+		for i in range(parameters["sequence_len"]):
 			if attack_index is None:
 				i = index_generator()
 			else:
@@ -124,6 +101,224 @@ def run_attacks(parameters,tree):
 		for attack_run in attack_runs:
 			file.write(json.dumps(attack_run)+"\n")
 
+def open_experiment(folder_name):
+	with open(f"{folder_name}expected_ember_stats.json","r") as file:
+		training_runs = [json.loads(line) for line in file]
+		training_keys = list(training_runs[0].keys())
+		training_arrays = {k:np.array([training_run[k][skip:] for training_run in training_runs])  for k in training_keys}
+
+		expected_runs = {}
+		for k,v in training_arrays.items():
+			expected_runs[f"mean_{k}"] = np.mean(v,axis=0)
+			expected_runs[f"stddev_{k}"] = np.sqrt(np.var(v,axis=0))
+
+		expected_runs["moment1_nz"] = np.sum(training_arrays["moment1_nz"],axis=0)
+		expected_runs["moment2_nz"] = np.sum(training_arrays["moment2_nz"],axis=0)
+		expected_runs["nz_count"] = np.sum(training_arrays["nz_count"],axis=0)
+		expected_runs["mean_nz_mean"] = expected_runs["moment1_nz"]/expected_runs["nz_count"]
+		expected_runs["stddev_nz_mean"] = np.sqrt(
+			expected_runs["moment2_nz"]/expected_runs["nz_count"] - 
+			np.square(expected_runs["mean_nz_mean"]))
+
+	expected_df = pd.DataFrame(expected_runs)
+	with open(f"{folder_name}normal_runs_ember_stats.json","r") as file:
+		normal_runs = [{k: np.array(v[skip:]) for k,v in json.loads(line).items()} for line in file]
+		for run in normal_runs:
+			run["nz_mean"] = run["moment1_nz"]/run["nz_count"]
+			run["nz_stddev"] = np.sqrt(run["moment2_nz"]/run["nz_count"] - np.square(run["nz_mean"]))
+		normal_runs = [pd.DataFrame(run) for run in normal_runs]
+
+	with open(f"{folder_name}attack_runs_ember_stats.json","r") as file:
+		attack_runs = [{k: np.array(v[skip:]) for k,v in json.loads(line).items()} for line in file]
+		for run in attack_runs:
+			run["nz_mean"] = run["moment1_nz"]/run["nz_count"]
+			run["nz_stddev"] = np.sqrt(run["moment2_nz"]/run["nz_count"] - np.square(run["nz_mean"]))
+		attack_runs = [pd.DataFrame(run) for run in attack_runs]
+	return expected_runs, normal_runs, attack_runs
+
+def generate_traces(expected_runs,normal_runs,attack_runs,col_name):
+    expected_runs[f'mean_p_stddev_{col_name}'] = expected_runs[f"mean_{col_name}"]+expected_runs[f'stddev_{col_name}']
+    expected_runs[f'mean_n_stddev_{col_name}'] = expected_runs[f"mean_{col_name}"]-expected_runs[f'stddev_{col_name}']
+    x = np.arange(skip,len(expected_runs[f"mean_{col_name}"]))
+    upper_bound = go.Scatter(x=x,y=expected_runs[f'mean_p_stddev_{col_name}'],
+                        mode='lines',
+                        line_color='rgba(0,100,80,0)',
+                         showlegend=False,
+                        fillcolor='rgba(0,100,80, 0.3)',
+                        legendgroup="baseline",
+                        fill='tonexty')
+    trace = go.Scatter(x=x,y=expected_runs[f"mean_{col_name}"],
+                        mode='lines',
+                        line_color='rgb(0,100,80)',
+                        name='Mean & Stddev of<br>training sequences',
+                        fillcolor='rgba(0,100,80, 0.3)',
+                        legendgroup="baseline",
+                        fill='tonexty')
+    lower_bound = go.Scatter(x=x,y=expected_runs[f'mean_n_stddev_{col_name}'],
+                        mode='lines',
+                        line_color='rgba(0,100,80,0)',
+                        legendgroup="baseline",
+                        showlegend=False)
+
+    data = [lower_bound, trace, upper_bound]
+    attack_trace = go.Scatter(x=x,y=attack_runs[0][col_name],
+            mode='lines',
+            line_color='rgba(200,10,10,0.8)',
+            name='Attack Sequence',
+            legendgroup="attack")
+    data.append(attack_trace)
+    for run in attack_runs[1:10]:
+        attack_trace = go.Scatter(x=x,y=run[col_name],
+                        mode='lines',
+                        line_color='rgba(200,10,10,0.8)',
+                        name='Attack Sequence',
+                        legendgroup="attack",
+                        showlegend=False)
+        data.append(attack_trace)
+    normal_trace = go.Scatter(x=x,y=normal_runs[0][col_name],
+                    mode='lines',
+                    line_color='rgba(10,10,200,0.8)',
+                    name='Normal Sequence',
+                    legendgroup="normal")
+    data.append(normal_trace)
+    for run in normal_runs[1:10]:
+        normal_trace = go.Scatter(x=x,y=run[col_name],
+                        mode='lines',
+                        line_color='rgba(10,10,200,0.8)',
+                        name='Normal Sequence',
+                        legendgroup="normal",
+                        showlegend=False)
+        data.append(normal_trace)
+    return data
+
+def sequence_analysis(expected_runs,sequence_run,col_name):
+	stat_column = sequence_run[col_name]
+	index = sequence_run["index"]
+	std_dev_up = expected_runs[f"mean_{col_name}"]+expected_runs[f'stddev_{col_name}']
+	std_dev_down = expected_runs[f"mean_{col_name}"]-expected_runs[f'stddev_{col_name}']
+
+	true_explotation_time = None
+	i = 0
+	while true_explotation_time is None and i + 2 < len(index):
+		if index[i] == index[i+1] and index[i+1] == index[i+2]:
+			true_explotation_time = i
+		i += 1
+	    
+	detection_time = None
+	i = 0
+	while detection_time is None and i < len(index):
+		if stat_column[i] > std_dev_up[i] or stat_column[i] < std_dev_down[i]:
+			detection_time = i
+		i += 1
+	return true_explotation_time, detection_time
+
+def generate_results(folder_name):
+	expected_runs, normal_runs, attack_runs = open_experiment(folder_name)
+	data = generate_traces(expected_runs, normal_runs, attack_runs,"max")
+	fig = go.Figure()
+	layout = go.Layout(
+	    yaxis=dict(title='Max KL Divergence'),
+	    title='Maximum of the KL Divergence of Query Sequences',
+	    yaxis_type="log")
+
+	fig = go.Figure(data=data, layout=layout)
+	fig.write_image(f"{folder_name}/max.png")
+
+	data = generate_traces(expected_runs, normal_runs, attack_runs,"min")
+	fig = go.Figure()
+	layout = go.Layout(
+		yaxis=dict(title='Min KL Divergence'),
+		title='Minimum of the KL Divergence of Query Sequences',
+		yaxis_type="log")
+
+	fig = go.Figure(data=data, layout=layout)
+	fig.write_image(f"{folder_name}/min.png")
+
+	data = generate_traces(expected_runs, normal_runs, attack_runs,"nz_count")
+	fig = go.Figure()
+	layout = go.Layout(
+		yaxis=dict(title='The count of all nodes that have non-zero KL Divergence'),
+		title="Count of non-zero KL Divergence",
+		yaxis_type="log")
+
+	fig = go.Figure(data=data, layout=layout)
+	fig.write_image(f"{folder_name}/nz_count.png")
+
+	data = generate_traces(expected_runs, normal_runs, attack_runs,"moment1_nz")
+	fig = go.Figure()
+	layout = go.Layout(
+		yaxis=dict(title='First Moment of KL Divergence'),
+		title='First Moment of KL Divergence',
+		yaxis_type="log")
+
+	fig = go.Figure(data=data, layout=layout)
+	fig.write_image(f"{folder_name}/moment1_nz.png")
+
+	data = generate_traces(expected_runs, normal_runs, attack_runs,"moment2_nz")
+	fig = go.Figure()
+	layout = go.Layout(
+		yaxis=dict(title='Second Moment of KL Divergence'),
+		title='Second Moment of KL Divergence',
+		yaxis_type="log")
+
+	fig = go.Figure(data=data, layout=layout)
+	fig.write_image(f"{folder_name}/moment2_nz.png")
+
+	data = generate_traces(expected_runs, normal_runs, attack_runs,"nz_mean")
+	fig = go.Figure()
+	layout = go.Layout(
+		yaxis=dict(title='Mean of non-zero KL Divergences'),
+		title='Mean of the non-zero KL divergences',
+		yaxis_type="log")
+
+	fig = go.Figure(data=data, layout=layout)
+	fig.write_image(f"{folder_name}/nz_mean.png")
+
+	attack_results = []
+	for run in attack_runs:
+		attack_results.append(sequence_analysis(expected_runs,run,"nz_mean"))
+	normal_results = []
+	for run in normal_runs:
+		normal_results.append(sequence_analysis(expected_runs,run,"nz_mean"))
+	positives = 0
+	negatives = 0
+	results = attack_results + normal_results
+	true_positive = 0.0
+	false_positive = 0.0
+	true_negative = 0.0
+	false_negative = 0.0
+	detection_mean_lag = 0.0
+	for attack_start,detection in results:
+		if attack_start is None:
+			negatives += 1.0
+			if detection is None:
+				true_negative += 1.0
+			else:
+				false_negative += 1.0
+		else:
+			positives += 1.0
+			if detection is None:
+				false_positive += 1.0
+			else:
+				true_positive += 1.0
+				detection_mean_lag += detection - attack_start
+	detection_mean_lag /= true_positive
+	true_positive /= positives
+	false_positive /= positives
+	true_negative /= negatives
+	false_negative /= negatives
+	results_summary = {
+		"detection_mean_lag":detection_mean_lag,
+		"true_positive":true_positive,
+		"false_positive":false_positive,
+		"true_negative":true_negative,
+		"false_negative":false_negative,
+		"positives": positives,
+		"negatives": negatives,
+	}
+	with open(f"{folder_name}/detection_results.json","w") as file:
+		file.write(json.dumps(results_summary)+"\n")
+
 def main():
 	prog = "test set attack of ember"
 	parser = argparse.ArgumentParser()
@@ -140,26 +335,53 @@ def main():
 
 	tree = pygrandma.PyGrandma()
 	tree.fit_yaml(args.treeyaml)
+	def uniform_generator_factory():
+		def generator():
+			return np.random.randint(0,len(X_test))
+		return generator
+
+	def normal_generator_factory():
+		count = np.random.randint(0,1000)
+		shift = np.random.randint(0,len(X_test) - count)
+		def generator():
+			return np.random.binomial(n=count, p=0.5, size=1)[0] + shift
+		return generator
 
 	parameters_list = [
-		base_parameters,
-		non_uniform_parameters,
+		{
+			"prior_weight" : 1.0,
+			"observation_weight" : 1.3,
+			"sequence_cap" : 50,
+			"sequence_len" : 40,
+			"sequence_count" : 20,
+			"file_folder_prefix" : "uniform",
+			"index_factory": uniform_generator_factory,
+		},
+		{
+			"prior_weight" : 1.0,
+			"observation_weight" : 1.3,
+			"sequence_cap" : 50,
+			"sequence_len" : 40,
+			"sequence_count" : 20,
+			"file_folder_prefix" : "normal",
+			"index_factory": normal_generator_factory,
+		},
 	]
 	for parameters in parameters_list:
-		for prior_weight in [0.8,0.9,1.0]:
+		for prior_weight in [0.8,1.0]:
 			parameters["prior_weight"] = prior_weight
 			for observation_weight in [1.0,1.3,1.6]:
 				parameters["observation_weight"] = observation_weight
 				for sequence_cap in [25,50,75]:
 					parameters["sequence_cap"] = sequence_cap
 					parameters["sequence_len"] = 400
-					parameters["sequence_count"] = 200
+					parameters["sequence_count"] = 100
 					prior_weight_str = str(parameters["prior_weight"]).replace(".","-")
 					observation_weight_str = str(parameters["observation_weight"]).replace(".","-")
 					sequence_cap_str = str(parameters["sequence_cap"])
 					sequence_len_str = str(parameters["sequence_len"])
 					sequence_count_str = str(parameters["sequence_count"])
-					name = parameters["file_folder_prefix"] + "_".join([
+					name = parameters["file_folder_prefix"] +"_"+ "_".join([
 						prior_weight_str,
 						observation_weight_str,
 						sequence_cap_str,
@@ -167,11 +389,13 @@ def main():
 						sequence_count_str,
 					])
 					parameters["file_folder"] = name
-					baseline(parameters,tree)
-					run_normal(parameters,tree)
-					run_attacks(parameters,tree)
+					if not os.path.exists(name):
+						os.mkdir(name)
+						baseline(parameters,tree)
+						run_normal(parameters,tree,bst,X_test,y_test)
+						run_attacks(parameters,tree,bst,X_test,y_test)
 	
-
+					generate_results(name +"/")
 
 if __name__ == "__main__":
 	main()

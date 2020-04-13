@@ -1,6 +1,16 @@
 //! # Dirichlet probability
 //!
-//! 
+//! We know that the users are quering based on what they want to know about. 
+//! This has some geometric structure, especially for attackers. We have some 
+//! prior knowlege about the queries, they should function similarly to the training set.
+//! Sections of data that are highly populated should have a higher likelyhood of being
+//! queried. 
+//!
+//! This plugin lets us simulate the unknown distribution of the queries of a user in a 
+//! bayesian way. There may be more applications of this idea, but defending against 
+//! attackers has been proven.
+
+
 use crate::node::CoverNode;
 use crate::plugins::*;
 use crate::tree::CoverTreeReader;
@@ -13,15 +23,15 @@ use statrs::function::gamma::{digamma, ln_gamma};
 use std::collections::{HashMap, VecDeque};
 
 /// Simple probability density function for where things go by count
-/// 
-#[derive(Debug, Clone)]
+///
+#[derive(Debug, Clone, Default)]
 pub struct Dirichlet {
     child_counts: Vec<(NodeAddress, f64)>,
     singleton_count: f64,
 }
 
 impl Dirichlet {
-    /// New all 0 Dirichlet distribution. The child counts are uninitialized 
+    /// New all 0 Dirichlet distribution. The child counts are uninitialized
     pub fn new() -> Dirichlet {
         Dirichlet {
             child_counts: Vec::new(),
@@ -29,10 +39,9 @@ impl Dirichlet {
         }
     }
     /// Multiplies all parameters by this weight
-    pub fn weight(mut self, weight: f64) -> Dirichlet {
+    pub fn weight(&mut self, weight: f64) {
         self.child_counts.iter_mut().for_each(|(_, p)| *p *= weight);
         self.singleton_count *= weight;
-        self
     }
     /// The total of the parameters. This is a proxy for the total count, and the "concentration" of the distribution
     pub fn total(&self) -> f64 {
@@ -74,12 +83,12 @@ impl Dirichlet {
         }
     }
 }
-
 impl DiscreteBayesianDistribution for Dirichlet {
     fn add_observation(&mut self, loc: Option<NodeAddress>) {
         self.add_child_pop(loc, 1.0);
     }
-
+}
+impl DiscreteDistribution for Dirichlet {
     fn ln_prob(&self, loc: Option<&NodeAddress>) -> Option<f64> {
         let ax = match loc {
             Some(ca) => self
@@ -179,7 +188,7 @@ impl<M: Metric> GrandmaPlugin<M> for GrandmaDirichlet {
 /// Computes a frequentist KL divergence calculation on each node the sequence touches.
 pub struct BayesCategoricalTracker<M: Metric> {
     running_distributions: HashMap<NodeAddress, Dirichlet>,
-    sequence: VecDeque<Vec<(f32,NodeAddress)>>,
+    sequence: VecDeque<Vec<(f32, NodeAddress)>>,
     length: usize,
     prior_weight: f64,
     observation_weight: f64,
@@ -213,36 +222,47 @@ impl<M: Metric> BayesCategoricalTracker<M> {
             reader,
         }
     }
-    fn add_trace_to_pdfs(&mut self, trace: &[(f32,NodeAddress)]) {
-        let parent_address_iter = trace.iter().map(|(_,ca)|ca);
-        let mut child_address_iter = trace.iter().map(|(_,ca)|ca);
+
+    fn get_distro(&self, address: NodeAddress) -> Dirichlet {
+        let mut prob = self
+            .reader
+            .get_node_plugin_and::<Dirichlet, _, _>(address, |p| p.clone())
+            .unwrap();
+        let total = prob.total();
+        if total > self.length as f64 {
+            prob.weight((total.ln() * self.length as f64) / total)
+        }
+        prob.weight(self.prior_weight);
+        prob
+    }
+    fn add_trace_to_pdfs(&mut self, trace: &[(f32, NodeAddress)]) {
+        let parent_address_iter = trace.iter().map(|(_, ca)| ca);
+        let mut child_address_iter = trace.iter().map(|(_, ca)| ca);
         child_address_iter.next();
         for (parent, child) in parent_address_iter.zip(child_address_iter) {
+            if !self.running_distributions.contains_key(parent) {
+                self.running_distributions
+                    .insert(*parent, self.get_distro(*parent));
+            }
             self.running_distributions
-                .entry(*parent)
-                .or_insert(
-                    self.reader
-                        .get_node_plugin_and::<Dirichlet, _, _>(*parent, |p| p.clone())
-                        .unwrap()
-                        .weight(self.prior_weight),
-                )
+                .get_mut(parent)
+                .unwrap()
                 .add_child_pop(Some(*child), self.observation_weight);
         }
         let last = trace.last().unwrap().1;
+        if !self.running_distributions.contains_key(&last) {
+            self.running_distributions
+                .insert(last, self.get_distro(last));
+        }
         self.running_distributions
-            .entry(last)
-            .or_insert(
-                self.reader
-                    .get_node_plugin_and::<Dirichlet, _, _>(last, |p| p.clone())
-                    .unwrap()
-                    .weight(self.prior_weight),
-            )
+            .get_mut(&last)
+            .unwrap()
             .add_child_pop(None, self.observation_weight);
     }
 
-    fn remove_trace_from_pdfs(&mut self, trace: &[(f32,NodeAddress)]) {
-        let parent_address_iter = trace.iter().map(|(_,ca)|ca);
-        let mut child_address_iter = trace.iter().map(|(_,ca)|ca);
+    fn remove_trace_from_pdfs(&mut self, trace: &[(f32, NodeAddress)]) {
+        let parent_address_iter = trace.iter().map(|(_, ca)| ca);
+        let mut child_address_iter = trace.iter().map(|(_, ca)| ca);
         child_address_iter.next();
         for (parent, child) in parent_address_iter.zip(child_address_iter) {
             self.running_distributions
@@ -260,7 +280,7 @@ impl<M: Metric> BayesCategoricalTracker<M> {
 impl<M: Metric> DiscreteBayesianSequenceTracker<M> for BayesCategoricalTracker<M> {
     type Distribution = Dirichlet;
     /// Adds an element to the trace
-    fn add_dry_insert(&mut self, trace: Vec<(f32,NodeAddress)>) {
+    fn add_dry_insert(&mut self, trace: Vec<(f32, NodeAddress)>) {
         self.add_trace_to_pdfs(&trace);
         self.sequence.push_back(trace);
         if self.sequence.len() > self.length && self.length != 0 {
@@ -289,7 +309,6 @@ pub struct DirichletBaseline<M: Metric> {
     observation_weight: f64,
     reader: CoverTreeReader<M>,
 }
-
 
 impl<M: Metric> DirichletBaseline<M> {
     /// New with sensible defaults
@@ -324,7 +343,7 @@ impl<M: Metric> DirichletBaseline<M> {
         self.observation_weight = observation_weight;
     }
 
-    /// Trains the sequences up. 
+    /// Trains the sequences up.
     pub fn train(&self) -> GrandmaResult<Vec<Vec<KLDivergenceStats>>> {
         /*
         let chunk_size = 10;
@@ -337,7 +356,7 @@ impl<M: Metric> DirichletBaseline<M> {
             .map(|_| Vec::with_capacity(self.sequence_len))
             .collect();
         let point_cloud = self.reader.point_cloud();
-        for i in 0..self.sequence_count {
+        for seq_results in results.iter_mut() {
             let mut tracker = BayesCategoricalTracker::new(
                 self.prior_weight,
                 self.observation_weight,
@@ -348,9 +367,8 @@ impl<M: Metric> DirichletBaseline<M> {
                 let mut rng = thread_rng();
                 let query_point =
                     point_cloud.get_point(rng.gen_range(0, point_cloud.len()) as u64)?;
-                tracker.add_dry_insert(
-                    self.reader.dry_insert(query_point)?);
-                results[i].push(tracker.current_stats());
+                tracker.add_dry_insert(self.reader.dry_insert(query_point)?);
+                seq_results.push(tracker.current_stats());
             }
         }
 
@@ -404,8 +422,8 @@ pub(crate) mod tests {
             bucket1.kl_divergence(&bucket2).unwrap(),
             bucket1.kl_divergence(&bucket3).unwrap()
         );
-        assert!(bucket1.kl_divergence(&bucket2).unwrap() > bucket1.kl_divergence(&bucket3).unwrap());
+        assert!(
+            bucket1.kl_divergence(&bucket2).unwrap() > bucket1.kl_divergence(&bucket3).unwrap()
+        );
     }
-
-
 }

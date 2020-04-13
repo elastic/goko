@@ -51,11 +51,11 @@ pub struct CoverLayerReader<M: Metric> {
 
 impl<M: Metric> CoverLayerReader<M> {
     /// Read only access to a single node.
-    pub fn get_node_and<F, T>(&self, pi: &PointIndex, f: F) -> Option<T>
+    pub fn get_node_and<F, T>(&self, pi: PointIndex, f: F) -> Option<T>
     where
         F: FnOnce(&CoverNode<M>) -> T,
     {
-        self.node_reader.get_and(pi, |n| f(n))
+        self.node_reader.get_and(&pi, |n| f(n))
     }
 
     /// Reads the contents of a plugin, due to the nature of the plugin map we have to access it with a
@@ -68,7 +68,7 @@ impl<M: Metric> CoverLayerReader<M> {
     where
         F: FnOnce(&T) -> S,
     {
-        self.get_node_and(&center_index, |n| n.get_plugin_and(transform_fn))
+        self.get_node_and(center_index, |n| n.get_plugin_and(transform_fn))
             .flatten()
     }
 
@@ -91,12 +91,12 @@ impl<M: Metric> CoverLayerReader<M> {
 
     /// Grabs all children indexes and allows you to query against them. Usually used at the tree level so that you
     /// can access the child nodes as they are not on this layer.
-    pub fn get_node_children_and<F, T>(&self, pi: &PointIndex, f: F) -> Option<T>
+    pub fn get_node_children_and<F, T>(&self, pi: PointIndex, f: F) -> Option<T>
     where
         F: FnOnce(NodeAddress, &[NodeAddress]) -> T,
     {
         self.node_reader
-            .get_and(pi, |n| n.children().map(|(si, c)| f((si, *pi), c)))
+            .get_and(&pi, |n| n.children().map(|(si, c)| f((si, pi), c)))
             .flatten()
     }
 

@@ -133,7 +133,7 @@ impl CoveredData {
         Ok((close, new_far))
     }
 
-    pub(crate) fn to_indexes(self) -> Vec<PointIndex> {
+    pub(crate) fn into_indexes(self) -> Vec<PointIndex> {
         self.coverage
     }
 

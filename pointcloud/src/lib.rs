@@ -24,8 +24,6 @@
 #![warn(missing_docs)]
 #![allow(clippy::cast_ptr_alignment)]
 
-
-
 #[macro_use]
 extern crate serde;
 

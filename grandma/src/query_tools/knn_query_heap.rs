@@ -175,6 +175,11 @@ impl KnnQueryHeap {
         self.dist_heap.len()
     }
 
+    /// The current number of points on the distance heap
+    pub fn is_empty(&self) -> bool {
+        self.dist_heap.is_empty()
+    }
+
     /// The current number of points still on the
     pub fn node_len(&self) -> usize {
         self.child_heap.len() + self.singleton_heap.len()

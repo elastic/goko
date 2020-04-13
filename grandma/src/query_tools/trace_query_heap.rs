@@ -48,7 +48,10 @@ impl RoutingQueryHeap for MultiscaleQueryHeap {
             let emd = (d - self.scale_base.powi(*si)).max(0.0);
 
             println!("\t Inserting {:?} into max heap", ((si, pi), d));
-            let max_heap = self.layer_max_heaps.entry(*si).or_insert(BinaryHeap::new());
+            let max_heap = self
+                .layer_max_heaps
+                .entry(*si)
+                .or_insert_with(BinaryHeap::new);
             max_heap.push(QueryAddressRev {
                 address: (*si, *pi),
                 dist_to_center: *d,
@@ -58,7 +61,10 @@ impl RoutingQueryHeap for MultiscaleQueryHeap {
                 max_heap.pop();
             }
 
-            let min_heap = self.layer_min_heaps.entry(*si).or_insert(BinaryHeap::new());
+            let min_heap = self
+                .layer_min_heaps
+                .entry(*si)
+                .or_insert_with(BinaryHeap::new);
             min_heap.push(QueryAddress {
                 address: (*si, *pi),
                 dist_to_center: *d,
@@ -80,8 +86,8 @@ impl MultiscaleQueryHeap {
     }
 
     /// Gives us the closest unqueried node on a particular layer
-    pub fn pop_closest_unqueried(&mut self, scale_index: &i32) -> Option<(f32, NodeAddress)> {
-        match self.layer_min_heaps.get_mut(scale_index) {
+    pub fn pop_closest_unqueried(&mut self, scale_index: i32) -> Option<(f32, NodeAddress)> {
+        match self.layer_min_heaps.get_mut(&scale_index) {
             Some(heap) => match heap.pop() {
                 None => None,
                 Some(qa) => {
@@ -116,9 +122,9 @@ impl MultiscaleQueryHeap {
     }
 
     /// returns the node on a layer that is the furthest away. This returns None if the heap isn't full (less than K elements)
-    pub fn furthest_node(&self, scale_index: &i32) -> Option<(f32, NodeAddress)> {
+    pub fn furthest_node(&self, scale_index: i32) -> Option<(f32, NodeAddress)> {
         self.layer_max_heaps
-            .get(scale_index)
+            .get(&scale_index)
             .map(|max_heap| {
                 if max_heap.len() < self.k {
                     None
@@ -130,8 +136,8 @@ impl MultiscaleQueryHeap {
     }
 
     /// The count at a layer
-    pub fn count(&self, si: &i32) -> usize {
-        match self.layer_max_heaps.get(si) {
+    pub fn count(&self, si: i32) -> usize {
+        match self.layer_max_heaps.get(&si) {
             Some(heap) => heap.len(),
             None => 0,
         }

@@ -12,8 +12,8 @@
 use crate::node::CoverNode;
 use crate::tree::CoverTreeReader;
 use crate::*;
-use anymap::SendSyncAnyMap;
 use std::fmt::Debug;
+use type_map::concurrent::TypeMap;
 
 pub mod distributions;
 
@@ -51,8 +51,8 @@ pub trait GrandmaPlugin<M: Metric> {
     ) -> Self::NodeComponent;
 }
 
-pub(crate) type NodePluginSet = SendSyncAnyMap;
-pub(crate) type TreePluginSet = SendSyncAnyMap;
+pub(crate) type NodePluginSet = TypeMap;
+pub(crate) type TreePluginSet = TypeMap;
 
 #[cfg(test)]
 pub(crate) mod tests {

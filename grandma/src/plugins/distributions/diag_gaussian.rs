@@ -1,15 +1,16 @@
 //! # Diagonal Gaussian
 //!
-//! This computes a coordinate bound multivariate Gaussian.
+//! This computes a coordinate bound multivariate Gaussian. This can be thought of as a rough
+//! simulation of the data underling a node. However we can chose the scale from which we 
+//! simulate the data, down to the individual point, so this can be arbitrarily accurate.
 
+use super::*;
 use crate::node::CoverNode;
-use crate::plugins::*;
 use crate::tree::CoverTreeReader;
 use std::f32::consts::PI;
-use super::*;
 
 /// Node component, coded in such a way that it can be efficiently, recursively computed.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct DiagGaussian {
     /// First Moment
     pub moment1: Vec<f32>,
@@ -47,7 +48,7 @@ impl ContinousDistribution for DiagGaussian {
             .map(|(xi, (ui, vi))| ((xi - ui) * (xi - ui) / vi, vi))
             .fold((0.0, 1.0), |(a, v), (x, u)| (a + x, v * u));
 
-        Some((exponent - det + (point.len() as f32)*(2.0 * PI).ln()) as f64)
+        Some((exponent - det + (point.len() as f32) * (2.0 * PI).ln()) as f64)
     }
 
     fn kl_divergence(&self, other: &DiagGaussian) -> Option<f64> {
