@@ -5,7 +5,6 @@ use numpy::{IntoPyArray, PyArray1, PyArray2};
 use pyo3::PyIterProtocol;
 
 use grandma::plugins::distributions::*;
-use grandma::plugins::*;
 use grandma::*;
 use pointcloud::*;
 use std::sync::Arc;

@@ -74,7 +74,7 @@ impl PyGrandLayer {
     }
     pub fn child_addresses(&self, point_index: u64) -> Option<Vec<(i32, u64)>> {
         self.layer()
-            .get_node_children_and(&point_index, |nested_address, child_addresses| {
+            .get_node_children_and(point_index, |nested_address, child_addresses| {
                 let mut v = vec![nested_address];
                 v.extend(child_addresses);
                 v
@@ -82,11 +82,11 @@ impl PyGrandLayer {
     }
     pub fn singleton_indexes(&self, point_index: u64) -> Option<Vec<u64>> {
         self.layer()
-            .get_node_and(&point_index, |n| Vec::from(n.singletons()))
+            .get_node_and(point_index, |n| Vec::from(n.singletons()))
     }
 
     pub fn is_leaf(&self, point_index: u64) -> Option<bool> {
-        self.layer().get_node_and(&point_index, |n| n.is_leaf())
+        self.layer().get_node_and(point_index, |n| n.is_leaf())
     }
 
     pub fn centers(&self) -> PyResult<(Py<PyArray1<u64>>, Py<PyArray2<f32>>)> {
@@ -115,7 +115,7 @@ impl PyGrandLayer {
         let dim = self.parameters.point_cloud.dim();
         Ok(self
             .layer()
-            .get_node_children_and(&point_index, |nested_address, child_addresses| {
+            .get_node_children_and(point_index, |nested_address, child_addresses| {
                 let count = child_addresses.len() + 1;
                 let mut centers: Vec<f32> = Vec::with_capacity(count * dim);
                 centers.extend(
@@ -135,7 +135,7 @@ impl PyGrandLayer {
     }
     pub fn singleton_points(&self, point_index: u64) -> PyResult<Option<Py<PyArray2<f32>>>> {
         let dim = self.parameters.point_cloud.dim();
-        Ok(self.layer().get_node_and(&point_index, |node| {
+        Ok(self.layer().get_node_and(point_index, |node| {
             let singletons = node.singletons();
             let mut centers: Vec<f32> = Vec::with_capacity(singletons.len() * dim);
             for pi in singletons {

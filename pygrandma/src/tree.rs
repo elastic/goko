@@ -17,7 +17,7 @@
 * under the License.
 */
 
-use ndarray::{Array1, Array2};
+use ndarray::{Array1};
 use numpy::{IntoPyArray, PyArray1, PyArray2};
 use pyo3::prelude::*;
 
@@ -25,7 +25,6 @@ use std::path::Path;
 use std::sync::Arc;
 
 use grandma::plugins::distributions::*;
-use grandma::plugins::*;
 use grandma::utils::*;
 use grandma::*;
 use pointcloud::*;
