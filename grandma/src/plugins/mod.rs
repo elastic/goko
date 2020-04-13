@@ -28,7 +28,7 @@ pub mod utils {
 /// Mockup for the plugin interface attached to the node. These are meant to be functions that Grandma uses to maintain the plugin.
 pub trait NodePlugin<M: Metric>: Send + Sync + Debug {
     /// This is currently non-functional, thinking about how to efficiently use this.
-    fn update(&mut self, my_node: &CoverNode<M>, my_tree: &CoverTreeReader<M>);
+    fn update(&mut self, my_node: &CoverNode, my_tree: &CoverTreeReader<M>);
 }
 
 /// Mockup for the plugin parameters attached to the base of the tree.  
@@ -46,7 +46,7 @@ pub trait GrandmaPlugin<M: Metric> {
     /// The function that actually builds the node components.
     fn node_component(
         parameters: &Self::TreeComponent,
-        my_node: &CoverNode<M>,
+        my_node: &CoverNode,
         my_tree: &CoverTreeReader<M>,
     ) -> Self::NodeComponent;
 }
@@ -67,7 +67,7 @@ pub(crate) mod tests {
     }
 
     impl<M: Metric> NodePlugin<M> for DumbNode1 {
-        fn update(&mut self, _my_node: &CoverNode<M>, _my_tree: &CoverTreeReader<M>) {
+        fn update(&mut self, _my_node: &CoverNode, _my_tree: &CoverTreeReader<M>) {
             self.id += 1;
         }
     }

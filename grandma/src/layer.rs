@@ -34,26 +34,26 @@
 use crate::evmap::monomap::{MonoReadHandle, MonoWriteHandle};
 use pointcloud::*;
 
-//use rayon;
+use rayon::prelude::*;
+use std::iter::FromIterator;
 use super::*;
 use node::*;
-use std::iter::FromIterator;
 use tree_file_format::*;
 
 /// Actual reader, primarily contains a read head to the hash-map.
 /// This also contains a reference to the scale_index so that it is easy to save and load. It is largely redundant,
 /// but helps with unit tests.
 #[derive(Clone)]
-pub struct CoverLayerReader<M: Metric> {
+pub struct CoverLayerReader {
     scale_index: i32,
-    node_reader: MonoReadHandle<PointIndex, CoverNode<M>>,
+    node_reader: MonoReadHandle<PointIndex, CoverNode>,
 }
 
-impl<M: Metric> CoverLayerReader<M> {
+impl CoverLayerReader {
     /// Read only access to a single node.
     pub fn get_node_and<F, T>(&self, pi: PointIndex, f: F) -> Option<T>
     where
-        F: FnOnce(&CoverNode<M>) -> T,
+        F: FnOnce(&CoverNode) -> T,
     {
         self.node_reader.get_and(&pi, |n| f(n))
     }
@@ -75,7 +75,7 @@ impl<M: Metric> CoverLayerReader<M> {
     /// Read only access to all nodes.
     pub fn for_each_node<F>(&self, f: F)
     where
-        F: FnMut(&PointIndex, &CoverNode<M>),
+        F: FnMut(&PointIndex, &CoverNode),
     {
         self.node_reader.for_each(f)
     }
@@ -83,8 +83,26 @@ impl<M: Metric> CoverLayerReader<M> {
     /// Maps all nodes on the layer, useful for collecting statistics.
     pub fn map_nodes<Map, Target, Collector>(&self, f: Map) -> Collector
     where
-        Map: FnMut(&PointIndex, &CoverNode<M>) -> Target,
+        Map: FnMut(&PointIndex, &CoverNode) -> Target,
         Collector: FromIterator<Target>,
+    {
+        self.node_reader.map_into(f)
+    }
+
+    /// Read only access to all nodes.
+    pub fn par_for_each_node<F>(&self, f: F)
+    where
+        F: FnMut(&PointIndex, &CoverNode) + Send + Sync,
+    {
+        self.node_reader.for_each(f)
+    }
+
+    /// Maps all nodes on the layer, useful for collecting statistics.
+    pub fn par_map_nodes<Map, Target, Collector>(&self, f: Map) -> Collector
+    where
+        Map: FnMut(&PointIndex, &CoverNode) -> Target + Send + Sync,
+        Collector: FromParallelIterator<Target> + std::iter::FromIterator<Target>,
+        Target: Send + Sync,
     {
         self.node_reader.map_into(f)
     }
@@ -117,7 +135,7 @@ impl<M: Metric> CoverLayerReader<M> {
     }
 
     /// Clones the reader, expensive!
-    pub fn reader(&self) -> CoverLayerReader<M> {
+    pub fn reader(&self) -> CoverLayerReader {
         CoverLayerReader {
             scale_index: self.scale_index,
             node_reader: self.node_reader.factory().handle(),
@@ -126,14 +144,14 @@ impl<M: Metric> CoverLayerReader<M> {
 }
 
 /// Primarily contains the node writer head, but also has the cluster writer head and the index head.
-pub struct CoverLayerWriter<M: Metric> {
+pub struct CoverLayerWriter {
     scale_index: i32,
-    node_writer: MonoWriteHandle<PointIndex, CoverNode<M>>,
+    node_writer: MonoWriteHandle<PointIndex, CoverNode>,
 }
 
-impl<M: Metric> CoverLayerWriter<M> {
+impl CoverLayerWriter {
     /// Creates a reader head. Only way to get one from a newly created layer.
-    pub(crate) fn reader(&self) -> CoverLayerReader<M> {
+    pub(crate) fn reader(&self) -> CoverLayerReader {
         CoverLayerReader {
             scale_index: self.scale_index,
             node_reader: self.node_writer.factory().handle(),
@@ -141,7 +159,7 @@ impl<M: Metric> CoverLayerWriter<M> {
     }
 
     /// Constructs the object. To construct a reader call `reader`.
-    pub(crate) fn new(scale_index: i32) -> CoverLayerWriter<M> {
+    pub(crate) fn new(scale_index: i32) -> CoverLayerWriter {
         let (_node_reader, node_writer) = evmap::monomap::new();
         CoverLayerWriter {
             scale_index,
@@ -151,12 +169,12 @@ impl<M: Metric> CoverLayerWriter<M> {
 
     pub(crate) unsafe fn update_node<F>(&mut self, pi: PointIndex, update_fn: F)
     where
-        F: Fn(&mut CoverNode<M>) + 'static + Send + Sync,
+        F: Fn(&mut CoverNode) + 'static + Send + Sync,
     {
         self.node_writer.update(pi, update_fn);
     }
 
-    pub(crate) fn load(layer_proto: &LayerProto) -> CoverLayerWriter<M> {
+    pub(crate) fn load(layer_proto: &LayerProto) -> CoverLayerWriter {
         let scale_index = layer_proto.get_scale_index();
         let (_node_reader, mut node_writer) = evmap::monomap::new();
         for node_proto in layer_proto.get_nodes() {
@@ -187,7 +205,7 @@ impl<M: Metric> CoverLayerWriter<M> {
         layer_proto
     }
 
-    pub(crate) fn insert_raw(&mut self, index: PointIndex, node: CoverNode<M>) {
+    pub(crate) fn insert_raw(&mut self, index: PointIndex, node: CoverNode) {
         self.node_writer.insert(index, node);
     }
 

@@ -38,7 +38,7 @@ struct BuilderNode {
     covered: CoveredData,
 }
 
-type NodeSplitResult<M> = GrandmaResult<(i32, PointIndex, CoverNode<M>)>;
+type NodeSplitResult = GrandmaResult<(i32, PointIndex, CoverNode)>;
 
 impl BuilderNode {
     fn new<M: Metric>(parameters: &CoverTreeParameters<M>) -> GrandmaResult<BuilderNode> {
@@ -58,7 +58,7 @@ impl BuilderNode {
     fn split_parallel<M: Metric>(
         self,
         parameters: &Arc<CoverTreeParameters<M>>,
-        node_sender: &Arc<Sender<NodeSplitResult<M>>>,
+        node_sender: &Arc<Sender<NodeSplitResult>>,
     ) {
         let parameters = Arc::clone(parameters);
         let node_sender = Arc::clone(node_sender);
@@ -79,7 +79,7 @@ impl BuilderNode {
     fn split<M: Metric>(
         self,
         parameters: &Arc<CoverTreeParameters<M>>,
-    ) -> GrandmaResult<(CoverNode<M>, Vec<BuilderNode>)> {
+    ) -> GrandmaResult<(CoverNode, Vec<BuilderNode>)> {
         //println!("=====================");
         //println!("Splitting node with address {:?} and covered: {:?}", self.address(),self.covered);
 
@@ -260,8 +260,8 @@ impl CoverTreeBuilder {
         }
 
         let (node_sender, node_receiver): (
-            Sender<NodeSplitResult<M>>,
-            Receiver<NodeSplitResult<M>>,
+            Sender<NodeSplitResult>,
+            Receiver<NodeSplitResult>,
         ) = unbounded();
 
         let node_sender = Arc::new(node_sender);

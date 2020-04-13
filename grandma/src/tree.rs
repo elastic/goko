@@ -85,7 +85,7 @@ impl<M: Metric> CoverTreeParameters<M> {
 }
 
 /// Helper struct for iterating thru the reader's of the the layers.
-pub type LayerIter<'a, M> = Rev<std::iter::Zip<Range<i32>, Iter<'a, CoverLayerReader<M>>>>;
+pub type LayerIter<'a> = Rev<std::iter::Zip<Range<i32>, Iter<'a, CoverLayerReader>>>;
 
 /// # Cover Tree Reader Head
 ///
@@ -99,7 +99,7 @@ pub type LayerIter<'a, M> = Rev<std::iter::Zip<Range<i32>, Iter<'a, CoverLayerRe
 #[derive(Clone)]
 pub struct CoverTreeReader<M: Metric> {
     parameters: Arc<CoverTreeParameters<M>>,
-    layers: Vec<CoverLayerReader<M>>,
+    layers: Vec<CoverLayerReader>,
     root_address: NodeAddress,
 }
 
@@ -111,7 +111,7 @@ impl<M: Metric> CoverTreeReader<M> {
 
     /// Returns a borrowed reader for a cover layer.
     ///
-    pub fn layer(&self, scale_index: i32) -> &CoverLayerReader<M> {
+    pub fn layer(&self, scale_index: i32) -> &CoverLayerReader {
         &self.layers[self.parameters.internal_index(scale_index)]
     }
 
@@ -123,7 +123,7 @@ impl<M: Metric> CoverTreeReader<M> {
     /// Read only access to the internals of a node.
     pub fn get_node_and<F, T>(&self, node_address: (i32, PointIndex), f: F) -> Option<T>
     where
-        F: FnOnce(&CoverNode<M>) -> T,
+        F: FnOnce(&CoverNode) -> T,
     {
         self.layers[self.parameters.internal_index(node_address.0)]
             .get_node_and(node_address.1, |n| f(n))
@@ -145,7 +145,7 @@ impl<M: Metric> CoverTreeReader<M> {
     }
 
     /// An iterator for accessing the layers starting from the layer who holds the root.
-    pub fn layers(&self) -> LayerIter<M> {
+    pub fn layers(&self) -> LayerIter {
         ((self.parameters.resolution - 1)
             ..(self.layers.len() as i32 + self.parameters.resolution - 1))
             .zip(self.layers.iter())
@@ -370,7 +370,7 @@ impl<M: Metric> CoverTreeReader<M> {
 ///
 pub struct CoverTreeWriter<M: Metric> {
     pub(crate) parameters: Arc<CoverTreeParameters<M>>,
-    pub(crate) layers: Vec<CoverLayerWriter<M>>,
+    pub(crate) layers: Vec<CoverLayerWriter>,
     pub(crate) root_address: NodeAddress,
 }
 
@@ -395,13 +395,13 @@ impl<M: Metric> CoverTreeWriter<M> {
     }
 
     /// Provides a reference to a `CoverLayerWriter`. Do not use, unless you're going to leave the tree in a *valid* state.
-    pub(crate) unsafe fn layer(&mut self, scale_index: i32) -> &mut CoverLayerWriter<M> {
+    pub(crate) unsafe fn layer(&mut self, scale_index: i32) -> &mut CoverLayerWriter {
         &mut self.layers[self.parameters.internal_index(scale_index)]
     }
 
     pub(crate) unsafe fn update_node<F>(&mut self, address: NodeAddress, update_fn: F)
     where
-        F: Fn(&mut CoverNode<M>) + 'static + Send + Sync,
+        F: Fn(&mut CoverNode) + 'static + Send + Sync,
     {
         self.layers[self.parameters.internal_index(address.0)].update_node(address.1, update_fn);
     }
@@ -419,7 +419,7 @@ impl<M: Metric> CoverTreeWriter<M> {
         &mut self,
         scale_index: i32,
         point_index: PointIndex,
-        node: CoverNode<M>,
+        node: CoverNode,
     ) {
         self.layers[self.parameters.internal_index(scale_index)].insert_raw(point_index, node);
     }

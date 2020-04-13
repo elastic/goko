@@ -11,6 +11,8 @@ use std::sync::atomic;
 use std::sync::atomic::AtomicPtr;
 use std::sync::{self, Arc};
 
+use rayon::prelude::*;
+
 /// A handle that may be used to read from the eventually consistent map.
 ///
 /// Note that any changes made to the map will not be made visible until the writer calls
@@ -324,4 +326,38 @@ where
         })
         .unwrap_or_else(|| Collector::from_iter(iter::empty()))
     }
+
+    /// Read all values in the map, and transform them into a new collection.
+    ///
+    /// Be careful with this function! While the iteration is ongoing, any writer that tries to
+    /// refresh will block waiting on this reader to finish.
+    pub fn par_for_each<F>(&self, mut f: F)
+    where
+        F: FnMut(&K, &V) + Send + Sync,
+        K: Send + Sync,
+        V: Send + Sync,
+        S: Send + Sync,
+    {
+        self.with_handle(move |inner| {
+            for (k, v) in &inner.data {
+                f(k, v)
+            }
+        });
+    }
+
+    /// Read all values in the map, and transform them into a new collection.
+    pub fn par_map_into<Map, Collector, Target>(&self, f: Map) -> Collector
+    where
+        Map: Fn(&K, &V) -> Target + Send + Sync,
+        Collector: FromParallelIterator<Target>,
+        Target: Send + Sync,
+        K: Send + Sync,
+        V: Send + Sync,
+        S: Send + Sync,
+    {
+        self.with_handle(move |inner| {
+            Collector::from_par_iter(inner.data.par_iter().map(|(k, v)| f(k, &v)))
+        })
+        .unwrap_or_else(|| Collector::from_par_iter(rayon::iter::empty()))
+    }    
 }

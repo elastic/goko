@@ -154,7 +154,7 @@ impl DiagGaussian {
 }
 
 impl<M: Metric> NodePlugin<M> for DiagGaussian {
-    fn update(&mut self, _my_node: &CoverNode<M>, _my_tree: &CoverTreeReader<M>) {}
+    fn update(&mut self, _my_node: &CoverNode, _my_tree: &CoverTreeReader<M>) {}
 }
 
 /// Zero sized type that can be passed around. Equivilant to `()`
@@ -187,7 +187,7 @@ impl<M: Metric> GrandmaPlugin<M> for GrandmaDiagGaussian {
     type TreeComponent = DiagGaussianTree;
     fn node_component(
         parameters: &Self::TreeComponent,
-        my_node: &CoverNode<M>,
+        my_node: &CoverNode,
         my_tree: &CoverTreeReader<M>,
     ) -> Self::NodeComponent {
         let moment1 = my_tree
