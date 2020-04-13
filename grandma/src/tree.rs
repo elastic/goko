@@ -350,11 +350,16 @@ impl<M: Metric> CoverTreeReader<M> {
     pub(crate) fn no_dangling_refs(&self) -> bool {
         let mut refs_to_check = vec![self.root_address];
         while let Some(node_addr) = refs_to_check.pop() {
-            let has_children = self.get_node_children_and(node_addr, |nested_address, other_children| {
-                    refs_to_check.push(nested_address);
+            println!("checking {:?}", node_addr);
+            println!("refs_to_check: {:?}", refs_to_check);
+            let node_exists = self.get_node_and(node_addr, |n| {
+                if let Some((nested_scale,other_children)) = n.children() {
+                    println!("Pushing: {:?}, {:?}", (nested_scale,other_children), other_children);
+                    refs_to_check.push((nested_scale,node_addr.1));
                     refs_to_check.extend(&other_children[..]);
-                });
-            if has_children.is_none() {
+                }
+            });
+            if node_exists.is_none() {
                 return false;
             }
         }
