@@ -10,16 +10,7 @@ dist, ind = tree.query(np.zeros([1,784],dtype=np.float32), k=5)
 print(dist[0])
 print(ind[0])
 
-nbrs = {"d0":dist[:,0],
-        "d1":dist[:,1],
-        "d2":dist[:,2],
-        "d3":dist[:,3],
-        "d4":dist[:,4],
-        "i0":ind[:,0],
-        "i1":ind[:,1],
-        "i2":ind[:,2],
-        "i3":ind[:,3],
-        "i4":ind[:,4],}
-
-csv = pd.DataFrame(nbrs)
-csv.to_csv("../../data/mnist_nbrs.csv")
+with open('../../data/mnist_nbrs.csv','w') as outfile:
+        outfile.write('d0,d1,d2,d3,d4,i0,i1,i2,i3,i4\n')
+        for d,i in zip(dist,ind):
+                outfile.write(f'{d[0]},{d[1]},{d[2]},{d[3]},{d[4]},{i[0]},{i[1]},{i[2]},{i[3]},{i[4]}\n')

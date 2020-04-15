@@ -1,5 +1,3 @@
-
-
 import pygrandma
 
 import numpy as np

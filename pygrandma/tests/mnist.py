@@ -1,7 +1,6 @@
 import numpy as np
 from sklearn.neighbors import KDTree
 import pygrandma
-import pandas as pd
 
 data = np.memmap("../data/mnist.dat", dtype=np.float32)
 data = data.reshape([-1,784])
