@@ -1,13 +1,10 @@
-FROM rust:slim
+FROM rust:slim 
 
-RUN rustup override set nightly && rustup update 
-
-ADD . /home/grandma
-WORKDIR /home/grandma
+RUN rustup override set nightly 
 
 # install dependencies
-RUN apt-get update \
-  && apt-get install --no-install-recommends --yes curl unzip python3.7-minimal python3-pip \
+RUN (apt-get update 2>&1; exit 0) \
+  && apt-get install --no-install-recommends --yes curl unzip \
   && PROTOC_ZIP=protoc-3.7.1-linux-x86_64.zip \
   && curl -OL https://github.com/protocolbuffers/protobuf/releases/download/v3.7.1/$PROTOC_ZIP \
   && unzip -o $PROTOC_ZIP -d /usr/local bin/protoc \
@@ -16,14 +13,11 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 # (last line can reduce image size after an apt-get update)
 
-# build the base lib
-RUN cargo clean && cargo build
+ADD . /home/grandma
+WORKDIR /home/grandma
 
-WORKDIR /home/grandma/pygrandma
-
-# install python dependencies
-RUN pip3 install --no-cache-dir -v -e . \
-  && pip3 install --no-cache-dir numpy scikit-learn 
+RUN cargo build --release
 
 # docker build -t grandma .
 # docker run -it grandma
+CMD /bin/bash

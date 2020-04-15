@@ -1,0 +1,35 @@
+FROM python:3.7-slim as pybase
+
+# install dependencies
+RUN (apt-get update 2>&1 ; exit 0) \
+  && apt-get install --no-install-recommends --yes curl unzip build-essential \
+  && PROTOC_ZIP=protoc-3.7.1-linux-x86_64.zip \
+  && curl -OL https://github.com/protocolbuffers/protobuf/releases/download/v3.7.1/$PROTOC_ZIP \
+  && unzip -o $PROTOC_ZIP -d /usr/local bin/protoc \
+  && unzip -o $PROTOC_ZIP -d /usr/local 'include/*' \
+  && rm -f $PROTOC_ZIP \
+  && rm -rf /var/lib/apt/lists/*
+# (last line can reduce image size after an apt-get update)
+
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs  > rustup.sh && sh rustup.sh -y && rm rustup.sh 
+ENV PATH="/root/.cargo/bin:${PATH}"
+RUN rustup override set nightly 
+
+# build the base lib
+ADD . /home/grandma
+WORKDIR /home/grandma/pygrandma
+
+# install python dependencies
+RUN pip3 install --no-cache-dir -v -e . 
+
+# rebase to the tiny image (wipes all grandma source and builds)
+FROM python:3.7-slim
+
+COPY --from=pybase /home/grandma/pygrandma/build/lib.linux-x86_64-3.7/pygrandma /usr/local/lib/python3.7/site-packages/pygrandma/
+
+RUN pip3 install --no-cache-dir numpy scikit-learn ipython
+
+CMD ipython
+
+# docker build -f Dockerfile.pygrandma -t pygrandma .
+# docker run -it pygrandma
