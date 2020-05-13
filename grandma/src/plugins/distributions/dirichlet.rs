@@ -223,6 +223,11 @@ impl<M: Metric> BayesCategoricalTracker<M> {
         }
     }
 
+    /// Accessor for the reader associated to this tracker
+    pub fn reader(&self) -> &CoverTreeReader<M> {
+        &self.reader
+    }
+
     fn get_distro(&self, address: NodeAddress) -> Dirichlet {
         let mut prob = self
             .reader
@@ -235,6 +240,7 @@ impl<M: Metric> BayesCategoricalTracker<M> {
         prob.weight(self.prior_weight);
         prob
     }
+
     fn add_trace_to_pdfs(&mut self, trace: &[(f32, NodeAddress)]) {
         let parent_address_iter = trace.iter().map(|(_, ca)| ca);
         let mut child_address_iter = trace.iter().map(|(_, ca)| ca);

@@ -59,9 +59,9 @@ pub struct CoverTreeParameters<M: Metric> {
     /// See paper or main description, governs the number of children of each node. Higher is more.
     pub scale_base: f32,
     /// If a node covers less than or equal to this number of points, it becomes a leaf.
-    pub cutoff: usize,
+    pub leaf_cutoff: usize,
     /// If a node has scale index less than or equal to this, it becomes a leaf
-    pub resolution: i32,
+    pub min_res_index: i32,
     /// If you don't want singletons messing with your tree and want everything to be a node or a element of leaf node, make this true.
     pub use_singletons: bool,
     /// The point cloud this tree references
@@ -76,10 +76,10 @@ impl<M: Metric> CoverTreeParameters<M> {
     /// Gets the index of the layer in the vector.
     #[inline]
     pub fn internal_index(&self, scale_index: i32) -> usize {
-        if scale_index < self.resolution {
+        if scale_index < self.min_res_index {
             0
         } else {
-            (scale_index - self.resolution + 1) as usize
+            (scale_index - self.min_res_index + 1) as usize
         }
     }
 }
@@ -146,8 +146,8 @@ impl<M: Metric> CoverTreeReader<M> {
 
     /// An iterator for accessing the layers starting from the layer who holds the root.
     pub fn layers(&self) -> LayerIter<M> {
-        ((self.parameters.resolution - 1)
-            ..(self.layers.len() as i32 + self.parameters.resolution - 1))
+        ((self.parameters.min_res_index - 1)
+            ..(self.layers.len() as i32 + self.parameters.min_res_index - 1))
             .zip(self.layers.iter())
             .rev()
     }
@@ -172,9 +172,9 @@ impl<M: Metric> CoverTreeReader<M> {
         self.layers().fold(0, |a, (_si, l)| a + l.node_count())
     }
 
-    /// Returns the scale index range. It starts at the minimum resolution and ends at the top. You can reverse this for the correct order.
+    /// Returns the scale index range. It starts at the minimum min_res_index and ends at the top. You can reverse this for the correct order.
     pub fn scale_range(&self) -> Range<i32> {
-        (self.parameters.resolution)..(self.parameters.resolution - 1 + self.layers.len() as i32)
+        (self.parameters.min_res_index)..(self.parameters.min_res_index - 1 + self.layers.len() as i32)
     }
 
     /// Access the stored tree plugin
@@ -433,8 +433,8 @@ impl<M: Metric> CoverTreeWriter<M> {
             total_nodes: atomic::AtomicUsize::new(0),
             use_singletons: cover_proto.use_singletons,
             scale_base: cover_proto.scale_base as f32,
-            cutoff: cover_proto.cutoff as usize,
-            resolution: cover_proto.resolution as i32,
+            leaf_cutoff: cover_proto.cutoff as usize,
+            min_res_index: cover_proto.resolution as i32,
             point_cloud,
             verbosity: 2,
             plugins: RwLock::new(TreePluginSet::new()),
@@ -457,8 +457,8 @@ impl<M: Metric> CoverTreeWriter<M> {
     pub fn save(&self) -> CoreProto {
         let mut cover_proto = CoreProto::new();
         cover_proto.set_scale_base(self.parameters.scale_base);
-        cover_proto.set_cutoff(self.parameters.cutoff as u64);
-        cover_proto.set_resolution(self.parameters.resolution);
+        cover_proto.set_cutoff(self.parameters.leaf_cutoff as u64);
+        cover_proto.set_resolution(self.parameters.min_res_index);
         cover_proto.set_use_singletons(self.parameters.use_singletons);
         cover_proto.set_dim(self.parameters.point_cloud.dim() as u64);
         cover_proto.set_count(self.parameters.point_cloud.len() as u64);
@@ -498,8 +498,8 @@ pub(crate) mod tests {
             PointCloud::<L2>::simple_from_ram(Box::from(data), 1, Box::from(labels), 1).unwrap();
         let builder = CoverTreeBuilder {
             scale_base: 2.0,
-            cutoff: 1,
-            resolution: -9,
+            leaf_cutoff: 1,
+            min_res_index: -9,
             use_singletons: true,
             verbosity: 0,
         };
@@ -544,8 +544,8 @@ pub(crate) mod tests {
             PointCloud::<L2>::simple_from_ram(Box::from(data), 1, Box::from(labels), 1).unwrap();
         let builder = CoverTreeBuilder {
             scale_base: 2.0,
-            cutoff: 1,
-            resolution: -9,
+            leaf_cutoff: 1,
+            min_res_index: -9,
             use_singletons: false,
             verbosity: 0,
         };
@@ -622,8 +622,8 @@ pub(crate) mod tests {
             PointCloud::<L2>::simple_from_ram(Box::from(data), 1, Box::from(labels), 1).unwrap();
         let builder = CoverTreeBuilder {
             scale_base: 2.0,
-            cutoff: 1,
-            resolution: -9,
+            leaf_cutoff: 1,
+            min_res_index: -9,
             use_singletons: false,
             verbosity: 0,
         };

@@ -36,8 +36,8 @@ use crate::tree::CoverTreeWriter;
 ///
 /// ```yaml
 /// ---
-/// cutoff: 5
-/// resolution: -10
+/// leaf_cutoff: 5
+/// min_res_index: -10
 /// scale_base: 1.3
 /// data_path: DATAMEMMAPs
 /// labels_path: LABELS_CSVs
@@ -55,8 +55,8 @@ use crate::tree::CoverTreeWriter;
 /// Example without a schema:
 /// ```yaml
 /// ---
-/// cutoff: 5
-/// resolution: -10
+/// leaf_cutoff: 5
+/// min_res_index: -10
 /// scale_base: 1.3
 /// data_path: DATAMEMMAPs
 /// labels_path: LABELS_CSV_OR_MEMMAPs
@@ -85,17 +85,17 @@ pub fn cover_tree_from_yaml<P: AsRef<Path>>(path: P) -> GrandmaResult<CoverTreeW
         }
     }
 
-    let (scale_base, cutoff, resolution, use_singletons) = read_ct_params_yaml(&params);
+    let (scale_base, leaf_cutoff, min_res_index, use_singletons) = read_ct_params_yaml(&params);
     println!(
-        "Loaded dataset, building a cover tree with scale base {}, cutoff {}, min resolution {}, and use_singletons {}",
-        scale_base, cutoff, resolution, use_singletons
+        "Loaded dataset, building a cover tree with scale base {}, leaf_cutoff {}, min min_res_index {}, and use_singletons {}",
+        scale_base, leaf_cutoff, min_res_index, use_singletons
     );
     let mut builder = CoverTreeBuilder::new();
     let verbosity = params["verbosity"].as_i64().unwrap_or(2) as u32;
     builder
         .set_scale_base(scale_base)
-        .set_cutoff(cutoff)
-        .set_resolution(resolution)
+        .set_leaf_cutoff(leaf_cutoff)
+        .set_min_res_index(min_res_index)
         .set_use_singletons(use_singletons)
         .set_verbosity(verbosity);
     Ok(builder.build(point_cloud)?)
@@ -107,12 +107,12 @@ pub fn read_ct_params_yaml(params: &Yaml) -> (f32, usize, i32, bool) {
         params["scale_base"]
             .as_f64()
             .expect("Unable to read the 'scale_base' during yaml load") as f32,
-        params["cutoff"]
+        params["leaf_cutoff"]
             .as_i64()
-            .expect("Unable to read the 'cutoff'") as usize,
-        params["resolution"]
+            .expect("Unable to read the 'leaf_cutoff'") as usize,
+        params["min_res_index"]
             .as_i64()
-            .expect("Unable to read the 'resolution'") as i32,
+            .expect("Unable to read the 'min_res_index'") as i32,
         params["use_singletons"]
             .as_bool()
             .expect("Unable to read the 'use_singletons'"),

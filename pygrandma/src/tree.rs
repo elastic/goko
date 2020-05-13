@@ -58,15 +58,15 @@ impl PyGrandma {
             None => panic!("Set too late"),
         };
     }
-    pub fn set_cutoff(&mut self, x: usize) {
+    pub fn set_leaf_cutoff(&mut self, x: usize) {
         match &mut self.builder {
-            Some(builder) => builder.set_cutoff(x),
+            Some(builder) => builder.set_leaf_cutoff(x),
             None => panic!("Set too late"),
         };
     }
-    pub fn set_resolution(&mut self, x: i32) {
+    pub fn set_min_res_index(&mut self, x: i32) {
         match &mut self.builder {
-            Some(builder) => builder.set_resolution(x),
+            Some(builder) => builder.set_min_res_index(x),
             None => panic!("Set too late"),
         };
     }
