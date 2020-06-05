@@ -1,11 +1,9 @@
 import numpy as np
-from sklearn.neighbors import KDTree
 import pygrandma
-import pandas as pd
 
 tree = pygrandma.PyGrandma()
-tree.fit_yaml("../data/ember_complex.yml")
-
+tree.load_yaml_config("../data/ember_complex.yml")
+tree.fit()
 print(tree.knn(tree.data_point(0),5))
 
 print("============= TRACE =============")

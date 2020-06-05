@@ -345,6 +345,38 @@ impl<M: Metric> CoverTreeReader<M> {
         Ok(trace)
     }
 
+    ///Computes the fractal dimension of a node
+    pub fn fractal_dim(&self,node_address:NodeAddress) -> f32 {
+        let count:f32 = self.get_node_and(node_address, |n| {
+            // +1 for the nested child
+            let mut count = n.singletons().len() + 1;
+            if let Some((_nested_scale,children)) = n.children() {
+                count += children.len();
+            }
+            count as f32
+        }).unwrap() as f32;
+        count.log(self.parameters.scale_base)
+    }
+
+    ///Computes the weighted fractal dimension of a node
+    pub fn weighted_fractal_dim(&self,node_address:NodeAddress) -> f32 {
+        let weighted_count:f32 = self.get_node_and(node_address, |n| {
+            let singleton_count = n.singletons().len() as f32;
+            let mut max_pop: usize = 1;
+            let mut weighted_count: f32 = 0.0;
+            if let Some((nested_scale,children)) = n.children() {
+                let mut pops: Vec<usize> = children.iter().map(|child_addr| {
+                    self.get_node_and(*child_addr,|child| child.cover_count).unwrap()
+                }).collect();
+                pops.push(self.get_node_and((nested_scale,node_address.1),|child| child.cover_count).unwrap());
+                max_pop = *pops.iter().max().unwrap();
+                pops.iter().for_each(|p| weighted_count += (*p as f32)/(max_pop as f32));
+            }
+            weighted_count + singleton_count/(max_pop as f32)
+        }).unwrap();
+        weighted_count.log(self.parameters.scale_base)
+    }
+
     /// Checks that there are no node addresses in the child list of any node that don't reference a node in the tree.
     /// Please calmly panic if there are, the tree is very invalid.
     pub(crate) fn no_dangling_refs(&self) -> bool {
@@ -478,7 +510,7 @@ impl<M: Metric> CoverTreeWriter<M> {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::utils::cover_tree_from_yaml;
+    use crate::utils::builder_from_yaml;
     use std::path::Path;
 
     pub(crate) fn build_mnist_tree() -> CoverTreeWriter<L2> {
@@ -487,7 +519,8 @@ pub(crate) mod tests {
         if !path.exists() {
             panic!(file_name.to_owned() + &" does not exist".to_string());
         }
-        cover_tree_from_yaml(&path).unwrap()
+        let (builder,point_cloud) = builder_from_yaml(&path).unwrap();
+        builder.build(point_cloud).unwrap()
     }
 
     pub(crate) fn build_basic_tree() -> CoverTreeWriter<L2> {

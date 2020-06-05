@@ -36,6 +36,7 @@ use crate::plugins::*;
 #[pyclass]
 pub struct PyGrandma {
     builder: Option<CoverTreeBuilder>,
+    temp_point_cloud: Option<PointCloud<L2>>,
     writer: Option<CoverTreeWriter<L2>>,
     reader: Option<Arc<CoverTreeReader<L2>>>,
     metric: String,
@@ -47,6 +48,7 @@ impl PyGrandma {
     fn new() -> PyResult<PyGrandma> {
         Ok(PyGrandma {
             builder: Some(CoverTreeBuilder::new()),
+            temp_point_cloud: None,
             writer: None,
             reader: None,
             metric: "L2".to_string(),
@@ -76,52 +78,57 @@ impl PyGrandma {
             None => panic!("Set too late"),
         };
     }
+    pub fn load_yaml_config(&mut self, file_name: String) -> PyResult<()> {
+        let path = Path::new(&file_name);
+        let (builder,point_cloud) = builder_from_yaml(&path).unwrap();
+        self.builder = Some(builder);
+        self.temp_point_cloud = Some(point_cloud);
+        Ok(())
+    }
 
     pub fn set_metric(&mut self, metric_name: String) {
         self.metric = metric_name;
     }
 
-    pub fn fit(&mut self, data: &PyArray2<f32>, labels: Option<&PyArray2<f32>>) -> PyResult<()> {
-        let len = data.shape()[0];
-        let data_dim = data.shape()[1];
-        let labels_dim;
-        let my_labels: Box<[f32]> = match labels {
-            Some(labels) => {
-                labels_dim = labels.shape()[1];
-                Box::from(labels.as_slice().unwrap())
-            }
-            None => {
-                labels_dim = 1;
-                Box::from(vec![0.0; len])
+    pub fn fit(&mut self, data: Option<&PyArray2<f32>>, labels: Option<&PyArray2<f32>>) -> PyResult<()> {
+        let point_cloud = if let Some(data) = data {
+            let len = data.shape()[0];
+            let data_dim = data.shape()[1];
+            let labels_dim;
+            let my_labels: Box<[f32]> = match labels {
+                Some(labels) => {
+                    labels_dim = labels.shape()[1];
+                    Box::from(labels.as_slice().unwrap())
+                }
+                None => {
+                    labels_dim = 1;
+                    Box::from(vec![0.0; len])
+                }
+            };
+            PointCloud::<L2>::simple_from_ram(
+                Box::from(data.as_slice().unwrap()),
+                data_dim,
+                my_labels,
+                labels_dim,
+            )
+            .unwrap()
+        } else {
+            if let Some(point_cloud) = self.temp_point_cloud.take() {
+                point_cloud
+            } else {
+                panic!("No known point_cloud");
             }
         };
-        let pointcloud = PointCloud::<L2>::simple_from_ram(
-            Box::from(data.as_slice().unwrap()),
-            data_dim,
-            my_labels,
-            labels_dim,
-        )
-        .unwrap();
-        println!("{:?}", pointcloud);
+        
+        println!("{:?}", point_cloud);
         let builder = self.builder.take();
-        self.writer = Some(builder.unwrap().build(pointcloud).unwrap());
+        self.writer = Some(builder.unwrap().build(point_cloud).unwrap());
         let writer = self.writer.as_mut().unwrap();
         writer.add_plugin::<GrandmaDiagGaussian>(GrandmaDiagGaussian::singletons());
         writer.add_plugin::<GrandmaDirichlet>(DirichletTree {});
         let reader = writer.reader();
 
         self.reader = Some(Arc::new(reader));
-        Ok(())
-    }
-
-    pub fn fit_yaml(&mut self, file_name: String) -> PyResult<()> {
-        let path = Path::new(&file_name);
-        let mut writer = cover_tree_from_yaml(&path).unwrap();
-        writer.add_plugin::<GrandmaDiagGaussian>(GrandmaDiagGaussian::singletons());
-        writer.add_plugin::<GrandmaDirichlet>(DirichletTree {});
-        self.reader = Some(Arc::new(writer.reader()));
-        self.writer = Some(writer);
-        self.builder = None;
         Ok(())
     }
 

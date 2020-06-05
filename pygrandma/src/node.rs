@@ -59,7 +59,7 @@ impl PyGrandNode {
 
     pub fn coverage_count(&self) -> u64 {
         self.tree
-            .get_node_plugin_and::<Categorical, _, _>(self.address, |p| p.total())
+            .get_node_plugin_and::<Dirichlet, _, _>(self.address, |p| p.total())
             .unwrap() as u64
     }
 

@@ -93,6 +93,9 @@ impl<M: Metric> PointCloud<M> {
         let mut current_count: u64 = 0;
         let mut data_sources = Vec::new();
         let mut label_sources = Vec::new();
+        if data_path.is_empty() {
+            panic!("No data to load");
+        }
         for (i, (dp, lp)) in data_path.iter().zip(labels_path).enumerate() {
             let new_data: Box<dyn DataSource> = if ram {
                 Box::new((DataMemmap::new(data_dim, &dp)?).convert_to_ram())

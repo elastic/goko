@@ -46,9 +46,10 @@ pub(crate) struct NodeChildren {
 pub struct CoverNode<M: Metric> {
     /// Node address
     address: NodeAddress,
-    /// Query caches
-    radius: f32,
-    cover_count: usize,
+    /// The maximum distance to a covered point
+    pub radius: f32,
+    /// The count of covered points
+    pub cover_count: usize,
     singles_summary: Option<MetaSummary>,
     /// Children
     children: Option<NodeChildren>,

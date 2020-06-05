@@ -67,7 +67,7 @@ use crate::tree::CoverTreeWriter;
 /// file: mnist.tree (optional, if here and the file exists it loads it)
 /// ```
 ///
-pub fn cover_tree_from_yaml<P: AsRef<Path>>(path: P) -> GrandmaResult<CoverTreeWriter<L2>> {
+pub fn builder_from_yaml<P: AsRef<Path>>(path: P) -> GrandmaResult<(CoverTreeBuilder,PointCloud<L2>)> {
     let config = read_to_string(&path).expect("Unable to read config file");
         
     let params_files = YamlLoader::load_from_str(&config).unwrap();
@@ -87,7 +87,7 @@ pub fn cover_tree_from_yaml<P: AsRef<Path>>(path: P) -> GrandmaResult<CoverTreeW
 
     let (scale_base, leaf_cutoff, min_res_index, use_singletons) = read_ct_params_yaml(&params);
     println!(
-        "Loaded dataset, building a cover tree with scale base {}, leaf_cutoff {}, min min_res_index {}, and use_singletons {}",
+        "Loaded dataset, and parameters with scale base {}, leaf_cutoff {}, min min_res_index {}, and use_singletons {}",
         scale_base, leaf_cutoff, min_res_index, use_singletons
     );
     let mut builder = CoverTreeBuilder::new();
@@ -98,8 +98,10 @@ pub fn cover_tree_from_yaml<P: AsRef<Path>>(path: P) -> GrandmaResult<CoverTreeW
         .set_min_res_index(min_res_index)
         .set_use_singletons(use_singletons)
         .set_verbosity(verbosity);
-    Ok(builder.build(point_cloud)?)
+    Ok((builder,point_cloud))
 }
+
+
 
 /// Helper function for the above
 pub fn read_ct_params_yaml(params: &Yaml) -> (f32, usize, i32, bool) {
