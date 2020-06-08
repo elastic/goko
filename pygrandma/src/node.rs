@@ -87,6 +87,14 @@ impl PyGrandNode {
             .unwrap_or(vec![])
     }
 
+    pub fn fractal_dim(&self) -> f32 {
+        self.tree.node_fractal_dim(self.address)
+    }
+
+    pub fn weighted_fractal_dim(&self) -> f32 {
+        self.tree.node_weighted_fractal_dim(self.address)
+    }
+
     pub fn singletons(&self) -> PyResult<Py<PyArray2<f32>>> {
         let dim = self.parameters.point_cloud.dim();
         let len = self.coverage_count() as usize;

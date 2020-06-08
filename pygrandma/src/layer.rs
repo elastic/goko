@@ -89,6 +89,14 @@ impl PyGrandLayer {
         self.layer().get_node_and(point_index, |n| n.is_leaf())
     }
 
+    pub fn fractal_dim(&self) -> f32 {
+        self.tree.layer_fractal_dim(self.scale_index)
+    }
+
+    pub fn weighted_fractal_dim(&self) -> f32 {
+        self.tree.layer_weighted_fractal_dim(self.scale_index)
+    }
+
     pub fn centers(&self) -> PyResult<(Py<PyArray1<u64>>, Py<PyArray2<f32>>)> {
         let mut centers =
             Vec::with_capacity(self.layer().len() * self.parameters.point_cloud.dim());
