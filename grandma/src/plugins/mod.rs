@@ -99,7 +99,7 @@ pub(crate) mod tests {
                 (my_node.scale_index(), my_node.center_index())
             );
             let cover_count = match my_node.children() {
-                None => my_node.singleton_len(),
+                None => my_node.singletons_len(),
                 Some((nested_scale, child_addresses)) => {
                     println!(
                         "trying to get at the nodes at {:?}",

@@ -434,7 +434,7 @@ mod tests {
         println!("Testing top layer");
         let top_layer = reader.layer(-1);
         println!("Should only be one node");
-        assert!(top_layer.node_count() == 1);
+        assert!(top_layer.len() == 1);
         println!("The root should not be a leaf");
         assert!(reader.get_node_and((-1, 3), |n| !n.is_leaf()).unwrap());
         println!("The root should have children");
@@ -445,7 +445,7 @@ mod tests {
         println!("Testing Mid Layer");
         let mid_layer = reader.layer(-2);
         println!("Should have 2 nodes");
-        assert!(mid_layer.node_count() == 2);
+        assert!(mid_layer.len() == 2);
         println!("Nested child of root should leafify");
         assert!(reader.get_node_and((-2, 3), |n| n.is_leaf()).unwrap());
         println!("Nested child of root should not have any children");
