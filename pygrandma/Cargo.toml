@@ -23,9 +23,9 @@ channel = "nightly"
 [dependencies]
 grandma = { path = "../grandma" }
 pointcloud = { path = "../pointcloud" }
-pyo3 = { version = "0.9.1", features = ["extension-module"] }
-numpy = "0.8.0"
-ndarray = "0.13"
+pyo3 = { version = "0.10.1", features = ["extension-module"] }
+numpy = "0.9.0"
+ndarray = "0.13.1"
 rayon = "1.2"
 rustc-hash = "1.1.0"
 

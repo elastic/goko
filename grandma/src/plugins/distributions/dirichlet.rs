@@ -1,15 +1,14 @@
 //! # Dirichlet probability
 //!
-//! We know that the users are quering based on what they want to know about. 
-//! This has some geometric structure, especially for attackers. We have some 
+//! We know that the users are quering based on what they want to know about.
+//! This has some geometric structure, especially for attackers. We have some
 //! prior knowlege about the queries, they should function similarly to the training set.
 //! Sections of data that are highly populated should have a higher likelyhood of being
-//! queried. 
+//! queried.
 //!
-//! This plugin lets us simulate the unknown distribution of the queries of a user in a 
-//! bayesian way. There may be more applications of this idea, but defending against 
+//! This plugin lets us simulate the unknown distribution of the queries of a user in a
+//! bayesian way. There may be more applications of this idea, but defending against
 //! attackers has been proven.
-
 
 use crate::node::CoverNode;
 use crate::plugins::*;
@@ -177,9 +176,9 @@ impl<M: Metric> GrandmaPlugin<M> for GrandmaDirichlet {
                     bucket.add_child_pop(Some(*ca), p.total());
                 });
             }
-            bucket.add_child_pop(None, my_node.singleton_len() as f64);
+            bucket.add_child_pop(None, my_node.singletons_len() as f64);
         } else {
-            bucket.add_child_pop(None, (my_node.singleton_len() + 1) as f64);
+            bucket.add_child_pop(None, (my_node.singletons_len() + 1) as f64);
         }
         bucket
     }
@@ -189,7 +188,7 @@ impl<M: Metric> GrandmaPlugin<M> for GrandmaDirichlet {
 pub struct BayesCategoricalTracker<M: Metric> {
     running_distributions: HashMap<NodeAddress, Dirichlet>,
     sequence: VecDeque<Vec<(f32, NodeAddress)>>,
-    length: usize,
+    window_size: usize,
     prior_weight: f64,
     observation_weight: f64,
     reader: CoverTreeReader<M>,
@@ -199,8 +198,8 @@ impl<M: Metric> fmt::Debug for BayesCategoricalTracker<M> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "PointCloud {{ sequence: {:?}, length: {} prior_weight: {}, observation_weight: {}, running_distributions: {:#?}}}",
-            self.sequence, self.length, self.prior_weight, self.observation_weight, self.running_distributions,
+            "PointCloud {{ sequence: {:?}, window_size: {} prior_weight: {}, observation_weight: {}, running_distributions: {:#?}}}",
+            self.sequence, self.window_size, self.prior_weight, self.observation_weight, self.running_distributions,
         )
     }
 }
@@ -210,13 +209,13 @@ impl<M: Metric> BayesCategoricalTracker<M> {
     pub fn new(
         prior_weight: f64,
         observation_weight: f64,
-        size: usize,
+        window_size: usize,
         reader: CoverTreeReader<M>,
     ) -> BayesCategoricalTracker<M> {
         BayesCategoricalTracker {
             running_distributions: HashMap::new(),
             sequence: VecDeque::new(),
-            length: size,
+            window_size,
             prior_weight,
             observation_weight,
             reader,
@@ -234,8 +233,8 @@ impl<M: Metric> BayesCategoricalTracker<M> {
             .get_node_plugin_and::<Dirichlet, _, _>(address, |p| p.clone())
             .unwrap();
         let total = prob.total();
-        if total > self.length as f64 {
-            prob.weight((total.ln() * self.length as f64) / total)
+        if total > self.window_size as f64 {
+            prob.weight((total.ln() * self.window_size as f64) / total)
         }
         prob.weight(self.prior_weight);
         prob
@@ -289,7 +288,7 @@ impl<M: Metric> DiscreteBayesianSequenceTracker<M> for BayesCategoricalTracker<M
     fn add_dry_insert(&mut self, trace: Vec<(f32, NodeAddress)>) {
         self.add_trace_to_pdfs(&trace);
         self.sequence.push_back(trace);
-        if self.sequence.len() > self.length && self.length != 0 {
+        if self.sequence.len() > self.window_size && self.window_size != 0 {
             let oldest = self.sequence.pop_front().unwrap();
             self.remove_trace_from_pdfs(&oldest);
         }
@@ -309,8 +308,8 @@ impl<M: Metric> DiscreteBayesianSequenceTracker<M> for BayesCategoricalTracker<M
 /// This baseline is _not_ realistic.
 pub struct DirichletBaseline<M: Metric> {
     sequence_len: usize,
-    sequence_count: usize,
-    sequence_cap: usize,
+    num_sequences: usize,
+    window_size: usize,
     prior_weight: f64,
     observation_weight: f64,
     reader: CoverTreeReader<M>,
@@ -321,24 +320,24 @@ impl<M: Metric> DirichletBaseline<M> {
     pub fn new(reader: CoverTreeReader<M>) -> DirichletBaseline<M> {
         DirichletBaseline {
             sequence_len: 200,
-            sequence_count: 100,
-            sequence_cap: 50,
+            num_sequences: 100,
+            window_size: 50,
             prior_weight: 1.0,
             observation_weight: 1.0,
             reader,
         }
     }
-    /// Sets a new training sequence length, default 200. Stats for each total lenght of sequence are returned
+    /// Sets a new training sequence window_size, default 200. Stats for each total lenght of sequence are returned
     pub fn set_sequence_len(&mut self, sequence_len: usize) {
         self.sequence_len = sequence_len;
     }
     /// Sets a new count of sequences to train over, default 100. Stats for each sequence are returned.
-    pub fn set_sequence_count(&mut self, sequence_count: usize) {
-        self.sequence_count = sequence_count;
+    pub fn set_num_sequences(&mut self, num_sequences: usize) {
+        self.num_sequences = num_sequences;
     }
     /// Sets a new maximum lenght of sequence, before it starts forgetting data, default 50
-    pub fn set_sequence_cap(&mut self, sequence_cap: usize) {
-        self.sequence_cap = sequence_cap;
+    pub fn set_window_size(&mut self, window_size: usize) {
+        self.window_size = window_size;
     }
     /// Sets a new prior weight, default 1.0. The prior is multiplied by this to increase or decrease it's importance
     pub fn set_prior_weight(&mut self, prior_weight: f64) {
@@ -358,7 +357,7 @@ impl<M: Metric> DirichletBaseline<M> {
             Receiver<KLDivergenceStats>,
         ) = unbounded();
         */
-        let mut results: Vec<Vec<KLDivergenceStats>> = (0..self.sequence_count)
+        let mut results: Vec<Vec<KLDivergenceStats>> = (0..self.num_sequences)
             .map(|_| Vec::with_capacity(self.sequence_len))
             .collect();
         let point_cloud = self.reader.point_cloud();
@@ -366,7 +365,7 @@ impl<M: Metric> DirichletBaseline<M> {
             let mut tracker = BayesCategoricalTracker::new(
                 self.prior_weight,
                 self.observation_weight,
-                self.sequence_cap,
+                self.window_size,
                 self.reader.clone(),
             );
             for _ in 0..self.sequence_len {

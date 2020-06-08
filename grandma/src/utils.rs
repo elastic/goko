@@ -24,7 +24,7 @@ use crate::tree_file_format::*;
 use pointcloud::*;
 use protobuf::{CodedInputStream, CodedOutputStream, Message};
 use std::fs::File;
-use std::fs::{read_to_string,remove_file, OpenOptions};
+use std::fs::{read_to_string, remove_file, OpenOptions};
 use std::path::Path;
 use yaml_rust::{Yaml, YamlLoader};
 
@@ -67,9 +67,11 @@ use crate::tree::CoverTreeWriter;
 /// file: mnist.tree (optional, if here and the file exists it loads it)
 /// ```
 ///
-pub fn builder_from_yaml<P: AsRef<Path>>(path: P) -> GrandmaResult<(CoverTreeBuilder,PointCloud<L2>)> {
+pub fn builder_from_yaml<P: AsRef<Path>>(
+    path: P,
+) -> GrandmaResult<(CoverTreeBuilder, PointCloud<L2>)> {
     let config = read_to_string(&path).expect("Unable to read config file");
-        
+
     let params_files = YamlLoader::load_from_str(&config).unwrap();
     let params = &params_files[0];
 
@@ -98,10 +100,8 @@ pub fn builder_from_yaml<P: AsRef<Path>>(path: P) -> GrandmaResult<(CoverTreeBui
         .set_min_res_index(min_res_index)
         .set_use_singletons(use_singletons)
         .set_verbosity(verbosity);
-    Ok((builder,point_cloud))
+    Ok((builder, point_cloud))
 }
-
-
 
 /// Helper function for the above
 pub fn read_ct_params_yaml(params: &Yaml) -> (f32, usize, i32, bool) {
@@ -174,12 +174,11 @@ pub fn save_tree<P: AsRef<Path>, M: Metric>(
         .read(true)
         .write(true)
         .create(true)
-        .open(&tree_path).unwrap();
+        .open(&tree_path)
+        .unwrap();
 
     let mut cos = CodedOutputStream::new(&mut core_file);
-    cover_proto
-        .write_to(&mut cos)
-        .map_err(GrandmaError::from)?;
+    cover_proto.write_to(&mut cos).map_err(GrandmaError::from)?;
     cos.flush().map_err(GrandmaError::from)?;
     Ok(())
 }

@@ -128,7 +128,7 @@ impl<M: Metric> CoverNode<M> {
     }
 
     /// The number of singleton points attached to the node
-    pub fn singleton_len(&self) -> usize {
+    pub fn singletons_len(&self) -> usize {
         self.singles_indexes.len()
     }
 

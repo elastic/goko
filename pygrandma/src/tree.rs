@@ -237,16 +237,16 @@ impl PyGrandma {
         prior_weight: f64,
         observation_weight: f64,
         sequence_len: u64,
-        sequence_count: u64,
-        sequence_cap: u64,
+        num_sequences: u64,
+        window_size: u64,
     ) -> Vec<Vec<PyKLDivergenceStats>> {
         let reader = self.writer.as_ref().unwrap().reader();
         let mut trainer = DirichletBaseline::new(reader);
         trainer.set_prior_weight(prior_weight);
         trainer.set_observation_weight(observation_weight);
         trainer.set_sequence_len(sequence_len as usize);
-        trainer.set_sequence_count(sequence_count as usize);
-        trainer.set_sequence_cap(sequence_cap as usize);
+        trainer.set_num_sequences(num_sequences as usize);
+        trainer.set_window_size(window_size as usize);
         trainer
             .train()
             .unwrap()

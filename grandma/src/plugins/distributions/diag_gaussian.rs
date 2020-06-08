@@ -1,7 +1,7 @@
 //! # Diagonal Gaussian
 //!
 //! This computes a coordinate bound multivariate Gaussian. This can be thought of as a rough
-//! simulation of the data underling a node. However we can chose the scale from which we 
+//! simulation of the data underling a node. However we can chose the scale from which we
 //! simulate the data, down to the individual point, so this can be arbitrarily accurate.
 
 use super::*;
@@ -200,7 +200,7 @@ impl<M: Metric> GrandmaPlugin<M> for GrandmaDiagGaussian {
             .point_cloud
             .moment_subset(2, my_node.singletons())
             .unwrap();
-        let count = my_node.singleton_len();
+        let count = my_node.singletons_len();
         let mut my_dg = DiagGaussian {
             moment1,
             moment2,

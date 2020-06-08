@@ -169,12 +169,13 @@ impl<M: Metric> CoverTreeReader<M> {
 
     /// This is the total number of nodes in the tree. This queries each layer, so it's not a simple return int.
     pub fn node_count(&self) -> usize {
-        self.layers().fold(0, |a, (_si, l)| a + l.node_count())
+        self.layers().fold(0, |a, (_si, l)| a + l.len())
     }
 
     /// Returns the scale index range. It starts at the minimum min_res_index and ends at the top. You can reverse this for the correct order.
     pub fn scale_range(&self) -> Range<i32> {
-        (self.parameters.min_res_index)..(self.parameters.min_res_index - 1 + self.layers.len() as i32)
+        (self.parameters.min_res_index)
+            ..(self.parameters.min_res_index - 1 + self.layers.len() as i32)
     }
 
     /// Access the stored tree plugin
@@ -327,54 +328,108 @@ impl<M: Metric> CoverTreeReader<M> {
         let mut current_address = self.root_address;
         let mut trace = vec![(current_distance, current_address)];
         while let Some(nearest) = self.get_node_and(current_address, |n| {
-                n.covering_child(
-                    self.parameters.scale_base,
-                    current_distance,
-                    point,
-                    &self.parameters.point_cloud,
-                )
-            }) {
-                if let Some(nearest) = nearest? {
-                    trace.push(nearest);
-                    current_distance = nearest.0;
-                    current_address = nearest.1;
-                } else {
-                    break;
-                }
+            n.covering_child(
+                self.parameters.scale_base,
+                current_distance,
+                point,
+                &self.parameters.point_cloud,
+            )
+        }) {
+            if let Some(nearest) = nearest? {
+                trace.push(nearest);
+                current_distance = nearest.0;
+                current_address = nearest.1;
+            } else {
+                break;
+            }
         }
         Ok(trace)
     }
 
     ///Computes the fractal dimension of a node
-    pub fn fractal_dim(&self,node_address:NodeAddress) -> f32 {
-        let count:f32 = self.get_node_and(node_address, |n| {
-            // +1 for the nested child
-            let mut count = n.singletons().len() + 1;
-            if let Some((_nested_scale,children)) = n.children() {
-                count += children.len();
-            }
-            count as f32
-        }).unwrap() as f32;
+    pub fn node_fractal_dim(&self, node_address: NodeAddress) -> f32 {
+        let count: f32 = self
+            .get_node_and(node_address, |n| {
+                (n.singletons_len() + n.children_len()) as f32
+            })
+            .unwrap() as f32;
         count.log(self.parameters.scale_base)
     }
 
     ///Computes the weighted fractal dimension of a node
-    pub fn weighted_fractal_dim(&self,node_address:NodeAddress) -> f32 {
-        let weighted_count:f32 = self.get_node_and(node_address, |n| {
-            let singleton_count = n.singletons().len() as f32;
-            let mut max_pop: usize = 1;
-            let mut weighted_count: f32 = 0.0;
-            if let Some((nested_scale,children)) = n.children() {
-                let mut pops: Vec<usize> = children.iter().map(|child_addr| {
-                    self.get_node_and(*child_addr,|child| child.cover_count).unwrap()
-                }).collect();
-                pops.push(self.get_node_and((nested_scale,node_address.1),|child| child.cover_count).unwrap());
-                max_pop = *pops.iter().max().unwrap();
-                pops.iter().for_each(|p| weighted_count += (*p as f32)/(max_pop as f32));
-            }
-            weighted_count + singleton_count/(max_pop as f32)
-        }).unwrap();
+    pub fn node_weighted_fractal_dim(&self, node_address: NodeAddress) -> f32 {
+        let weighted_count: f32 = self
+            .get_node_and(node_address, |n| {
+                let singleton_count = n.singletons().len() as f32;
+                let mut max_pop: usize = 1;
+                let mut weighted_count: f32 = 0.0;
+                if let Some((nested_scale, children)) = n.children() {
+                    let mut pops: Vec<usize> = children
+                        .iter()
+                        .map(|child_addr| {
+                            self.get_node_and(*child_addr, |child| child.cover_count)
+                                .unwrap()
+                        })
+                        .collect();
+                    pops.push(
+                        self.get_node_and((nested_scale, node_address.1), |child| {
+                            child.cover_count
+                        })
+                        .unwrap(),
+                    );
+                    max_pop = *pops.iter().max().unwrap();
+                    pops.iter()
+                        .for_each(|p| weighted_count += (*p as f32) / (max_pop as f32));
+                }
+                weighted_count + singleton_count / (max_pop as f32)
+            })
+            .unwrap();
         weighted_count.log(self.parameters.scale_base)
+    }
+
+    ///Computes the fractal dimension of a layer
+    pub fn layer_fractal_dim(&self, scale_index: i32) -> f32 {
+        let parent_layer = self.layer(scale_index);
+        let parent_count = parent_layer.len() as f32;
+        let mut child_count: f32 = 0.0;
+        parent_layer.for_each_node(|_,n| {child_count += (n.singletons_len() + n.children_len()) as f32});
+        child_count.log(self.parameters.scale_base) - parent_count.log(self.parameters.scale_base)
+    }
+
+    ///Computes the weighted fractal dimension of a node
+    pub fn layer_weighted_fractal_dim(&self, scale_index: i32) -> f32 {
+        // gather the coverages of every node on the layer and their's children
+        let parent_layer = self.layer(scale_index);
+        let mut parent_coverage_counts: Vec<usize> = Vec::new();
+        let mut child_coverage_counts: Vec<usize> = Vec::new();
+        let mut singletons_count: f32 = 0.0;
+        parent_layer.for_each_node(|center_index,n| {
+            parent_coverage_counts.push(n.cover_count);
+
+            singletons_count += n.singletons().len() as f32;
+            if let Some((nested_scale,children)) = n.children() {
+                child_coverage_counts.extend(children.iter().map(|child_addr| {
+                        self.get_node_and(*child_addr,|child| child.cover_count).unwrap()
+                    }));
+                child_coverage_counts.push(self.get_node_and((nested_scale,*center_index),|child| child.cover_count).unwrap());
+            }
+        });
+        // Get the maximum count
+        let max_parent_pop: f32 = *parent_coverage_counts.iter().max().unwrap_or(&1) as f32;
+        let max_child_pop: f32 = *child_coverage_counts.iter().max().unwrap_or(&1) as f32;
+
+        // Normalize the counts by the maximum
+        let weighted_child_sum: f32 = singletons_count / max_child_pop
+            + child_coverage_counts
+                .iter()
+                .fold(0.0, |a, c| a + (*c as f32) / max_child_pop);
+        let weighted_parent_sum: f32 = parent_coverage_counts
+            .iter()
+            .fold(0.0, |a, c| a + (*c as f32) / max_parent_pop);
+
+        // take the log and return
+        weighted_child_sum.log(self.parameters.scale_base)
+            - weighted_parent_sum.log(self.parameters.scale_base)
     }
 
     /// Checks that there are no node addresses in the child list of any node that don't reference a node in the tree.
@@ -385,9 +440,13 @@ impl<M: Metric> CoverTreeReader<M> {
             println!("checking {:?}", node_addr);
             println!("refs_to_check: {:?}", refs_to_check);
             let node_exists = self.get_node_and(node_addr, |n| {
-                if let Some((nested_scale,other_children)) = n.children() {
-                    println!("Pushing: {:?}, {:?}", (nested_scale,other_children), other_children);
-                    refs_to_check.push((nested_scale,node_addr.1));
+                if let Some((nested_scale, other_children)) = n.children() {
+                    println!(
+                        "Pushing: {:?}, {:?}",
+                        (nested_scale, other_children),
+                        other_children
+                    );
+                    refs_to_check.push((nested_scale, node_addr.1));
                     refs_to_check.extend(&other_children[..]);
                 }
             });
@@ -519,7 +578,7 @@ pub(crate) mod tests {
         if !path.exists() {
             panic!(file_name.to_owned() + &" does not exist".to_string());
         }
-        let (builder,point_cloud) = builder_from_yaml(&path).unwrap();
+        let (builder, point_cloud) = builder_from_yaml(&path).unwrap();
         builder.build(point_cloud).unwrap()
     }
 

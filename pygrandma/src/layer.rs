@@ -67,7 +67,7 @@ impl PyGrandLayer {
         self.scale_index
     }
     pub fn len(&self) -> usize {
-        self.layer().node_count()
+        self.layer().len()
     }
     pub fn center_indexes(&self) -> Vec<u64> {
         self.layer().map_nodes(|pi, _n| *pi as u64)
@@ -91,15 +91,15 @@ impl PyGrandLayer {
 
     pub fn centers(&self) -> PyResult<(Py<PyArray1<u64>>, Py<PyArray2<f32>>)> {
         let mut centers =
-            Vec::with_capacity(self.layer().node_count() * self.parameters.point_cloud.dim());
-        let mut centers_indexes = Vec::with_capacity(self.layer().node_count());
+            Vec::with_capacity(self.layer().len() * self.parameters.point_cloud.dim());
+        let mut centers_indexes = Vec::with_capacity(self.layer().len());
         self.layer().for_each_node(|pi, _n| {
             centers_indexes.push(*pi);
             centers.extend(self.parameters.point_cloud.get_point(*pi).unwrap());
         });
         let py_center_indexes = Array::from(centers_indexes);
         let py_centers = Array2::from_shape_vec(
-            (self.layer().node_count(), self.parameters.point_cloud.dim()),
+            (self.layer().len(), self.parameters.point_cloud.dim()),
             centers,
         )
         .unwrap();

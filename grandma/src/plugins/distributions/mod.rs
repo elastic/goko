@@ -1,6 +1,6 @@
 //! # Probability Distributions Plugins
-//! 
-//! This module containes plugins that simulate probability distributions on the nodes. 
+//!
+//! This module containes plugins that simulate probability distributions on the nodes.
 //! It also has trackers used to see when queries and sequences are out of distribution.
 
 use super::*;

@@ -62,13 +62,13 @@ pub use errors::GrandmaResult;
 
 pub(crate) mod evmap;
 
-mod tree_file_format;
 mod builders;
 mod data_caches;
 pub mod layer;
 pub mod node;
 pub mod query_tools;
 mod tree;
+mod tree_file_format;
 pub mod utils;
 
 pub mod plugins;

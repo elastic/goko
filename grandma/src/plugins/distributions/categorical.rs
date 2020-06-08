@@ -1,7 +1,7 @@
 //! # Categorical Distribution
 //!
-//! Simple probability distribution that enables you to simulated the rough 
-//! distribution of data in the tree. 
+//! Simple probability distribution that enables you to simulated the rough
+//! distribution of data in the tree.
 
 use crate::node::CoverNode;
 use crate::plugins::distributions::DiscreteDistribution;
@@ -154,9 +154,9 @@ impl<M: Metric> GrandmaPlugin<M> for GrandmaCategorical {
                     bucket.add_child_pop(Some(*ca), p.total() as f64);
                 });
             }
-            bucket.add_child_pop(None, my_node.singleton_len() as f64);
+            bucket.add_child_pop(None, my_node.singletons_len() as f64);
         } else {
-            bucket.add_child_pop(None, my_node.singleton_len() as f64 + 1.0);
+            bucket.add_child_pop(None, my_node.singletons_len() as f64 + 1.0);
         }
         bucket
     }
