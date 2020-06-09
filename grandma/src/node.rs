@@ -647,10 +647,7 @@ mod tests {
                 .unwrap();
 
             let layer = reader.layer(reader.root_address().0 - 3);
-            println!(
-                "Testing 3 layers below root, with {} nodes",
-                layer.len()
-            );
+            println!("Testing 3 layers below root, with {} nodes", layer.len());
             // Allowed 3 errors.
             let mut errors = 0;
             layer.for_each_node(|_, n| {

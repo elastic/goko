@@ -392,7 +392,8 @@ impl<M: Metric> CoverTreeReader<M> {
         let parent_layer = self.layer(scale_index);
         let parent_count = parent_layer.len() as f32;
         let mut child_count: f32 = 0.0;
-        parent_layer.for_each_node(|_,n| {child_count += (n.singletons_len() + n.children_len()) as f32});
+        parent_layer
+            .for_each_node(|_, n| child_count += (n.singletons_len() + n.children_len()) as f32);
         child_count.log(self.parameters.scale_base) - parent_count.log(self.parameters.scale_base)
     }
 
@@ -403,15 +404,19 @@ impl<M: Metric> CoverTreeReader<M> {
         let mut parent_coverage_counts: Vec<usize> = Vec::new();
         let mut child_coverage_counts: Vec<usize> = Vec::new();
         let mut singletons_count: f32 = 0.0;
-        parent_layer.for_each_node(|center_index,n| {
+        parent_layer.for_each_node(|center_index, n| {
             parent_coverage_counts.push(n.cover_count);
 
             singletons_count += n.singletons().len() as f32;
-            if let Some((nested_scale,children)) = n.children() {
+            if let Some((nested_scale, children)) = n.children() {
                 child_coverage_counts.extend(children.iter().map(|child_addr| {
-                        self.get_node_and(*child_addr,|child| child.cover_count).unwrap()
-                    }));
-                child_coverage_counts.push(self.get_node_and((nested_scale,*center_index),|child| child.cover_count).unwrap());
+                    self.get_node_and(*child_addr, |child| child.cover_count)
+                        .unwrap()
+                }));
+                child_coverage_counts.push(
+                    self.get_node_and((nested_scale, *center_index), |child| child.cover_count)
+                        .unwrap(),
+                );
             }
         });
         // Get the maximum count
