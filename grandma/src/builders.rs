@@ -38,11 +38,11 @@ struct BuilderNode {
     covered: CoveredData,
 }
 
-type NodeSplitResult<M> = GrandmaResult<(i32, PointIndex, CoverNode<M>)>;
+type NodeSplitResult<D> = GrandmaResult<(i32, PointIndex, CoverNode<D>)>;
 
 impl BuilderNode {
-    fn new<M: Metric>(parameters: &CoverTreeParameters<M>) -> GrandmaResult<BuilderNode> {
-        let covered = CoveredData::new(&parameters.point_cloud)?;
+    fn new<D:PointCloud>(parameters: &CoverTreeParameters<D>) -> GrandmaResult<BuilderNode> {
+        let covered = CoveredData::new::<D>(&parameters.point_cloud)?;
         let scale_index = (covered.max_distance()).log(parameters.scale_base).ceil() as i32;
         Ok(BuilderNode {
             scale_index,
@@ -55,10 +55,10 @@ impl BuilderNode {
         (self.scale_index, self.covered.center_index)
     }
 
-    fn split_parallel<M: Metric>(
+    fn split_parallel<D:PointCloud>(
         self,
-        parameters: &Arc<CoverTreeParameters<M>>,
-        node_sender: &Arc<Sender<NodeSplitResult<M>>>,
+        parameters: &Arc<CoverTreeParameters<D>>,
+        node_sender: &Arc<Sender<NodeSplitResult<D>>>,
     ) {
         let parameters = Arc::clone(parameters);
         let node_sender = Arc::clone(node_sender);
@@ -76,10 +76,10 @@ impl BuilderNode {
         });
     }
 
-    fn split<M: Metric>(
+    fn split<D:PointCloud>(
         self,
-        parameters: &Arc<CoverTreeParameters<M>>,
-    ) -> GrandmaResult<(CoverNode<M>, Vec<BuilderNode>)> {
+        parameters: &Arc<CoverTreeParameters<D>>,
+    ) -> GrandmaResult<(CoverNode<D>, Vec<BuilderNode>)> {
         //println!("=====================");
         //println!("Splitting node with address {:?} and covered: {:?}", self.address(),self.covered);
 
@@ -173,7 +173,6 @@ impl BuilderNode {
             node.insert_singletons(new_nodes.pop().unwrap().covered.into_indexes());
         }
 
-        node.update_metasummary(&parameters.point_cloud)?;
         // This node is done, send it in
         //println!("=====================");
         Ok((node, new_nodes))
@@ -235,10 +234,10 @@ impl CoverTreeBuilder {
     }
     /// Pass a point cloud object when ready.
     /// To do, make this point cloud an Arc
-    pub fn build<M: Metric>(
+    pub fn build<D:PointCloud>(
         &self,
-        point_cloud: PointCloud<M>,
-    ) -> GrandmaResult<CoverTreeWriter<M>> {
+        point_cloud: Arc<D>,
+    ) -> GrandmaResult<CoverTreeWriter<D>> {
         let parameters = CoverTreeParameters {
             total_nodes: atomic::AtomicUsize::new(1),
             scale_base: self.scale_base,
@@ -260,8 +259,8 @@ impl CoverTreeBuilder {
         }
 
         let (node_sender, node_receiver): (
-            Sender<NodeSplitResult<M>>,
-            Receiver<NodeSplitResult<M>>,
+            Sender<NodeSplitResult<D>>,
+            Receiver<NodeSplitResult<D>>,
         ) = unbounded();
 
         let node_sender = Arc::new(node_sender);

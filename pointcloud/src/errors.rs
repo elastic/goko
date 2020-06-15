@@ -32,10 +32,12 @@ pub enum PointCloudError {
     /// Unable to retrieve some data point (given by index) in a file (slice name)
     DataAccessError {
         /// Index of access error
-        index: usize,
+        index: u64,
         /// File that had the access error
-        slice_name: String,
+        reason: String,
     },
+    MetricError,
+    NotSorted,
     /// Most common error, the given point name isn't present in the training data
     NameNotInTree(String),
     /// IO error when opening files
@@ -64,6 +66,14 @@ impl fmt::Display for PointCloudError {
             PointCloudError::NodeNestingError { .. } => {
                 write!(f, "There is a temporary node in a working tree")
             }
+            PointCloudError::MetricError => write!(
+                f,
+                "The metric failed, you probably mixed sparse and dense data"
+            ),
+            PointCloudError::NotSorted => write!(
+                f,
+                "Passed data that wasn't sorted"
+            ),
         }
     }
 }
@@ -84,6 +94,12 @@ impl Error for PointCloudError {
             PointCloudError::NodeNestingError { .. } => {
                 "There is a temporary node in a working tree"
             }
+            PointCloudError::MetricError => {
+                "The metric failed, you probably mixed sparse and dense data"
+            }
+            PointCloudError::NotSorted => {
+                "Passed data that wasn't sorted"
+            }
         }
     }
 
@@ -94,6 +110,8 @@ impl Error for PointCloudError {
             PointCloudError::DataAccessError { .. } => None,
             PointCloudError::NameNotInTree { .. } => None,
             PointCloudError::NodeNestingError { .. } => None,
+            PointCloudError::MetricError { .. } => None,
+            PointCloudError::NotSorted { .. } => None,
         }
     }
 }
@@ -114,14 +132,12 @@ impl From<PointCloudError> for io::Error {
 }
 
 impl PointCloudError {
-    /// This error occurs when we try to doublenest a node, this should not occor
-    pub fn node_nesting(message: &'static str) -> PointCloudError {
-        PointCloudError::NodeNestingError { message }
-    }
-
     /// If we can't get an element from a loaded data file, gives the i and filename
-    pub fn data_access(index: usize, slice_name: String) -> PointCloudError {
-        PointCloudError::DataAccessError { index, slice_name }
+    pub fn data_access(index: usize, reason: String) -> PointCloudError {
+        PointCloudError::DataAccessError {
+            index: index as u64,
+            reason,
+        }
     }
 }
 

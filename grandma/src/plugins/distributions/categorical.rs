@@ -111,16 +111,16 @@ impl Categorical {
     }
 }
 
-impl<M: Metric> NodePlugin<M> for Categorical {
-    fn update(&mut self, _my_node: &CoverNode<M>, _my_tree: &CoverTreeReader<M>) {}
+impl<D:PointCloud> NodePlugin<D> for Categorical {
+    fn update(&mut self, _my_node: &CoverNode<D>, _my_tree: &CoverTreeReader<D>) {}
 }
 
 /// Zero sized type that can be passed around. Equivilant to `()`
 #[derive(Debug, Clone)]
 pub struct CategoricalTree {}
 
-impl<M: Metric> TreePlugin<M> for CategoricalTree {
-    fn update(&mut self, _my_tree: &CoverTreeReader<M>) {}
+impl<D:PointCloud> TreePlugin<D> for CategoricalTree {
+    fn update(&mut self, _my_tree: &CoverTreeReader<D>) {}
 }
 
 /// Zero sized type that can be passed around. Equivilant to `()`
@@ -128,13 +128,13 @@ impl<M: Metric> TreePlugin<M> for CategoricalTree {
 pub struct GrandmaCategorical {}
 
 /// Parent trait that make this all work. Ideally this should be included in the `TreePlugin` but rust doesn't like it.
-impl<M: Metric> GrandmaPlugin<M> for GrandmaCategorical {
+impl<D:PointCloud> GrandmaPlugin<D> for GrandmaCategorical {
     type NodeComponent = Categorical;
     type TreeComponent = CategoricalTree;
     fn node_component(
         _parameters: &Self::TreeComponent,
-        my_node: &CoverNode<M>,
-        my_tree: &CoverTreeReader<M>,
+        my_node: &CoverNode<D>,
+        my_tree: &CoverTreeReader<D>,
     ) -> Self::NodeComponent {
         let mut bucket = Categorical::new();
 

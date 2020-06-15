@@ -54,16 +54,16 @@ pub trait ContinousBayesianDistribution: ContinousDistribution + Clone + 'static
 }
 
 ///
-pub trait DiscreteBayesianSequenceTracker<M: Metric>: Debug {
+pub trait DiscreteBayesianSequenceTracker<D:PointCloud>: Debug {
     /// The. underlying distribution that this is tracking.
-    type Distribution: DiscreteBayesianDistribution + NodePlugin<M> + 'static;
+    type Distribution: DiscreteBayesianDistribution + NodePlugin<D> + 'static;
 
     /// Adds a dry insert.
     fn add_dry_insert(&mut self, trace: Vec<(f32, NodeAddress)>);
     /// The current distributions that a dry insert touched.
     fn running_distributions(&self) -> &HashMap<NodeAddress, Self::Distribution>;
     /// Helper function, each sequence tracker should carry it's own reader.
-    fn tree_reader(&self) -> &CoverTreeReader<M>;
+    fn tree_reader(&self) -> &CoverTreeReader<D>;
     /// The length of the sequence
     fn sequence_len(&self) -> usize;
     /// A set of stats for the sequence that are helpful.

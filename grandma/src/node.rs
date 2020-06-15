@@ -25,7 +25,7 @@ use crate::plugins::{NodePlugin, NodePluginSet};
 use crate::query_tools::{RoutingQueryHeap, SingletonQueryHeap};
 use crate::tree_file_format::*;
 use crate::NodeAddress;
-use pointcloud::labels::MetaSummary;
+
 use pointcloud::*;
 use smallvec::SmallVec;
 use std::marker::PhantomData;
@@ -43,27 +43,25 @@ pub(crate) struct NodeChildren {
 /// memory redirect for the first 20 singleton children. The children are saved in a separate struct also consisting of a `SmallVec`
 /// (though, this is only 10 wide before we allocate on the heap), and the scale index of the nested child.
 #[derive(Debug)]
-pub struct CoverNode<M: Metric> {
+pub struct CoverNode<D:PointCloud> {
     /// Node address
     address: NodeAddress,
     /// Query caches
     radius: f32,
     cover_count: usize,
-    singles_summary: Option<MetaSummary>,
     /// Children
     children: Option<NodeChildren>,
     singles_indexes: SmallVec<[PointIndex; 20]>,
     plugins: NodePluginSet,
-    metic: PhantomData<M>,
+    metic: PhantomData<D>,
 }
 
-impl<M: Metric> Clone for CoverNode<M> {
+impl<D:PointCloud> Clone for CoverNode<D> {
     fn clone(&self) -> Self {
         Self {
             address: self.address,
             radius: self.radius,
             cover_count: self.cover_count,
-            singles_summary: self.singles_summary.clone(),
             children: self.children.clone(),
             singles_indexes: self.singles_indexes.clone(),
             plugins: NodePluginSet::new(),
@@ -72,16 +70,15 @@ impl<M: Metric> Clone for CoverNode<M> {
     }
 }
 
-impl<M: Metric> CoverNode<M> {
+impl<D:PointCloud> CoverNode<D> {
     /// Creates a new blank node
-    pub fn new(address: NodeAddress) -> CoverNode<M> {
+    pub fn new(address: NodeAddress) -> CoverNode<D> {
         CoverNode {
             address,
             radius: 0.0,
             cover_count: 0,
             children: None,
             singles_indexes: SmallVec::new(),
-            singles_summary: None,
             plugins: NodePluginSet::new(),
             metic: PhantomData,
         }
@@ -166,8 +163,8 @@ impl<M: Metric> CoverNode<M> {
     pub fn knn<T: SingletonQueryHeap + RoutingQueryHeap>(
         &self,
         dist_to_center: Option<f32>,
-        point: &[f32],
-        point_cloud: &PointCloud<M>,
+        point: &PointRef,
+        point_cloud: &D,
         query_heap: &mut T,
     ) -> GrandmaResult<()> {
         self.singleton_knn(point, point_cloud, query_heap)?;
@@ -185,8 +182,8 @@ impl<M: Metric> CoverNode<M> {
     /// Performs a brute force knn against just the singleton children with a provided query heap.
     pub fn singleton_knn<T: SingletonQueryHeap>(
         &self,
-        point: &[f32],
-        point_cloud: &PointCloud<M>,
+        point: &PointRef,
+        point_cloud: &D,
         query_heap: &mut T,
     ) -> GrandmaResult<()> {
         let distances = point_cloud.distances_to_point(point, &self.singles_indexes[..])?;
@@ -199,8 +196,8 @@ impl<M: Metric> CoverNode<M> {
     pub fn child_knn<T: RoutingQueryHeap>(
         &self,
         dist_to_center: Option<f32>,
-        point: &[f32],
-        point_cloud: &PointCloud<M>,
+        point: &PointRef,
+        point_cloud: &D,
         query_heap: &mut T,
     ) -> GrandmaResult<()> {
         let dist_to_center =
@@ -225,8 +222,8 @@ impl<M: Metric> CoverNode<M> {
         &self,
         scale_base: f32,
         dist_to_center: f32,
-        point: &[f32],
-        point_cloud: &PointCloud<M>,
+        point: &PointRef,
+        point_cloud: &D,
     ) -> GrandmaResult<Option<(f32, NodeAddress)>> {
         if let Some(children) = &self.children {
             let children_indexes: Vec<PointIndex> =
@@ -263,8 +260,8 @@ impl<M: Metric> CoverNode<M> {
         &self,
         scale_base: f32,
         dist_to_center: f32,
-        point: &[f32],
-        point_cloud: &PointCloud<M>,
+        point: &PointRef,
+        point_cloud: &D,
     ) -> GrandmaResult<Option<(f32, NodeAddress)>> {
         if let Some(children) = &self.children {
             if dist_to_center < scale_base.powi(children.nested_scale) {
@@ -312,7 +309,7 @@ impl<M: Metric> CoverNode<M> {
     }
 
     /// Inserts a single singleton child into the node.
-    pub(crate) fn insert_plugin<T: NodePlugin<M> + 'static>(&mut self, plugin: T) {
+    pub(crate) fn insert_plugin<T: NodePlugin<D> + 'static>(&mut self, plugin: T) {
         self.plugins.insert(plugin);
     }
 
@@ -321,19 +318,13 @@ impl<M: Metric> CoverNode<M> {
         self.radius = radius;
     }
 
-    /// Updates the metasummary of the singletons this covers. Call this after inserting or removing a singleton.
-    pub(crate) fn update_metasummary(&mut self, point_cloud: &PointCloud<M>) -> GrandmaResult<()> {
-        self.singles_summary = Some(point_cloud.get_metasummary(&self.singles_indexes[..])?);
-        Ok(())
-    }
 
-    pub(crate) fn load(scale_index: i32, node_proto: &NodeProto) -> CoverNode<M> {
+    pub(crate) fn load(scale_index: i32, node_proto: &NodeProto) -> CoverNode<D> {
         let singles_indexes = node_proto
             .outlier_point_indexes
             .iter()
             .map(|i| *i as PointIndex)
             .collect();
-        let singles_summary = Some(MetaSummary::new());
         let radius = node_proto.get_radius();
         let address = (scale_index, node_proto.get_center_index());
         let cover_count = node_proto.get_cover_count() as usize;
@@ -358,7 +349,6 @@ impl<M: Metric> CoverNode<M> {
             cover_count,
             children,
             singles_indexes,
-            singles_summary,
             plugins: NodePluginSet::new(),
             metic: PhantomData,
         }
@@ -393,13 +383,13 @@ impl<M: Metric> CoverNode<M> {
 
     /// Brute force verifies that the children are separated by at least the scale provided.
     /// The scale provided should be b^(s-1) where s is this node's scale index.
-    pub fn check_seperation(&self, scale: f32, point_cloud: &PointCloud<M>) -> GrandmaResult<bool> {
+    pub fn check_seperation(&self, scale: f32, point_cloud: &D) -> GrandmaResult<bool> {
         let mut nodes = self.singles_indexes.clone();
         nodes.push(self.address.1);
         if let Some(children) = &self.children {
             nodes.extend(children.addresses.iter().map(|(_si, pi)| *pi));
         }
-        let adj = point_cloud.adj(&nodes)?;
+        let adj = point_cloud.adjacency_matrix(&nodes)?;
         Ok(scale > adj.min())
     }
 }
@@ -414,7 +404,7 @@ mod tests {
     use crate::query_tools::KnnQueryHeap;
     use crate::tree::tests::build_mnist_tree;
 
-    fn create_test_node<M: Metric>() -> CoverNode<M> {
+    fn create_test_node<D:PointCloud>() -> CoverNode<D> {
         let children = Some(NodeChildren {
             nested_scale: 0,
             addresses: smallvec![(-4, 1), (-4, 2), (-4, 3)],
@@ -426,20 +416,18 @@ mod tests {
             cover_count: 8,
             children,
             singles_indexes: smallvec![4, 5, 6],
-            singles_summary: None,
             plugins: NodePluginSet::new(),
             metic: PhantomData,
         }
     }
 
-    fn create_test_leaf_node<M: Metric>() -> CoverNode<M> {
+    fn create_test_leaf_node<D:PointCloud>() -> CoverNode<D> {
         CoverNode {
             address: (0, 0),
             radius: 1.0,
             cover_count: 8,
             children: None,
             singles_indexes: smallvec![1, 2, 3, 4, 5, 6],
-            singles_summary: None,
             plugins: NodePluginSet::new(),
             metic: PhantomData,
         }
@@ -530,7 +518,7 @@ mod tests {
         assert!(results[1].1 == 3);
     }
 
-    fn brute_test_knn_node<M: Metric>(node: &CoverNode<M>, point_cloud: &PointCloud<M>) -> bool {
+    fn brute_test_knn_node<D:PointCloud>(node: &CoverNode<D>, point_cloud: &D) -> bool {
         let zeros: Vec<f32> = vec![0.0; 784];
         let mut heap = KnnQueryHeap::new(10000, 1.3);
         let dist_to_center = point_cloud

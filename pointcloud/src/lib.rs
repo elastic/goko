@@ -23,26 +23,44 @@
 //#![deny(warnings)]
 #![warn(missing_docs)]
 #![allow(clippy::cast_ptr_alignment)]
+#![feature(result_flattening)]
+#![feature(is_sorted)]
 
 #[macro_use]
 extern crate serde;
-
-mod point_cloud;
-#[doc(inline)]
-pub use point_cloud::PointCloud;
 
 mod distances;
 pub use distances::*;
 pub mod errors;
 
-pub mod labels;
-pub mod utils;
+pub mod data_sources;
+pub mod summaries;
+pub mod label_sources;
 
-pub mod datasources;
-pub use datasources::DataSource;
+pub mod glued_data_cloud;
+pub mod loaders;
+
+mod base_traits;
+#[doc(inline)]
+pub use base_traits::*;
+
+use errors::*;
 
 /// To make things more obvious, we type the point index.
 /// This is abstracted over the files that were used to build the point cloud
 pub type PointIndex = u64;
 /// To make things more obvious, we type the point name that we pull from the label CSV
 pub type PointName = String;
+
+#[derive(Clone,Copy)]
+pub enum PointRef<'a> {
+    Dense(&'a [f32]),
+    Sparse(&'a [f32], &'a [u32]),
+}
+
+pub enum Point {
+    Dense(Vec<f32>),
+    Sparse(Vec<f32>, Vec<u32>),
+}
+
+

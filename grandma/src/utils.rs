@@ -120,9 +120,9 @@ pub fn read_ct_params_yaml(params: &Yaml) -> (f32, usize, i32, bool) {
 }
 
 /// Helper function that handles the file I/O and protobuf decoding for you.
-pub fn load_tree<P: AsRef<Path>, M: Metric>(
+pub fn load_tree<P: AsRef<Path>, D: PointCloud>(
     tree_path: P,
-    point_cloud: PointCloud<M>,
+    point_cloud: D,
 ) -> GrandmaResult<CoverTreeWriter<M>> {
     let tree_path_ref: &Path = tree_path.as_ref();
     println!("\nLoading tree from : {}", tree_path_ref.to_string_lossy());

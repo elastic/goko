@@ -153,8 +153,8 @@ impl DiagGaussian {
     }
 }
 
-impl<M: Metric> NodePlugin<M> for DiagGaussian {
-    fn update(&mut self, _my_node: &CoverNode<M>, _my_tree: &CoverTreeReader<M>) {}
+impl<D:PointCloud> NodePlugin<D> for DiagGaussian {
+    fn update(&mut self, _my_node: &CoverNode<D>, _my_tree: &CoverTreeReader<D>) {}
 }
 
 /// Zero sized type that can be passed around. Equivilant to `()`
@@ -163,8 +163,8 @@ pub struct DiagGaussianTree {
     recursive: bool,
 }
 
-impl<M: Metric> TreePlugin<M> for DiagGaussianTree {
-    fn update(&mut self, _my_tree: &CoverTreeReader<M>) {}
+impl<D:PointCloud> TreePlugin<D> for DiagGaussianTree {
+    fn update(&mut self, _my_tree: &CoverTreeReader<D>) {}
 }
 
 /// Zero sized type that can be passed around. Equivilant to `()`
@@ -182,13 +182,13 @@ impl GrandmaDiagGaussian {
     }
 }
 
-impl<M: Metric> GrandmaPlugin<M> for GrandmaDiagGaussian {
+impl<D:PointCloud> GrandmaPlugin<D> for GrandmaDiagGaussian {
     type NodeComponent = DiagGaussian;
     type TreeComponent = DiagGaussianTree;
     fn node_component(
         parameters: &Self::TreeComponent,
-        my_node: &CoverNode<M>,
-        my_tree: &CoverTreeReader<M>,
+        my_node: &CoverNode<D>,
+        my_tree: &CoverTreeReader<D>,
     ) -> Self::NodeComponent {
         let moment1 = my_tree
             .parameters()
@@ -227,7 +227,7 @@ impl<M: Metric> GrandmaPlugin<M> for GrandmaDiagGaussian {
                 my_tree
                     .parameters()
                     .point_cloud
-                    .get_point(*my_node.center_index())
+                    .point(*my_node.center_index())
                     .unwrap(),
             );
         }

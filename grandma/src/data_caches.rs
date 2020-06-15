@@ -21,6 +21,7 @@ use crate::errors::GrandmaResult;
 use pointcloud::*;
 use rand::{thread_rng, Rng};
 use std::fmt;
+use std::sync::Arc;
 
 #[derive(Clone)]
 pub(crate) struct CoveredData {
@@ -35,10 +36,10 @@ pub(crate) struct UncoveredData {
 }
 
 impl UncoveredData {
-    pub(crate) fn pick_center<M: Metric>(
+    pub(crate) fn pick_center<D:PointCloud>(
         &mut self,
         radius: f32,
-        point_cloud: &PointCloud<M>,
+        point_cloud: &Arc<D>,
     ) -> GrandmaResult<CoveredData> {
         let mut rng = thread_rng();
         let new_center: usize = rng.gen_range(0, self.coverage.len());
@@ -101,7 +102,7 @@ fn find_split(dist_indexes: &[(f32, usize)], thresh: f32) -> usize {
 }
 
 impl CoveredData {
-    pub(crate) fn new<M: Metric>(point_cloud: &PointCloud<M>) -> GrandmaResult<CoveredData> {
+    pub(crate) fn new<D:PointCloud>(point_cloud: &Arc<D>) -> GrandmaResult<CoveredData> {
         let mut coverage = point_cloud.reference_indexes();
         let center_index = coverage.pop().unwrap();
         let dists = point_cloud.distances_to_point_index(center_index, &coverage)?;
