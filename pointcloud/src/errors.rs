@@ -18,6 +18,7 @@
 */
 
 //! The errors that can occur when a point cloud is loading, working or saving
+use crate::PointIndex;
 use std::error::Error;
 use std::fmt;
 use std::io;
@@ -32,11 +33,13 @@ pub enum PointCloudError {
     /// Unable to retrieve some data point (given by index) in a file (slice name)
     DataAccessError {
         /// Index of access error
-        index: u64,
+        index: PointIndex,
         /// File that had the access error
         reason: String,
     },
+    /// The metric broke
     MetricError,
+    /// You passes unsorted indexes into a function that required sorted indexes
     NotSorted,
     /// Most common error, the given point name isn't present in the training data
     NameNotInTree(String),
@@ -70,10 +73,7 @@ impl fmt::Display for PointCloudError {
                 f,
                 "The metric failed, you probably mixed sparse and dense data"
             ),
-            PointCloudError::NotSorted => write!(
-                f,
-                "Passed data that wasn't sorted"
-            ),
+            PointCloudError::NotSorted => write!(f, "Passed data that wasn't sorted"),
         }
     }
 }
@@ -97,9 +97,7 @@ impl Error for PointCloudError {
             PointCloudError::MetricError => {
                 "The metric failed, you probably mixed sparse and dense data"
             }
-            PointCloudError::NotSorted => {
-                "Passed data that wasn't sorted"
-            }
+            PointCloudError::NotSorted => "Passed data that wasn't sorted",
         }
     }
 
@@ -135,7 +133,7 @@ impl PointCloudError {
     /// If we can't get an element from a loaded data file, gives the i and filename
     pub fn data_access(index: usize, reason: String) -> PointCloudError {
         PointCloudError::DataAccessError {
-            index: index as u64,
+            index: index as PointIndex,
             reason,
         }
     }

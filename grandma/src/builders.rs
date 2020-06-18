@@ -26,6 +26,7 @@ use pbr::ProgressBar;
 //use pointcloud::*;
 use std::cmp::{max, min};
 use std::sync::{atomic, Arc, RwLock};
+use yaml_rust::Yaml;
 
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use errors::GrandmaResult;
@@ -206,6 +207,21 @@ impl CoverTreeBuilder {
             verbosity: 2,
         }
     }
+
+    /// Creates a builder from an open yaml object
+    pub fn from_yaml(params: &Yaml) -> Self {
+        CoverTreeBuilder {
+            scale_base: params["scale_base"]
+            .as_f64().unwrap_or(2.0) as f32,
+            cutoff: params["cutoff"]
+            .as_i64().unwrap_or(1) as usize,
+            resolution: params["resolution"]
+            .as_i64().unwrap_or(-10) as i32,
+            use_singletons: params["use_singletons"]
+            .as_bool().unwrap_or(true),
+            verbosity: params["verbosity"].as_i64().unwrap_or(2) as u32,
+        }
+    } 
 
     ///
     pub fn set_scale_base(&mut self, x: f32) -> &mut Self {

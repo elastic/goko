@@ -1,22 +1,25 @@
-use std::path::{Path,PathBuf};
+//! Loaders for datasets. Just opens them up and returns a point cloud.
 
-
-use crate::{PointRef, PointIndex, Metric};
-use crate::distances::*;
+use std::path::{Path, PathBuf};
 
 use crate::base_traits::*;
-use crate::label_sources::*;
-use crate::glued_data_cloud::*;
 use crate::data_sources::*;
 use crate::errors::*;
+use crate::glued_data_cloud::*;
+use crate::label_sources::*;
+use crate::Metric;
 
+mod yaml_loaders;
+pub use yaml_loaders::*;
+mod csv_loaders;
+pub use csv_loaders::*;
 
-pub fn open_labeled_memmaps<M:Metric>(
+/// Opens a set of memmaps of both data and labels
+pub fn open_labeled_memmaps<M: Metric>(
     data_dim: usize,
     label_dim: usize,
     data_paths: &[PathBuf],
     labels_paths: &[PathBuf],
-    ram: bool,
 ) -> PointCloudResult<HashGluedCloud<SimpleLabeledCloud<DataMemmap<M>, VecLabels>>> {
     if data_paths.len() != labels_paths.len() {
         panic!(
@@ -24,29 +27,46 @@ pub fn open_labeled_memmaps<M:Metric>(
             data_paths, labels_paths
         );
     }
-    let collection: PointCloudResult<Vec<SimpleLabeledCloud<DataMemmap<M>, VecLabels>>> = data_paths.iter().zip(labels_paths.iter()).map(|(dp,lp)| {
-        let data = DataMemmap::<M>::new(data_dim, &dp)?;
-        let labels = DataMemmap::<M>::new(label_dim, &lp)?.convert_to_label();
-        Ok(SimpleLabeledCloud::new(data,labels))
-    }).collect();
+    let collection: PointCloudResult<Vec<SimpleLabeledCloud<DataMemmap<M>, VecLabels>>> =
+        data_paths
+            .iter()
+            .zip(labels_paths.iter())
+            .map(|(dp, lp)| {
+                let data = DataMemmap::<M>::new(data_dim, &dp)?;
+                let labels = DataMemmap::<M>::new(label_dim, &lp)?.convert_to_label();
+                Ok(SimpleLabeledCloud::new(data, labels))
+            })
+            .collect();
     Ok(HashGluedCloud::new(collection?))
 }
 
-pub fn open_memmaps<M:Metric>(
+/// Opens a set of memmaps of just data
+pub fn open_memmaps<M: Metric>(
     data_dim: usize,
-    label_dim: usize,
     data_paths: &[PathBuf],
-    ram: bool,
 ) -> PointCloudResult<HashGluedCloud<DataMemmap<M>>> {
-    let collection: PointCloudResult<Vec<DataMemmap<M>>> = data_paths.iter().map(|dp| {
-        DataMemmap::<M>::new(data_dim, &dp)
-    }).collect();
+    let collection: PointCloudResult<Vec<DataMemmap<M>>> = data_paths
+        .iter()
+        .map(|dp| DataMemmap::<M>::new(data_dim, &dp))
+        .collect();
     Ok(HashGluedCloud::new(collection?))
 }
 
-pub fn convert_glued_memmap_to_ram<M:Metric>(glued_cloud:HashGluedCloud<DataMemmap<M>>) -> HashGluedCloud<DataRam<M>> {
-    HashGluedCloud::new(glued_cloud.take_data_sources().drain(0..).map(|ds| ds.convert_to_ram()).collect())
+/// Concatenates a glued data memmap to a single ram dataset
+pub fn convert_glued_memmap_to_ram<M: Metric>(
+    glued_cloud: HashGluedCloud<DataMemmap<M>>,
+) -> DataRam<M> {
+    glued_cloud
+        .take_data_sources()
+        .drain(0..)
+        .map(|ds| ds.convert_to_ram())
+        .fold_first(|mut a, b| {
+            a.merge(b);
+            a
+        })
+        .unwrap()
 }
+
 /*
 
 impl<M: Metric> PointCloud<M> {
@@ -157,68 +177,7 @@ impl<M: Metric> PointCloud<M> {
         })
     }
 
-    /// Given a yaml file on disk, it builds a point cloud. Minimal example below.
-    /// ```yaml
-    /// ---
-    /// data_path: DATAMEMMAP
-    /// labels_path: LABELS_CSV_OR_MEMMAP
-    /// count: NUMBER_OF_DATA_POINTS
-    /// data_dim: 784
-    /// labels_dim: 10
-    /// in_ram: True
-    /// ```
-    /// This assumes that your labels are either a CSV or a memmap file.
-    /// If one specifies a schema then this is the minimal example
-    /// ```yaml
-    /// ---
-    /// data_path: DATAMEMMAP
-    /// labels_path: LABELS_CSV_OR_MEMMAP
-    /// count: NUMBER_OF_DATA_POINTS
-    /// data_dim: 784
-    /// schema:
-    ///    natural: u32
-    ///    integer: i32
-    ///    real: f32
-    ///    string: String
-    ///    boolean: bool
-    /// ```
-    pub fn from_yaml<P: AsRef<Path>>(
-        params: &Yaml,
-        yaml_path: P,
-    ) -> PointCloudResult<PointCloud<M>> {
-        let data_paths = &get_file_list(
-            params["data_path"]
-                .as_str()
-                .expect("Unable to read the 'labels_path'"),
-            yaml_path.as_ref(),
-        );
-        let labels_paths = &get_file_list(
-            params["labels_path"]
-                .as_str()
-                .expect("Unable to read the 'labels_path'"),
-            yaml_path.as_ref(),
-        );
-        let data_dim = params["data_dim"]
-            .as_i64()
-            .expect("Unable to read the 'data_dim'") as usize;
 
-        let mut deser = LabelScheme::new();
-        if params["schema"].is_badvalue() {
-            let labels_dim = params["labels_dim"]
-                .as_i64()
-                .expect("Unable to read the 'labels_dim' or the 'schema'")
-                as usize;
-            deser.add_vector("y".to_string(), labels_dim, "f32");
-        } else {
-            build_label_schema_yaml(&mut deser, &params["schema"]);
-        }
-
-        let ram_bool = match params["in_ram"].as_bool() {
-            Some(b) => b,
-            None => true,
-        };
-        PointCloud::<M>::from_memmap_files(data_dim, deser, data_paths, labels_paths, ram_bool)
-    }
 
     /// Runs `from_yaml` on the file at a given path
     pub fn from_file<P: AsRef<Path>>(path: P) -> PointCloudResult<PointCloud<M>> {

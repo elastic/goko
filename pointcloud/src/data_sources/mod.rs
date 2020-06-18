@@ -20,9 +20,6 @@
 //! Some data sources and a trait to dimension and uniformly reference the data contained.
 //! The only currently supported are memmaps and ram blobs.
 
-use crate::errors::*;
-use std::fmt::Debug;
-
 mod memmap_ram;
 
 #[allow(dead_code)]
@@ -30,4 +27,3 @@ mod memmapf32;
 
 #[doc(hidden)]
 pub use memmap_ram::*;
-

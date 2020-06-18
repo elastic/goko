@@ -448,7 +448,7 @@ impl<D: PointCloud> CoverTreeWriter<D> {
             verbosity: 2,
             plugins: RwLock::new(TreePluginSet::new()),
         });
-        let root_address = (cover_proto.get_root_scale(), cover_proto.get_root_index());
+        let root_address = (cover_proto.get_root_scale(), cover_proto.get_root_index() as usize);
         let layers = cover_proto
             .get_layers()
             .par_iter()
@@ -472,7 +472,7 @@ impl<D: PointCloud> CoverTreeWriter<D> {
         cover_proto.set_dim(self.parameters.point_cloud.dim() as u64);
         cover_proto.set_count(self.parameters.point_cloud.len() as u64);
         cover_proto.set_root_scale(self.root_address.0);
-        cover_proto.set_root_index(self.root_address.1);
+        cover_proto.set_root_index(self.root_address.1 as u64);
         cover_proto.set_layers(self.layers.iter().map(|l| l.save()).collect());
         cover_proto
     }
@@ -490,7 +490,8 @@ pub(crate) mod tests {
     use crate::utils::cover_tree_from_yaml;
     use std::path::Path;
 
-    pub(crate) fn build_mnist_tree() -> CoverTreeWriter<L2> {
+
+    pub(crate) fn build_mnist_tree() -> CoverTreeWriter<DataRam<L2>> {
         let file_name = "../data/mnist_complex.yml";
         let path = Path::new(file_name);
         if !path.exists() {
@@ -499,7 +500,7 @@ pub(crate) mod tests {
         cover_tree_from_yaml(&path).unwrap()
     }
 
-    pub(crate) fn build_basic_tree() -> CoverTreeWriter<L2> {
+    pub(crate) fn build_basic_tree() -> CoverTreeWriter<LabeledRamL2> {
         let data = vec![0.499, 0.49, 0.48, -0.49, 0.0];
         let labels = vec![0.0, 0.0, 0.0, 1.0, 1.0];
 

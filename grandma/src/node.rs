@@ -326,7 +326,7 @@ impl<D:PointCloud> CoverNode<D> {
             .map(|i| *i as PointIndex)
             .collect();
         let radius = node_proto.get_radius();
-        let address = (scale_index, node_proto.get_center_index());
+        let address = (scale_index, node_proto.get_center_index() as usize);
         let cover_count = node_proto.get_cover_count() as usize;
         let children = if node_proto.get_is_leaf() {
             None
