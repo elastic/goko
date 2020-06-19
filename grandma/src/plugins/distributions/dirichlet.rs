@@ -366,7 +366,7 @@ impl<D:PointCloud> DirichletBaseline<D> {
             for _ in 0..self.sequence_len {
                 let mut rng = thread_rng();
                 let query_point =
-                    point_cloud.point(rng.gen_range(0, point_cloud.len()) as u64)?;
+                    point_cloud.point(rng.gen_range(0, point_cloud.len()))?;
                 tracker.add_dry_insert(self.reader.dry_insert(&query_point)?);
                 seq_results.push(tracker.current_stats());
             }

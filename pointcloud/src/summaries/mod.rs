@@ -1,6 +1,6 @@
 //! Summaries for some label types
 
-use crate::errors::PointCloudResult;
+use crate::pc_errors::PointCloudResult;
 use std::cmp::Eq;
 use std::default::Default;
 use std::iter::Iterator;

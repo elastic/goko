@@ -10,7 +10,7 @@ use super::*;
 /// ```yaml
 /// ---
 /// data_path: DATAMEMMAP
-/// labels_path: LABELS_CSV_OR_MEMMAP
+/// labels_path: LABELS_CSV
 /// count: NUMBER_OF_DATA_POINTS
 /// data_dim: 784
 /// label_csv_index: 2
@@ -22,6 +22,7 @@ pub fn labeled_ram_from_yaml<P: AsRef<Path>, M: Metric>(
         .unwrap_or_else(|_| panic!("Unable to read config file {:?}", &path.as_ref()));
 
     let params_files = &YamlLoader::load_from_str(&config).unwrap()[0];
+    println!("{:?}", params_files);
 
     let data_paths = &get_file_list(
         params_files["data_path"]
@@ -50,6 +51,53 @@ pub fn labeled_ram_from_yaml<P: AsRef<Path>, M: Metric>(
     Ok(SimpleLabeledCloud::new(
         data_set,
         label_set.drain(0..).fold_first(|mut a,b| {a.merge(&b); a}).unwrap(),
+    ))
+}
+
+/// Given a yaml file on disk, it builds a point cloud. Minimal example below.
+/// ```yaml
+/// ---
+/// data_path: DATAMEMMAP
+/// labels_path: LABELS_MEMMAP
+/// count: NUMBER_OF_DATA_POINTS
+/// data_dim: 784
+/// label_dim: 10
+/// ```
+pub fn vec_labeled_ram_from_yaml<P: AsRef<Path>, M: Metric>(
+    path: P,
+) -> PointCloudResult<SimpleLabeledCloud<DataRam<M>,VecLabels>> {
+    let config = fs::read_to_string(&path)
+        .unwrap_or_else(|_| panic!("Unable to read config file {:?}", &path.as_ref()));
+
+    let params_files = &YamlLoader::load_from_str(&config).unwrap()[0];
+
+    let data_paths = &get_file_list(
+        params_files["data_path"]
+            .as_str()
+            .expect("Unable to read the 'data_path'"),
+        path.as_ref(),
+    );
+    let labels_path = &get_file_list(
+        params_files["labels_path"]
+            .as_str()
+            .expect("Unable to read the 'labels_path'"),
+        path.as_ref(),
+    );
+
+    let data_dim = params_files["data_dim"]
+        .as_i64()
+        .expect("Unable to read the 'data_dim'") as usize;
+
+    let labels_dim = params_files["labels_dim"]
+        .as_i64()
+        .expect("Unable to read the 'labels_dim'") as usize;
+
+    let label_set = convert_glued_memmap_to_ram(open_memmaps::<M>(labels_dim, labels_path)?).convert_to_label();
+    let data_set = convert_glued_memmap_to_ram(open_memmaps(data_dim, data_paths)?);
+
+    Ok(SimpleLabeledCloud::new(
+        data_set,
+        label_set,
     ))
 }
 

@@ -160,13 +160,14 @@ impl<D:PointCloud> CoverNode<D> {
 
     /// Performs the `singleton_knn` and `child_knn` with a provided query heap. If you have the distance
     /// from the query point to this you can pass it to save a distance calculation.
-    pub fn knn<T: SingletonQueryHeap + RoutingQueryHeap>(
+    pub fn knn<'a, P: Into<PointRef<'a>>, T: SingletonQueryHeap + RoutingQueryHeap>(
         &self,
         dist_to_center: Option<f32>,
-        point: &PointRef,
+        point: P,
         point_cloud: &D,
         query_heap: &mut T,
     ) -> GrandmaResult<()> {
+        let point: PointRef<'a> = point.into();
         self.singleton_knn(point, point_cloud, query_heap)?;
 
         let dist_to_center =
@@ -180,12 +181,13 @@ impl<D:PointCloud> CoverNode<D> {
     }
 
     /// Performs a brute force knn against just the singleton children with a provided query heap.
-    pub fn singleton_knn<T: SingletonQueryHeap>(
+    pub fn singleton_knn<'a, P: Into<PointRef<'a>>, T: SingletonQueryHeap>(
         &self,
-        point: &PointRef,
+        point: P,
         point_cloud: &D,
         query_heap: &mut T,
     ) -> GrandmaResult<()> {
+        let point: PointRef<'a> = point.into();
         let distances = point_cloud.distances_to_point(point, &self.singles_indexes[..])?;
         query_heap.push_outliers(&self.singles_indexes[..], &distances[..]);
         Ok(())
@@ -193,13 +195,14 @@ impl<D:PointCloud> CoverNode<D> {
 
     /// Performs a brute force knn against the children of the node with a provided query heap. Does nothing if this is a leaf node.
     /// If you have the distance from the query point to this you can pass it to save a distance calculation.
-    pub fn child_knn<T: RoutingQueryHeap>(
+    pub fn child_knn<'a, P: Into<PointRef<'a>>, T: RoutingQueryHeap>(
         &self,
         dist_to_center: Option<f32>,
-        point: &PointRef,
+        point: P,
         point_cloud: &D,
         query_heap: &mut T,
     ) -> GrandmaResult<()> {
+        let point: PointRef<'a> = point.into();
         let dist_to_center =
             dist_to_center.unwrap_or(point_cloud.distances_to_point(point, &[self.address.1])?[0]);
 
@@ -218,13 +221,14 @@ impl<D:PointCloud> CoverNode<D> {
     }
 
     /// Gives the closest routing node to the query point.
-    pub fn nearest_covering_child(
+    pub fn nearest_covering_child<'a, P: Into<PointRef<'a>>, >(
         &self,
         scale_base: f32,
         dist_to_center: f32,
-        point: &PointRef,
+        point: P,
         point_cloud: &D,
     ) -> GrandmaResult<Option<(f32, NodeAddress)>> {
+        let point: PointRef<'a> = point.into();
         if let Some(children) = &self.children {
             let children_indexes: Vec<PointIndex> =
                 children.addresses.iter().map(|(_si, pi)| *pi).collect();
@@ -256,13 +260,14 @@ impl<D:PointCloud> CoverNode<D> {
     /// Gives the child that the point would be inserted into if the
     /// point just happened to never be picked as a center. This is the first child node that covers
     /// the point.
-    pub fn covering_child(
+    pub fn covering_child<'a, P: Into<PointRef<'a>>, >(
         &self,
         scale_base: f32,
         dist_to_center: f32,
-        point: &PointRef,
+        point: P,
         point_cloud: &D,
     ) -> GrandmaResult<Option<(f32, NodeAddress)>> {
+        let point: PointRef<'a> = point.into();
         if let Some(children) = &self.children {
             if dist_to_center < scale_base.powi(children.nested_scale) {
                 return Ok(Some((
@@ -437,14 +442,12 @@ mod tests {
     fn knn_node_children_mixed() {
         // Tests the mixed uppacking
         let data = vec![0.0, 0.49, 0.48, 0.5, 0.1, 0.2, 0.3];
-        let labels = vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0];
-
-        let point_cloud =
-            PointCloud::<L2>::simple_from_ram(Box::from(data), 1, Box::from(labels), 1).unwrap();
+        let labels = vec![0, 0, 0, 0, 1, 1, 1];
+        let point_cloud = DefaultLabeledCloud::<L2>::new_simple(data, 1, labels);
 
         let test_node = create_test_node();
         let mut heap = KnnQueryHeap::new(5, 2.0);
-        let point = [0.494];
+        let point = [0.494f32];
         test_node
             .knn(None, &point, &point_cloud, &mut heap)
             .unwrap();
@@ -465,14 +468,12 @@ mod tests {
     #[test]
     fn knn_node_children_only() {
         let data = vec![0.0, 0.49, 0.48, 0.5, 0.1, 0.2, 0.3];
-        let labels = vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0];
-
-        let point_cloud =
-            PointCloud::<L2>::simple_from_ram(Box::from(data), 1, Box::from(labels), 1).unwrap();
+        let labels = vec![0, 0, 0, 0, 1, 1, 1];
+        let point_cloud = DefaultLabeledCloud::<L2>::new_simple(data, 1, labels);
 
         let test_node = create_test_node();
         let mut heap = KnnQueryHeap::new(5, 2.0);
-        let point = [0.494];
+        let point = [0.494f32];
         test_node
             .knn(None, &point, &point_cloud, &mut heap)
             .unwrap();
@@ -493,14 +494,12 @@ mod tests {
     #[test]
     fn knn_node_leaf() {
         let data = vec![0.0, 0.49, 0.48, 0.5, 0.1, 0.2, 0.3];
-        let labels = vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0];
-
-        let point_cloud =
-            PointCloud::<L2>::simple_from_ram(Box::from(data), 1, Box::from(labels), 1).unwrap();
+        let labels = vec![0, 0, 0, 0, 1, 1, 1];
+        let point_cloud = DefaultLabeledCloud::<L2>::new_simple(data, 1, labels);
 
         let test_node = create_test_leaf_node();
         let mut heap = KnnQueryHeap::new(5, 2.0);
-        let point = [0.494];
+        let point = [0.494f32];
         test_node
             .knn(None, &point, &point_cloud, &mut heap)
             .unwrap();

@@ -20,7 +20,7 @@
 //! Memmapped and Ram allocated data.
 
 use super::memmapf32::Mmapf32;
-use crate::errors::{PointCloudError, PointCloudResult};
+use crate::pc_errors::{PointCloudError, PointCloudResult};
 use std::fs::OpenOptions;
 use std::marker::PhantomData;
 use std::path::Path;
@@ -269,9 +269,8 @@ pub mod tests {
 
         let indexes = [1];
         let point = Point::Dense(vec![0.0; 5]);
-        let point_ref = point.to_ref();
 
-        let dists = pc.distances_to_point(&point_ref, &indexes).unwrap();
+        let dists = pc.distances_to_point(&point, &indexes).unwrap();
         for d in dists {
             assert_approx_eq!(5.0f32.sqrt(), d);
         }

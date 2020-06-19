@@ -4,7 +4,6 @@
 //! It also has trackers used to see when queries and sequences are out of distribution.
 
 use super::*;
-use crate::*;
 use std::collections::HashMap;
 use std::fmt::Debug;
 
@@ -31,7 +30,7 @@ pub trait DiscreteDistribution: Clone + 'static {
 ///
 pub trait ContinousDistribution: Clone + 'static {
     /// Pass none if you want to test for a singleton, returns 0 if
-    fn ln_prob(&self, point: &[f32]) -> Option<f64>;
+    fn ln_prob(&self, point: &PointRef) -> Option<f64>;
 
     /// Computes the KL divergence of two bucket probs.
     /// KL(self || other)
@@ -50,7 +49,7 @@ pub trait DiscreteBayesianDistribution: DiscreteDistribution + Clone + 'static {
 pub trait ContinousBayesianDistribution: ContinousDistribution + Clone + 'static {
     /// Adds an observation to the distribution.
     /// This currently shifts the underlying parameters of the distribution rather than be tracked.
-    fn add_observation(&mut self, point: &[f32]);
+    fn add_observation(&mut self, point: &PointRef);
 }
 
 ///

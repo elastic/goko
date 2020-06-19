@@ -1,11 +1,12 @@
 //! Some label sets to modularly glue together with the data sources.
 
 use crate::base_traits::*;
-use crate::errors::*;
+use crate::pc_errors::*;
 use crate::summaries::*;
 use crate::PointIndex;
 
 /// Labels for a small number of categories, using ints
+#[derive(Debug)]
 pub struct SmallIntLabels {
     labels: Vec<u64>,
     mask: Option<Vec<bool>>,
@@ -81,6 +82,7 @@ impl SmallIntLabels {
 }
 
 /// Uses a vector to label your data. It can be 1 hot encoded, but if you do that you should use `SmallIntLabels`
+#[derive(Debug)]
 pub struct VecLabels {
     labels: Vec<f32>,
     mask: Option<Vec<bool>>,

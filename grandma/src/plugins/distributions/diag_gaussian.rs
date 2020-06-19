@@ -35,7 +35,7 @@ macro_rules! internal_var {
 }
 
 impl ContinousDistribution for DiagGaussian {
-    fn ln_prob(&self, point: &[f32]) -> Option<f64> {
+    fn ln_prob(&self, point: &PointRef) -> Option<f64> {
         let mean_vars = internal_mean!(self.moment1, self.count).zip(internal_var!(
             self.moment1,
             self.moment2,
@@ -43,12 +43,12 @@ impl ContinousDistribution for DiagGaussian {
         ));
 
         let (exponent, det) = point
-            .iter()
+            .dense_iter(self.dim())
             .zip(mean_vars)
             .map(|(xi, (ui, vi))| ((xi - ui) * (xi - ui) / vi, vi))
             .fold((0.0, 1.0), |(a, v), (x, u)| (a + x, v * u));
 
-        Some((exponent - det + (point.len() as f32) * (2.0 * PI).ln()) as f64)
+        Some((exponent - det + (self.dim() as f32) * (2.0 * PI).ln()) as f64)
     }
 
     fn kl_divergence(&self, other: &DiagGaussian) -> Option<f64> {
@@ -82,43 +82,44 @@ impl ContinousDistribution for DiagGaussian {
 
 impl DiagGaussian {
     /// Creates a new empty diagonal gaussian
-    pub fn new() -> DiagGaussian {
+    pub fn new(dim:usize) -> DiagGaussian {
         DiagGaussian {
-            moment1: Vec::new(),
-            moment2: Vec::new(),
+            moment1: vec![0.0;dim],
+            moment2: vec![0.0;dim],
             count: 0,
         }
     }
 
+    /// Dimension for this 
+    pub fn dim(&self) -> usize {
+        self.moment1.len()
+    }
+
     /// adds a point to the Diagonal Gaussian
-    pub fn add_point(&mut self, point: &[f32]) {
-        if self.count == 0 {
-            self.moment1.extend(point);
-            self.moment2.extend(point.iter().map(|v| v * v));
-            self.count = 1;
-        } else {
-            self.moment1
-                .iter_mut()
-                .zip(point)
-                .for_each(|(m, p)| *m += p);
-            self.moment2
-                .iter_mut()
-                .zip(point)
-                .for_each(|(m, p)| *m += p * p);
-            self.count += 1;
-        }
+    pub fn add_point(&mut self, point: &PointRef) {
+        let dim = self.dim();
+        self.moment1
+            .iter_mut()
+            .zip(point.dense_iter(dim))
+            .for_each(|(m, p)| *m += p);
+        self.moment2
+            .iter_mut()
+            .zip(point.dense_iter(dim))
+            .for_each(|(m, p)| *m += p * p);
+        self.count += 1;
     }
 
     /// removes a point from the Diagonal Gaussian
-    pub fn remove_point(&mut self, point: &[f32]) {
+    pub fn remove_point(&mut self, point: &PointRef) {
+        let dim = self.dim();
         if self.count != 0 {
             self.moment1
                 .iter_mut()
-                .zip(point)
+                .zip(point.dense_iter(dim))
                 .for_each(|(m, p)| *m -= p);
             self.moment2
                 .iter_mut()
-                .zip(point)
+                .zip(point.dense_iter(dim))
                 .for_each(|(m, p)| *m -= p * p);
             self.count += 1;
         }
@@ -126,21 +127,15 @@ impl DiagGaussian {
 
     /// Merges two diagonal gaussians together
     pub fn merge(&mut self, other: &DiagGaussian) {
-        if self.count == 0 {
-            self.moment1 = other.moment1.clone();
-            self.moment2 = other.moment2.clone();
-            self.count = other.count;
-        } else {
-            self.moment1
-                .iter_mut()
-                .zip(other.moment1.iter())
-                .for_each(|(m, p)| *m += *p);
-            self.moment2
-                .iter_mut()
-                .zip(other.moment2.iter())
-                .for_each(|(m, p)| *m += *p);
-            self.count += other.count;
-        }
+        self.moment1
+            .iter_mut()
+            .zip(other.moment1.iter())
+            .for_each(|(m, p)| *m += *p);
+        self.moment2
+            .iter_mut()
+            .zip(other.moment2.iter())
+            .for_each(|(m, p)| *m += *p);
+        self.count += other.count;
     }
 
     /// Mean: `moment1/count`
@@ -224,7 +219,7 @@ impl<D:PointCloud> GrandmaPlugin<D> for GrandmaDiagGaussian {
             }
         } else {
             my_dg.add_point(
-                my_tree
+                &my_tree
                     .parameters()
                     .point_cloud
                     .point(*my_node.center_index())

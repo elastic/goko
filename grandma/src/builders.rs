@@ -22,11 +22,13 @@ use crate::*;
 use data_caches::*;
 use layer::*;
 use node::*;
+use std::fs::read_to_string;
 use pbr::ProgressBar;
 //use pointcloud::*;
 use std::cmp::{max, min};
 use std::sync::{atomic, Arc, RwLock};
-use yaml_rust::Yaml;
+use yaml_rust::YamlLoader;
+use std::path::Path;
 
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use errors::GrandmaResult;
@@ -209,7 +211,10 @@ impl CoverTreeBuilder {
     }
 
     /// Creates a builder from an open yaml object
-    pub fn from_yaml(params: &Yaml) -> Self {
+    pub fn from_yaml<P: AsRef<Path>>(path: P) -> Self {
+        let config = read_to_string(&path).expect("Unable to read config file");
+        let params_files = YamlLoader::load_from_str(&config).unwrap();
+        let params = &params_files[0];
         CoverTreeBuilder {
             scale_base: params["scale_base"]
             .as_f64().unwrap_or(2.0) as f32,
@@ -333,13 +338,10 @@ mod tests {
     use std::{thread, time};
 
     pub fn create_test_parameters(
-        data: Box<[f32]>,
+        data: Vec<f32>,
         data_dim: usize,
-        labels: Box<[f32]>,
-        labels_dim: usize,
-    ) -> Arc<CoverTreeParameters<L2>> {
-        let point_cloud =
-            PointCloud::<L2>::simple_from_ram(data, data_dim, labels, labels_dim).unwrap();
+    ) -> Arc<CoverTreeParameters<DefaultCloud<L2>>> {
+        let point_cloud = Arc::new(DefaultCloud::<L2>::new(data, data_dim).unwrap());
         Arc::new(CoverTreeParameters {
             total_nodes: atomic::AtomicUsize::new(1),
             scale_base: 2.0,
@@ -360,8 +362,7 @@ mod tests {
         }
         data.push(0.0);
 
-        let test_parameters =
-            create_test_parameters(Box::from(data.clone()), 1, Box::from(data.clone()), 1);
+        let test_parameters = create_test_parameters(data, 1);
         let build_node = BuilderNode::new(&test_parameters).unwrap();
         let (scale_index, center_index) = build_node.address();
 
@@ -393,15 +394,13 @@ mod tests {
     #[test]
     fn tree_structure_condition() {
         let data = vec![0.49, 0.491, -0.49, 0.0];
-        let labels = vec![0.0, 0.0, 1.0, 1.0];
-
-        let test_parameters =
-            create_test_parameters(Box::from(data.clone()), 1, Box::from(labels), 1);
+        let test_parameters = create_test_parameters(data, 1);
+        
         let build_node = BuilderNode::new(&test_parameters).unwrap();
 
         let (node_sender, node_receiver): (
-            Sender<GrandmaResult<(i32, PointIndex, CoverNode<L2>)>>,
-            Receiver<GrandmaResult<(i32, PointIndex, CoverNode<L2>)>>,
+            Sender<GrandmaResult<(i32, PointIndex, CoverNode<DefaultCloud<L2>>)>>,
+            Receiver<GrandmaResult<(i32, PointIndex, CoverNode<DefaultCloud<L2>>)>>,
         ) = unbounded();
         let node_sender = Arc::new(node_sender);
 
@@ -432,10 +431,8 @@ mod tests {
     #[test]
     fn insertion_tree_structure_condition() {
         let data = vec![0.49, 0.491, -0.49, 0.0];
-        let labels = vec![0.0, 0.0, 1.0, 1.0];
 
-        let point_cloud =
-            PointCloud::<L2>::simple_from_ram(Box::from(data), 1, Box::from(labels), 1).unwrap();
+        let point_cloud = Arc::new(DefaultCloud::<L2>::new(data, 1).unwrap());
         let builder = CoverTreeBuilder {
             scale_base: 2.0,
             cutoff: 1,
@@ -475,10 +472,9 @@ mod tests {
     #[test]
     fn singleltons_off_condition() {
         let data = vec![0.49, 0.491, -0.49, 0.0];
-        let labels = vec![0.0, 0.0, 1.0, 1.0];
 
-        let point_cloud =
-            PointCloud::<L2>::simple_from_ram(Box::from(data), 1, Box::from(labels), 1).unwrap();
+        let point_cloud = Arc::new(DefaultCloud::<L2>::new(data, 1).unwrap());
+
         let builder = CoverTreeBuilder {
             scale_base: 2.0,
             cutoff: 1,

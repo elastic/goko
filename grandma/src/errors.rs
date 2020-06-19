@@ -20,7 +20,7 @@
 //! The errors that can occor when a cover tree is loading, working or saving.
 //! Most errors are floated up from `PointCloud` as that's the i/o layer.
 
-use pointcloud::errors::PointCloudError;
+use pointcloud::pc_errors::PointCloudError;
 use protobuf::ProtobufError;
 use std::error::Error;
 use std::fmt;

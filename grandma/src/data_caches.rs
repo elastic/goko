@@ -163,15 +163,13 @@ mod tests {
         }
         data.push(0.0);
 
-        let labels: Vec<f32> = data
+        let labels: Vec<u64> = data
             .iter()
-            .map(|x| if *x > 0.5 { 1.0 } else { 0.0 })
+            .map(|x| if *x > 0.5 { 1 } else { 0 })
             .collect();
 
-        //data.sort_unstable_by(|a, b| (a).partial_cmp(&b).unwrap_or(Ordering::Equal));
+        let point_cloud = DefaultLabeledCloud::<L2>::new_simple(data, 1, labels);
 
-        let point_cloud =
-            PointCloud::<L2>::simple_from_ram(Box::from(data), 1, Box::from(labels), 1).unwrap();
         let cache = CoveredData::new(&Arc::new(point_cloud)).unwrap();
         let (close, far) = cache.split(1.0).unwrap();
 
@@ -187,15 +185,14 @@ mod tests {
         }
         data.push(0.0);
 
-        let labels: Vec<f32> = data
+        let labels: Vec<u64> = data
             .iter()
-            .map(|x| if *x > 0.5 { 1.0 } else { 0.0 })
+            .map(|x| if *x > 0.5 { 1 } else { 0 })
             .collect();
 
-        //data.sort_unstable_by(|a, b| (a).partial_cmp(&b).unwrap_or(Ordering::Equal));
 
-        let point_cloud =
-            PointCloud::<L2>::simple_from_ram(Box::from(data), 1, Box::from(labels), 1).unwrap();
+        let point_cloud = Arc::new(DefaultLabeledCloud::<L2>::new_simple(data, 1, labels));
+
         let mut cache = UncoveredData {
             coverage: (0..19 as PointIndex).collect(),
         };
@@ -219,26 +216,24 @@ mod tests {
         }
         data.push(0.0);
 
-        let labels: Vec<f32> = data
+        let labels: Vec<u64> = data
             .iter()
-            .map(|x| if *x > 0.5 { 1.0 } else { 0.0 })
+            .map(|x| if *x > 0.5 { 1 } else { 0 })
             .collect();
 
         //data.sort_unstable_by(|a, b| (a).partial_cmp(&b).unwrap_or(Ordering::Equal));
+        let point_cloud = DefaultLabeledCloud::<L2>::new_simple(data.clone(), 1, labels);
 
-        let point_cloud =
-            PointCloud::<L2>::simple_from_ram(Box::from(data.clone()), 1, Box::from(labels), 1)
-                .unwrap();
-        let cache = CoveredData::new(&point_cloud).unwrap();
+        let cache = CoveredData::new(&Arc::new(point_cloud)).unwrap();
 
         let thresh = 0.5;
-        let mut true_close: Vec<u64> = Vec::new();
-        let mut true_far: Vec<u64> = Vec::new();
+        let mut true_close = Vec::new();
+        let mut true_far = Vec::new();
         for i in 0..19 {
             if data[i] < thresh {
-                true_close.push(i as u64);
+                true_close.push(i);
             } else {
-                true_far.push(i as u64);
+                true_far.push(i);
             }
             assert_approx_eq!(data[i], cache.dists[i]);
         }

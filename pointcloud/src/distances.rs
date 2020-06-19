@@ -20,9 +20,10 @@
 //! Supported distances
 
 use super::PointRef;
-use crate::errors::*;
+use crate::pc_errors::*;
 use packed_simd::*;
 use std::fmt::Debug;
+
 
 /// The trait that enables a metric
 pub trait Metric: 'static + Send + Sync + Debug + Clone {
@@ -34,8 +35,11 @@ pub trait Metric: 'static + Send + Sync + Debug + Clone {
     /// The norm, dense(x,x)
     fn norm(x: &[f32]) -> f32;
     /// Useful external calculation
-    fn dist(x: &PointRef, y: &PointRef) -> PointCloudResult<f32> {
-        match (x, y) {
+    fn dist<'a, 'b,T,S>(x: T, y: S) -> PointCloudResult<f32>
+    where 
+        T: Into<PointRef<'a>>,
+        S: Into<PointRef<'b>>, {
+        match ((x).into(),(y).into()) {
             (PointRef::Dense(x_vals), PointRef::Dense(y_vals)) => Ok((Self::dense)(x_vals, y_vals)),
             (PointRef::Sparse(x_vals, x_ind), PointRef::Sparse(y_vals, y_inds)) => {
                 Ok((Self::sparse)(x_ind, x_vals, y_inds, y_vals))

@@ -54,7 +54,7 @@ pub fn cover_tree_from_labeled_yaml<P: AsRef<Path>>(path: P) -> GrandmaResult<Co
     let params_files = YamlLoader::load_from_str(&config).unwrap();
     let params = &params_files[0];
 
-    let point_cloud = labeled_ram_from_yaml::<_,L2>(path)?;
+    let point_cloud = labeled_ram_from_yaml::<_,L2>(&path)?;
     if let Some(count) = params["count"].as_i64() {
         if count as usize != point_cloud.len() {
             panic!(
@@ -66,7 +66,7 @@ pub fn cover_tree_from_labeled_yaml<P: AsRef<Path>>(path: P) -> GrandmaResult<Co
         }
     }
     
-    let builder = CoverTreeBuilder::from_yaml(&params);
+    let builder = CoverTreeBuilder::from_yaml(&path);
     println!(
         "Loaded dataset, building a cover tree with scale base {}, cutoff {}, min resolution {}, and use_singletons {}",
         &builder.scale_base, &builder.cutoff, &builder.resolution, &builder.use_singletons
@@ -91,7 +91,7 @@ pub fn cover_tree_from_yaml<P: AsRef<Path>>(path: P) -> GrandmaResult<CoverTreeW
     let params_files = YamlLoader::load_from_str(&config).unwrap();
     let params = &params_files[0];
 
-    let point_cloud = ram_from_yaml::<_,L2>(path)?;
+    let point_cloud = ram_from_yaml::<_,L2>(&path)?;
     if let Some(count) = params["count"].as_i64() {
         if count as usize != point_cloud.len() {
             panic!(
@@ -103,7 +103,7 @@ pub fn cover_tree_from_yaml<P: AsRef<Path>>(path: P) -> GrandmaResult<CoverTreeW
         }
     }
     
-    let builder = CoverTreeBuilder::from_yaml(&params);
+    let builder = CoverTreeBuilder::from_yaml(&path);
     println!(
         "Loaded dataset, building a cover tree with scale base {}, cutoff {}, min resolution {}, and use_singletons {}",
         &builder.scale_base, &builder.cutoff, &builder.resolution, &builder.use_singletons

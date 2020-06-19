@@ -15,7 +15,7 @@ use crate::*;
 use std::fmt::Debug;
 use type_map::concurrent::TypeMap;
 
-//pub mod distributions;
+pub mod distributions;
 
 /*
 mod sequence_kl;

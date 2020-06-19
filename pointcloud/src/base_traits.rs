@@ -2,9 +2,10 @@ use std::sync::Mutex;
 
 use rayon::prelude::*;
 use std::cmp::min;
+use std::fmt::Debug;
 
 use crate::distances::*;
-use crate::errors::*;
+use crate::pc_errors::*;
 use crate::*;
 
 #[inline]
@@ -13,7 +14,7 @@ fn chunk(data_dim: usize) -> usize {
 }
 
 /// Base trait for a point cloud
-pub trait PointCloud: Send + Sync + 'static {
+pub trait PointCloud: Debug + Send + Sync + 'static {
     /// Underlying metric this point cloud uses
     type Metric: Metric;
 
@@ -86,13 +87,14 @@ pub trait PointCloud: Send + Sync + 'static {
     }
 
     /// The main distance function. This paralizes if there are more than 100 points.
-    fn distances_to_point(
+    fn distances_to_point<'a, T: Into<PointRef<'a>>>(
         &self,
-        x: &PointRef,
+        point: T,
         indexes: &[PointIndex],
     ) -> PointCloudResult<Vec<f32>> {
         let chunk = chunk(self.dim());
         let len = indexes.len();
+        let x: PointRef<'a> = point.into();
         if len > chunk * 3 {
             let mut dists: Vec<f32> = vec![0.0; len];
             let dist_iter = dists.par_chunks_mut(chunk);
@@ -104,7 +106,7 @@ pub trait PointCloud: Send + Sync + 'static {
                     for (d, i) in chunk_dists.iter_mut().zip(chunk_indexes) {
                         match self
                             .point(*i)
-                            .map(|y| (Self::Metric::dist)(x, &y))
+                            .map(|y| (Self::Metric::dist)(&x, &y))
                             .flatten()
                         {
                             Ok(dist) => *d = dist,
@@ -121,7 +123,7 @@ pub trait PointCloud: Send + Sync + 'static {
                 .iter()
                 .map(|i| {
                     let y = self.point(*i)?;
-                    (Self::Metric::dist)(x, &y)
+                    (Self::Metric::dist)(&x, &y)
                 })
                 .collect()
         }
@@ -264,7 +266,7 @@ pub trait Summary<T: ?Sized>: Default {
 
 /// A trait for a container that just holds labels. Meant to be used in conjunction with `SimpleLabeledCloud` to be
 /// and easy label or metadata object.
-pub trait LabelSet: Send + Sync + 'static {
+pub trait LabelSet: Debug + Send + Sync + 'static {
     /// Underlying type.
     type Label: ?Sized;
     /// Summary of a set of labels
@@ -296,6 +298,7 @@ pub trait LabeledCloud: PointCloud {
 
 
 /// Simply shoves together a point cloud and a label set, for a modular label system
+#[derive(Debug)]
 pub struct SimpleLabeledCloud<D: PointCloud, L: LabelSet> {
     data: D,
     labels: L,

@@ -1,6 +1,6 @@
 //! Simple gluing structs that abstracts away multi cloud access
 
-use crate::errors::{PointCloudError, PointCloudResult};
+use crate::pc_errors::{PointCloudError, PointCloudResult};
 
 use crate::{PointIndex, PointRef};
 
@@ -197,9 +197,8 @@ mod tests {
 
         let indexes = [1, 3, 5, 7, 9];
         let point = Point::Dense(vec![0.0; 5]);
-        let point_ref = point.to_ref();
 
-        let dists = pc.distances_to_point(&point_ref, &indexes).unwrap();
+        let dists = pc.distances_to_point(&point, &indexes).unwrap();
         for d in dists {
             assert_approx_eq!(3.0f32.sqrt(), d);
         }
