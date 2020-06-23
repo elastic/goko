@@ -43,7 +43,7 @@ use tree_file_format::*;
 /// Actual reader, primarily contains a read head to the hash-map.
 /// This also contains a reference to the scale_index so that it is easy to save and load. It is largely redundant,
 /// but helps with unit tests.
-pub struct CoverLayerReader<D:PointCloud> {
+pub struct CoverLayerReader<D: PointCloud> {
     scale_index: i32,
     node_reader: MonoReadHandle<PointIndex, CoverNode<D>>,
 }
@@ -57,7 +57,7 @@ impl<D: PointCloud> Clone for CoverLayerReader<D> {
     }
 }
 
-impl<D:PointCloud> CoverLayerReader<D> {
+impl<D: PointCloud> CoverLayerReader<D> {
     /// Read only access to a single node.
     pub fn get_node_and<F, T>(&self, pi: PointIndex, f: F) -> Option<T>
     where
@@ -134,12 +134,12 @@ impl<D:PointCloud> CoverLayerReader<D> {
 }
 
 /// Primarily contains the node writer head, but also has the cluster writer head and the index head.
-pub struct CoverLayerWriter<D:PointCloud> {
+pub struct CoverLayerWriter<D: PointCloud> {
     scale_index: i32,
     node_writer: MonoWriteHandle<PointIndex, CoverNode<D>>,
 }
 
-impl<D:PointCloud> CoverLayerWriter<D> {
+impl<D: PointCloud> CoverLayerWriter<D> {
     /// Creates a reader head. Only way to get one from a newly created layer.
     pub(crate) fn reader(&self) -> CoverLayerReader<D> {
         CoverLayerReader {

@@ -1,15 +1,14 @@
 //! # Dirichlet probability
 //!
-//! We know that the users are quering based on what they want to know about. 
-//! This has some geometric structure, especially for attackers. We have some 
+//! We know that the users are quering based on what they want to know about.
+//! This has some geometric structure, especially for attackers. We have some
 //! prior knowlege about the queries, they should function similarly to the training set.
 //! Sections of data that are highly populated should have a higher likelyhood of being
-//! queried. 
+//! queried.
 //!
-//! This plugin lets us simulate the unknown distribution of the queries of a user in a 
-//! bayesian way. There may be more applications of this idea, but defending against 
+//! This plugin lets us simulate the unknown distribution of the queries of a user in a
+//! bayesian way. There may be more applications of this idea, but defending against
 //! attackers has been proven.
-
 
 use crate::node::CoverNode;
 use crate::plugins::*;
@@ -137,7 +136,7 @@ impl DiscreteDistribution for Dirichlet {
     }
 }
 
-impl<D:PointCloud> NodePlugin<D> for Dirichlet {
+impl<D: PointCloud> NodePlugin<D> for Dirichlet {
     fn update(&mut self, _my_node: &CoverNode<D>, _my_tree: &CoverTreeReader<D>) {}
 }
 
@@ -145,7 +144,7 @@ impl<D:PointCloud> NodePlugin<D> for Dirichlet {
 #[derive(Debug, Clone)]
 pub struct DirichletTree {}
 
-impl<D:PointCloud> TreePlugin<D> for DirichletTree {
+impl<D: PointCloud> TreePlugin<D> for DirichletTree {
     fn update(&mut self, _my_tree: &CoverTreeReader<D>) {}
 }
 
@@ -154,7 +153,7 @@ impl<D:PointCloud> TreePlugin<D> for DirichletTree {
 pub struct GrandmaDirichlet {}
 
 /// Parent trait that make this all work. Ideally this should be included in the `TreePlugin` but rust doesn't like it.
-impl<D:PointCloud> GrandmaPlugin<D> for GrandmaDirichlet {
+impl<D: PointCloud> GrandmaPlugin<D> for GrandmaDirichlet {
     type NodeComponent = Dirichlet;
     type TreeComponent = DirichletTree;
     fn node_component(
@@ -186,7 +185,7 @@ impl<D:PointCloud> GrandmaPlugin<D> for GrandmaDirichlet {
 }
 
 /// Computes a frequentist KL divergence calculation on each node the sequence touches.
-pub struct BayesCategoricalTracker<D:PointCloud> {
+pub struct BayesCategoricalTracker<D: PointCloud> {
     running_distributions: HashMap<NodeAddress, Dirichlet>,
     sequence: VecDeque<Vec<(f32, NodeAddress)>>,
     length: usize,
@@ -195,7 +194,7 @@ pub struct BayesCategoricalTracker<D:PointCloud> {
     reader: CoverTreeReader<D>,
 }
 
-impl<D:PointCloud> fmt::Debug for BayesCategoricalTracker<D> {
+impl<D: PointCloud> fmt::Debug for BayesCategoricalTracker<D> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
@@ -205,7 +204,7 @@ impl<D:PointCloud> fmt::Debug for BayesCategoricalTracker<D> {
     }
 }
 
-impl<D:PointCloud> BayesCategoricalTracker<D> {
+impl<D: PointCloud> BayesCategoricalTracker<D> {
     /// Creates a new blank thing with capacity `size`, input 0 for unlimited.
     pub fn new(
         prior_weight: f64,
@@ -277,7 +276,7 @@ impl<D:PointCloud> BayesCategoricalTracker<D> {
             .remove_child_pop(None, self.observation_weight);
     }
 }
-impl<D:PointCloud> DiscreteBayesianSequenceTracker<D> for BayesCategoricalTracker<D> {
+impl<D: PointCloud> DiscreteBayesianSequenceTracker<D> for BayesCategoricalTracker<D> {
     type Distribution = Dirichlet;
     /// Adds an element to the trace
     fn add_dry_insert(&mut self, trace: Vec<(f32, NodeAddress)>) {
@@ -301,7 +300,7 @@ impl<D:PointCloud> DiscreteBayesianSequenceTracker<D> for BayesCategoricalTracke
 
 /// Trains a baseline by sampling randomly from the training set (used to create the tree)
 /// This baseline is _not_ realistic.
-pub struct DirichletBaseline<D:PointCloud> {
+pub struct DirichletBaseline<D: PointCloud> {
     sequence_len: usize,
     sequence_count: usize,
     sequence_cap: usize,
@@ -310,7 +309,7 @@ pub struct DirichletBaseline<D:PointCloud> {
     reader: CoverTreeReader<D>,
 }
 
-impl<D:PointCloud> DirichletBaseline<D> {
+impl<D: PointCloud> DirichletBaseline<D> {
     /// New with sensible defaults
     pub fn new(reader: CoverTreeReader<D>) -> DirichletBaseline<D> {
         DirichletBaseline {
@@ -365,8 +364,7 @@ impl<D:PointCloud> DirichletBaseline<D> {
             );
             for _ in 0..self.sequence_len {
                 let mut rng = thread_rng();
-                let query_point =
-                    point_cloud.point(rng.gen_range(0, point_cloud.len()))?;
+                let query_point = point_cloud.point(rng.gen_range(0, point_cloud.len()))?;
                 tracker.add_dry_insert(self.reader.dry_insert(&query_point)?);
                 seq_results.push(tracker.current_stats());
             }

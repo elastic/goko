@@ -160,7 +160,6 @@ pub trait PointCloud: Debug + Send + Sync + 'static {
         is: &[PointIndex],
         js: &[PointIndex],
     ) -> PointCloudResult<AdjMatrix> {
-
         if !is.is_sorted() || !js.is_sorted() {
             return Err(PointCloudError::NotSorted);
         }
@@ -251,7 +250,7 @@ impl AdjMatrix {
 
 /// A summary for labels and metadata. You can make this an empty zero sized type for when you don't need it.
 pub trait Summary<T: ?Sized>: Default {
-    /// Adding a single value to the summary. 
+    /// Adding a single value to the summary.
     fn add(&mut self, v: PointCloudResult<Option<&T>>);
     /// Merging several summaries of your data source together. This results in a summary of underlying column over
     /// the union of the indexes used to create the input summaries.
@@ -276,7 +275,7 @@ pub trait LabelSet: Debug + Send + Sync + 'static {
     fn len(&self) -> usize;
     /// If there are no elements left in this label set
     fn is_empty(&self) -> bool;
-    /// Grabs a label reference. Supports errors (the label could be remote), 
+    /// Grabs a label reference. Supports errors (the label could be remote),
     /// and partially labeled datasets with the option.
     fn label(&self, pn: PointIndex) -> PointCloudResult<Option<&Self::Label>>;
     /// Grabs a label summary of a set of indexes.
@@ -289,13 +288,12 @@ pub trait LabeledCloud: PointCloud {
     type Label: ?Sized;
     /// Summary of a set of labels
     type LabelSummary: Summary<Self::Label>;
-    /// Grabs a label reference. Supports errors (the label could be remote), 
+    /// Grabs a label reference. Supports errors (the label could be remote),
     /// and partially labeled datasets with the option.
     fn label(&self, pn: PointIndex) -> PointCloudResult<Option<&Self::Label>>;
     /// Grabs a label summary of a set of indexes.
     fn label_summary(&self, pns: &[PointIndex]) -> PointCloudResult<Self::LabelSummary>;
 }
-
 
 /// Simply shoves together a point cloud and a label set, for a modular label system
 #[derive(Debug)]
@@ -347,7 +345,6 @@ impl<D: PointCloud, L: LabelSet> LabeledCloud for SimpleLabeledCloud<D, L> {
         self.labels.label_summary(pns)
     }
 }
-
 
 /*
 pub trait NamedCloud: PointCloud {

@@ -31,7 +31,6 @@
 #[macro_use]
 extern crate assert_approx_eq;
 
-
 mod distances;
 pub use distances::*;
 pub mod pc_errors;
@@ -47,20 +46,20 @@ mod base_traits;
 #[doc(inline)]
 pub use base_traits::*;
 
-use label_sources::SmallIntLabels;
 use data_sources::DataRam;
+use label_sources::SmallIntLabels;
 
 /// A sensible default for an labeled cloud
-pub type DefaultLabeledCloud<M> = SimpleLabeledCloud<DataRam<M>,SmallIntLabels>;
+pub type DefaultLabeledCloud<M> = SimpleLabeledCloud<DataRam<M>, SmallIntLabels>;
 /// A sensible default for an unlabeled cloud
 pub type DefaultCloud<M> = DataRam<M>;
 
-impl<M:Metric> DefaultLabeledCloud<M> {
+impl<M: Metric> DefaultLabeledCloud<M> {
     /// Simple way of gluing together the most common data source
     pub fn new_simple(data: Vec<f32>, dim: usize, labels: Vec<u64>) -> DefaultLabeledCloud<M> {
         SimpleLabeledCloud::new(
-            DataRam::<M>::new(data,dim).unwrap(),
-            SmallIntLabels::new(labels,None),
+            DataRam::<M>::new(data, dim).unwrap(),
+            SmallIntLabels::new(labels, None),
         )
     }
 }
@@ -80,7 +79,7 @@ pub enum PointRef<'a> {
     Sparse(&'a [f32], &'a [u32]),
 }
 
-/// 
+///
 pub struct DenseIter<'a> {
     p_ref: PointRef<'a>,
     index: usize,
@@ -100,7 +99,7 @@ impl<'a> Iterator for DenseIter<'a> {
                     None
                 }
             }
-            PointRef::Sparse(vals,inds) => {
+            PointRef::Sparse(vals, inds) => {
                 if self.index < self.dim {
                     if inds[self.sparse_index] == self.index as u32 {
                         self.sparse_index += 1;
@@ -116,20 +115,20 @@ impl<'a> Iterator for DenseIter<'a> {
                     None
                 }
             }
-        } 
+        }
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
         match self.p_ref {
-            PointRef::Dense(vals) => (vals.len(),Some(vals.len())),
-            PointRef::Sparse(_,_) => (self.dim,Some(self.dim)),
+            PointRef::Dense(vals) => (vals.len(), Some(vals.len())),
+            PointRef::Sparse(_, _) => (self.dim, Some(self.dim)),
         }
     }
 }
 
 impl<'a> PointRef<'a> {
     /// Gives an iterator that lets you treat the point reference as a dense vector
-    pub fn dense_iter(&self, dim:usize) -> DenseIter<'a> {
+    pub fn dense_iter(&self, dim: usize) -> DenseIter<'a> {
         DenseIter {
             p_ref: self.into(),
             index: 0,
@@ -149,20 +148,19 @@ pub enum Point {
 }
 
 impl<'a> From<&'a [f32]> for PointRef<'a> {
-    fn from(arr:&'a [f32]) -> PointRef<'a> {
+    fn from(arr: &'a [f32]) -> PointRef<'a> {
         PointRef::Dense(arr)
     }
 }
 
 impl<'a, T: AsRef<[f32]>> From<&'a T> for PointRef<'a> {
-    fn from(arr:&'a T) -> PointRef<'a> {
+    fn from(arr: &'a T) -> PointRef<'a> {
         PointRef::Dense(arr.as_ref())
     }
 }
 
-
-impl<'b,'a:'b> From<&'b PointRef<'a>> for PointRef<'a> {
-    fn from(arr:&'b PointRef<'a>) -> PointRef<'a> {
+impl<'b, 'a: 'b> From<&'b PointRef<'a>> for PointRef<'a> {
+    fn from(arr: &'b PointRef<'a>) -> PointRef<'a> {
         match arr {
             PointRef::Dense(v) => PointRef::Dense(&v[..]),
             PointRef::Sparse(v, i) => PointRef::Sparse(&v[..], &i[..]),
@@ -170,10 +168,8 @@ impl<'b,'a:'b> From<&'b PointRef<'a>> for PointRef<'a> {
     }
 }
 
-
-
-impl<'b,'a:'b, 'c:'b> From<&'c &'b PointRef<'a>> for PointRef<'a> {
-    fn from(arr:&'c &'b PointRef<'a>) -> PointRef<'a> {
+impl<'b, 'a: 'b, 'c: 'b> From<&'c &'b PointRef<'a>> for PointRef<'a> {
+    fn from(arr: &'c &'b PointRef<'a>) -> PointRef<'a> {
         match arr {
             PointRef::Dense(v) => PointRef::Dense(&v[..]),
             PointRef::Sparse(v, i) => PointRef::Sparse(&v[..], &i[..]),
@@ -181,9 +177,9 @@ impl<'b,'a:'b, 'c:'b> From<&'c &'b PointRef<'a>> for PointRef<'a> {
     }
 }
 
-impl<'a> From<(&'a [f32],&'a [u32])> for PointRef<'a> {
-    fn from(arr:(&'a [f32],&'a [u32])) -> PointRef<'a> {
-        PointRef::Sparse(arr.0,arr.1)
+impl<'a> From<(&'a [f32], &'a [u32])> for PointRef<'a> {
+    fn from(arr: (&'a [f32], &'a [u32])) -> PointRef<'a> {
+        PointRef::Sparse(arr.0, arr.1)
     }
 }
 

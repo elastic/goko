@@ -4,9 +4,9 @@ use std::path::{Path, PathBuf};
 
 use crate::base_traits::*;
 use crate::data_sources::*;
-use crate::pc_errors::*;
 use crate::glued_data_cloud::*;
 use crate::label_sources::*;
+use crate::pc_errors::*;
 use crate::Metric;
 
 mod yaml_loaders;
@@ -33,7 +33,7 @@ pub fn open_labeled_memmaps<M: Metric>(
             .zip(labels_paths.iter())
             .map(|(dp, lp)| {
                 let data = DataMemmap::<M>::new(data_dim, &dp)?;
-                let labels = DataMemmap::<M>::new(label_dim, &lp)?.convert_to_label();
+                let labels = DataMemmap::<M>::new(label_dim, &lp)?.convert_to_labels();
                 Ok(SimpleLabeledCloud::new(data, labels))
             })
             .collect();

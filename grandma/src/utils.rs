@@ -23,16 +23,16 @@ use crate::errors::{GrandmaError, GrandmaResult};
 use crate::tree_file_format::*;
 use protobuf::{CodedInputStream, CodedOutputStream, Message};
 use std::fs::File;
-use std::fs::{read_to_string,remove_file, OpenOptions};
+use std::fs::{read_to_string, remove_file, OpenOptions};
 use std::path::Path;
-use yaml_rust::YamlLoader;
 use std::sync::Arc;
+use yaml_rust::YamlLoader;
 
 use crate::builders::CoverTreeBuilder;
 
 use crate::tree::CoverTreeWriter;
 
-use pointcloud::loaders::{labeled_ram_from_yaml,ram_from_yaml};
+use pointcloud::loaders::{labeled_ram_from_yaml, ram_from_yaml};
 use pointcloud::*;
 
 /// Given a yaml file on disk, it builds a covertree.
@@ -48,13 +48,15 @@ use pointcloud::*;
 /// data_dim: 784
 /// labels_index: 3
 /// ```
-pub fn cover_tree_from_labeled_yaml<P: AsRef<Path>>(path: P) -> GrandmaResult<CoverTreeWriter<DefaultLabeledCloud<L2>>> {
+pub fn cover_tree_from_labeled_yaml<P: AsRef<Path>>(
+    path: P,
+) -> GrandmaResult<CoverTreeWriter<DefaultLabeledCloud<L2>>> {
     let config = read_to_string(&path).expect("Unable to read config file");
-        
+
     let params_files = YamlLoader::load_from_str(&config).unwrap();
     let params = &params_files[0];
 
-    let point_cloud = labeled_ram_from_yaml::<_,L2>(&path)?;
+    let point_cloud = labeled_ram_from_yaml::<_, L2>(&path)?;
     if let Some(count) = params["count"].as_i64() {
         if count as usize != point_cloud.len() {
             panic!(
@@ -65,7 +67,7 @@ pub fn cover_tree_from_labeled_yaml<P: AsRef<Path>>(path: P) -> GrandmaResult<Co
             );
         }
     }
-    
+
     let builder = CoverTreeBuilder::from_yaml(&path);
     println!(
         "Loaded dataset, building a cover tree with scale base {}, cutoff {}, min resolution {}, and use_singletons {}",
@@ -85,13 +87,15 @@ pub fn cover_tree_from_labeled_yaml<P: AsRef<Path>>(path: P) -> GrandmaResult<Co
 /// count: NUMBER_OF_DATA_POINTS
 /// data_dim: 784
 /// ```
-pub fn cover_tree_from_yaml<P: AsRef<Path>>(path: P) -> GrandmaResult<CoverTreeWriter<DefaultCloud<L2>>> {
+pub fn cover_tree_from_yaml<P: AsRef<Path>>(
+    path: P,
+) -> GrandmaResult<CoverTreeWriter<DefaultCloud<L2>>> {
     let config = read_to_string(&path).expect("Unable to read config file");
-        
+
     let params_files = YamlLoader::load_from_str(&config).unwrap();
     let params = &params_files[0];
 
-    let point_cloud = ram_from_yaml::<_,L2>(&path)?;
+    let point_cloud = ram_from_yaml::<_, L2>(&path)?;
     if let Some(count) = params["count"].as_i64() {
         if count as usize != point_cloud.len() {
             panic!(
@@ -102,7 +106,7 @@ pub fn cover_tree_from_yaml<P: AsRef<Path>>(path: P) -> GrandmaResult<CoverTreeW
             );
         }
     }
-    
+
     let builder = CoverTreeBuilder::from_yaml(&path);
     println!(
         "Loaded dataset, building a cover tree with scale base {}, cutoff {}, min resolution {}, and use_singletons {}",
@@ -110,8 +114,6 @@ pub fn cover_tree_from_yaml<P: AsRef<Path>>(path: P) -> GrandmaResult<CoverTreeW
     );
     Ok(builder.build(Arc::new(point_cloud))?)
 }
-
-
 
 /// Helper function that handles the file I/O and protobuf decoding for you.
 pub fn load_tree<P: AsRef<Path>, D: PointCloud>(
@@ -166,12 +168,11 @@ pub fn save_tree<P: AsRef<Path>, D: PointCloud>(
         .read(true)
         .write(true)
         .create(true)
-        .open(&tree_path).unwrap();
+        .open(&tree_path)
+        .unwrap();
 
     let mut cos = CodedOutputStream::new(&mut core_file);
-    cover_proto
-        .write_to(&mut cos)
-        .map_err(GrandmaError::from)?;
+    cover_proto.write_to(&mut cos).map_err(GrandmaError::from)?;
     cos.flush().map_err(GrandmaError::from)?;
     Ok(())
 }

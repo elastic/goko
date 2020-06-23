@@ -36,7 +36,7 @@ pub(crate) struct UncoveredData {
 }
 
 impl UncoveredData {
-    pub(crate) fn pick_center<D:PointCloud>(
+    pub(crate) fn pick_center<D: PointCloud>(
         &mut self,
         radius: f32,
         point_cloud: &Arc<D>,
@@ -102,7 +102,7 @@ fn find_split(dist_indexes: &[(f32, usize)], thresh: f32) -> usize {
 }
 
 impl CoveredData {
-    pub(crate) fn new<D:PointCloud>(point_cloud: &Arc<D>) -> GrandmaResult<CoveredData> {
+    pub(crate) fn new<D: PointCloud>(point_cloud: &Arc<D>) -> GrandmaResult<CoveredData> {
         let mut coverage = point_cloud.reference_indexes();
         let center_index = coverage.pop().unwrap();
         let dists = point_cloud.distances_to_point_index(center_index, &coverage)?;
@@ -163,10 +163,7 @@ mod tests {
         }
         data.push(0.0);
 
-        let labels: Vec<u64> = data
-            .iter()
-            .map(|x| if *x > 0.5 { 1 } else { 0 })
-            .collect();
+        let labels: Vec<u64> = data.iter().map(|x| if *x > 0.5 { 1 } else { 0 }).collect();
 
         let point_cloud = DefaultLabeledCloud::<L2>::new_simple(data, 1, labels);
 
@@ -185,11 +182,7 @@ mod tests {
         }
         data.push(0.0);
 
-        let labels: Vec<u64> = data
-            .iter()
-            .map(|x| if *x > 0.5 { 1 } else { 0 })
-            .collect();
-
+        let labels: Vec<u64> = data.iter().map(|x| if *x > 0.5 { 1 } else { 0 }).collect();
 
         let point_cloud = Arc::new(DefaultLabeledCloud::<L2>::new_simple(data, 1, labels));
 
@@ -216,10 +209,7 @@ mod tests {
         }
         data.push(0.0);
 
-        let labels: Vec<u64> = data
-            .iter()
-            .map(|x| if *x > 0.5 { 1 } else { 0 })
-            .collect();
+        let labels: Vec<u64> = data.iter().map(|x| if *x > 0.5 { 1 } else { 0 }).collect();
 
         //data.sort_unstable_by(|a, b| (a).partial_cmp(&b).unwrap_or(Ordering::Equal));
         let point_cloud = DefaultLabeledCloud::<L2>::new_simple(data.clone(), 1, labels);

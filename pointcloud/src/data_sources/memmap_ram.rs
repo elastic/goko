@@ -71,7 +71,7 @@ impl<M: Metric> DataMemmap<M> {
     }
 
     /// Reads and consumes this memmap and copies it into ram, then returns it to a labelset
-    pub fn convert_to_label(self) -> VecLabels {
+    pub fn convert_to_labels(self) -> VecLabels {
         VecLabels::new(self.data.to_vec(), self.dim, None)
     }
 
@@ -104,7 +104,7 @@ impl<M: Metric> DataRam<M> {
     }
 
     /// Converts this to a label set
-    pub fn convert_to_label(self) -> VecLabels {
+    pub fn convert_to_labels(self) -> VecLabels {
         VecLabels::new(self.data, self.dim, None)
     }
 

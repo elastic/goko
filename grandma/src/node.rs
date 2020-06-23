@@ -43,7 +43,7 @@ pub(crate) struct NodeChildren {
 /// memory redirect for the first 20 singleton children. The children are saved in a separate struct also consisting of a `SmallVec`
 /// (though, this is only 10 wide before we allocate on the heap), and the scale index of the nested child.
 #[derive(Debug)]
-pub struct CoverNode<D:PointCloud> {
+pub struct CoverNode<D: PointCloud> {
     /// Node address
     address: NodeAddress,
     /// Query caches
@@ -56,7 +56,7 @@ pub struct CoverNode<D:PointCloud> {
     metic: PhantomData<D>,
 }
 
-impl<D:PointCloud> Clone for CoverNode<D> {
+impl<D: PointCloud> Clone for CoverNode<D> {
     fn clone(&self) -> Self {
         Self {
             address: self.address,
@@ -70,7 +70,7 @@ impl<D:PointCloud> Clone for CoverNode<D> {
     }
 }
 
-impl<D:PointCloud> CoverNode<D> {
+impl<D: PointCloud> CoverNode<D> {
     /// Creates a new blank node
     pub fn new(address: NodeAddress) -> CoverNode<D> {
         CoverNode {
@@ -92,6 +92,11 @@ impl<D:PointCloud> CoverNode<D> {
     /// This is currently inconsistent on inserts to children of this node
     pub fn radius(&self) -> f32 {
         self.radius
+    }
+
+    /// Number of decendents of this node 
+    pub fn cover_count(&self) -> usize {
+        self.cover_count
     }
 
     /// Add a nested child and converts the node from a leaf to a routing node.
@@ -221,7 +226,7 @@ impl<D:PointCloud> CoverNode<D> {
     }
 
     /// Gives the closest routing node to the query point.
-    pub fn nearest_covering_child<'a, P: Into<PointRef<'a>>, >(
+    pub fn nearest_covering_child<'a, P: Into<PointRef<'a>>>(
         &self,
         scale_base: f32,
         dist_to_center: f32,
@@ -260,7 +265,7 @@ impl<D:PointCloud> CoverNode<D> {
     /// Gives the child that the point would be inserted into if the
     /// point just happened to never be picked as a center. This is the first child node that covers
     /// the point.
-    pub fn covering_child<'a, P: Into<PointRef<'a>>, >(
+    pub fn covering_child<'a, P: Into<PointRef<'a>>>(
         &self,
         scale_base: f32,
         dist_to_center: f32,
@@ -322,7 +327,6 @@ impl<D:PointCloud> CoverNode<D> {
     pub(crate) fn set_radius(&mut self, radius: f32) {
         self.radius = radius;
     }
-
 
     pub(crate) fn load(scale_index: i32, node_proto: &NodeProto) -> CoverNode<D> {
         let singles_indexes = node_proto
@@ -409,7 +413,7 @@ mod tests {
     use crate::query_tools::KnnQueryHeap;
     use crate::tree::tests::build_mnist_tree;
 
-    fn create_test_node<D:PointCloud>() -> CoverNode<D> {
+    fn create_test_node<D: PointCloud>() -> CoverNode<D> {
         let children = Some(NodeChildren {
             nested_scale: 0,
             addresses: smallvec![(-4, 1), (-4, 2), (-4, 3)],
@@ -426,7 +430,7 @@ mod tests {
         }
     }
 
-    fn create_test_leaf_node<D:PointCloud>() -> CoverNode<D> {
+    fn create_test_leaf_node<D: PointCloud>() -> CoverNode<D> {
         CoverNode {
             address: (0, 0),
             radius: 1.0,
@@ -517,7 +521,7 @@ mod tests {
         assert!(results[1].1 == 3);
     }
 
-    fn brute_test_knn_node<D:PointCloud>(node: &CoverNode<D>, point_cloud: &D) -> bool {
+    fn brute_test_knn_node<D: PointCloud>(node: &CoverNode<D>, point_cloud: &D) -> bool {
         let zeros: Vec<f32> = vec![0.0; 784];
         let mut heap = KnnQueryHeap::new(10000, 1.3);
         let dist_to_center = point_cloud

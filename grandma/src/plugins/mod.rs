@@ -26,19 +26,19 @@ pub mod utils {
 */
 
 /// Mockup for the plugin interface attached to the node. These are meant to be functions that Grandma uses to maintain the plugin.
-pub trait NodePlugin<D:PointCloud>: Send + Sync + Debug {
+pub trait NodePlugin<D: PointCloud>: Send + Sync + Debug {
     /// This is currently non-functional, thinking about how to efficiently use this.
     fn update(&mut self, my_node: &CoverNode<D>, my_tree: &CoverTreeReader<D>);
 }
 
 /// Mockup for the plugin parameters attached to the base of the tree.  
-pub trait TreePlugin<D:PointCloud>: Send + Sync + Debug {
+pub trait TreePlugin<D: PointCloud>: Send + Sync + Debug {
     /// This is currently non-functional, thinking about how to efficiently use this.
     fn update(&mut self, my_tree: &CoverTreeReader<D>);
 }
 
 /// Parent trait that make this all work. Ideally this should be included in the `TreePlugin` but rust doesn't like it.
-pub trait GrandmaPlugin<D:PointCloud> {
+pub trait GrandmaPlugin<D: PointCloud> {
     /// The node component of this plugin, these are attached to each node recursively when the plug in is attached to the tree.
     type NodeComponent: NodePlugin<D> + Clone + 'static;
     /// This should largely be an object that manages the parameters of the plugin.
@@ -66,7 +66,7 @@ pub(crate) mod tests {
         cover_count: usize,
     }
 
-    impl<D:PointCloud> NodePlugin<D> for DumbNode1 {
+    impl<D: PointCloud> NodePlugin<D> for DumbNode1 {
         fn update(&mut self, _my_node: &CoverNode<D>, _my_tree: &CoverTreeReader<D>) {
             self.id += 1;
         }
@@ -77,7 +77,7 @@ pub(crate) mod tests {
         id: u32,
     }
 
-    impl<D:PointCloud> TreePlugin<D> for DumbTree1 {
+    impl<D: PointCloud> TreePlugin<D> for DumbTree1 {
         fn update(&mut self, _my_tree: &CoverTreeReader<D>) {
             self.id += 1;
         }
@@ -86,7 +86,7 @@ pub(crate) mod tests {
     #[derive(Debug)]
     struct DumbGrandma1 {}
 
-    impl<D:PointCloud> GrandmaPlugin<D> for DumbGrandma1 {
+    impl<D: PointCloud> GrandmaPlugin<D> for DumbGrandma1 {
         type NodeComponent = DumbNode1;
         type TreeComponent = DumbTree1;
         fn node_component(

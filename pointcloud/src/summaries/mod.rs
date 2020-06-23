@@ -1,10 +1,10 @@
 //! Summaries for some label types
 
 use crate::pc_errors::PointCloudResult;
+use hashbrown::HashMap;
 use std::cmp::Eq;
 use std::default::Default;
 use std::iter::Iterator;
-use hashbrown::HashMap;
 
 use smallvec::SmallVec;
 
@@ -68,7 +68,7 @@ impl<T: Eq + Clone> Summary<T> for SmallCatSummary<T> {
     }
 
     fn count(&self) -> usize {
-        self.items.iter().map(|(_a,b)| b).fold(0,|a,c| a + c)
+        self.items.iter().map(|(_a, b)| b).fold(0, |a, c| a + c)
     }
 
     fn nones(&self) -> usize {
@@ -97,10 +97,7 @@ impl Summary<[f32]> for VecSummary {
             if let Some(val) = vv {
                 if !self.moment1.is_empty() {
                     if self.moment1.len() == val.len() {
-                        self.moment1
-                            .iter_mut()
-                            .zip(val)
-                            .for_each(|(m, x)| *m += x);
+                        self.moment1.iter_mut().zip(val).for_each(|(m, x)| *m += x);
                         self.moment2
                             .iter_mut()
                             .zip(val)
@@ -150,7 +147,7 @@ impl Summary<[f32]> for VecSummary {
 /// A summary for a small number of categories.
 #[derive(Clone, Debug)]
 pub struct StringSummary {
-    items: HashMap<String,usize>,
+    items: HashMap<String, usize>,
     nones: usize,
     errors: usize,
 }
@@ -187,7 +184,7 @@ impl Summary<String> for StringSummary {
     }
 
     fn count(&self) -> usize {
-        self.items.values().fold(0,|a,c| a + c)
+        self.items.values().fold(0, |a, c| a + c)
     }
 
     fn nones(&self) -> usize {

@@ -1,7 +1,7 @@
 //! # Categorical Distribution
 //!
-//! Simple probability distribution that enables you to simulated the rough 
-//! distribution of data in the tree. 
+//! Simple probability distribution that enables you to simulated the rough
+//! distribution of data in the tree.
 
 use crate::node::CoverNode;
 use crate::plugins::distributions::DiscreteDistribution;
@@ -111,7 +111,7 @@ impl Categorical {
     }
 }
 
-impl<D:PointCloud> NodePlugin<D> for Categorical {
+impl<D: PointCloud> NodePlugin<D> for Categorical {
     fn update(&mut self, _my_node: &CoverNode<D>, _my_tree: &CoverTreeReader<D>) {}
 }
 
@@ -119,7 +119,7 @@ impl<D:PointCloud> NodePlugin<D> for Categorical {
 #[derive(Debug, Clone)]
 pub struct CategoricalTree {}
 
-impl<D:PointCloud> TreePlugin<D> for CategoricalTree {
+impl<D: PointCloud> TreePlugin<D> for CategoricalTree {
     fn update(&mut self, _my_tree: &CoverTreeReader<D>) {}
 }
 
@@ -128,7 +128,7 @@ impl<D:PointCloud> TreePlugin<D> for CategoricalTree {
 pub struct GrandmaCategorical {}
 
 /// Parent trait that make this all work. Ideally this should be included in the `TreePlugin` but rust doesn't like it.
-impl<D:PointCloud> GrandmaPlugin<D> for GrandmaCategorical {
+impl<D: PointCloud> GrandmaPlugin<D> for GrandmaCategorical {
     type NodeComponent = Categorical;
     type TreeComponent = CategoricalTree;
     fn node_component(

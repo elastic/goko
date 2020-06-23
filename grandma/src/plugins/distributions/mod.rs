@@ -1,6 +1,6 @@
 //! # Probability Distributions Plugins
-//! 
-//! This module containes plugins that simulate probability distributions on the nodes. 
+//!
+//! This module containes plugins that simulate probability distributions on the nodes.
 //! It also has trackers used to see when queries and sequences are out of distribution.
 
 use super::*;
@@ -53,7 +53,7 @@ pub trait ContinousBayesianDistribution: ContinousDistribution + Clone + 'static
 }
 
 ///
-pub trait DiscreteBayesianSequenceTracker<D:PointCloud>: Debug {
+pub trait DiscreteBayesianSequenceTracker<D: PointCloud>: Debug {
     /// The. underlying distribution that this is tracking.
     type Distribution: DiscreteBayesianDistribution + NodePlugin<D> + 'static;
 

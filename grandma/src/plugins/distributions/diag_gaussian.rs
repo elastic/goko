@@ -1,7 +1,7 @@
 //! # Diagonal Gaussian
 //!
 //! This computes a coordinate bound multivariate Gaussian. This can be thought of as a rough
-//! simulation of the data underling a node. However we can chose the scale from which we 
+//! simulation of the data underling a node. However we can chose the scale from which we
 //! simulate the data, down to the individual point, so this can be arbitrarily accurate.
 
 use super::*;
@@ -82,15 +82,15 @@ impl ContinousDistribution for DiagGaussian {
 
 impl DiagGaussian {
     /// Creates a new empty diagonal gaussian
-    pub fn new(dim:usize) -> DiagGaussian {
+    pub fn new(dim: usize) -> DiagGaussian {
         DiagGaussian {
-            moment1: vec![0.0;dim],
-            moment2: vec![0.0;dim],
+            moment1: vec![0.0; dim],
+            moment2: vec![0.0; dim],
             count: 0,
         }
     }
 
-    /// Dimension for this 
+    /// Dimension for this
     pub fn dim(&self) -> usize {
         self.moment1.len()
     }
@@ -148,7 +148,7 @@ impl DiagGaussian {
     }
 }
 
-impl<D:PointCloud> NodePlugin<D> for DiagGaussian {
+impl<D: PointCloud> NodePlugin<D> for DiagGaussian {
     fn update(&mut self, _my_node: &CoverNode<D>, _my_tree: &CoverTreeReader<D>) {}
 }
 
@@ -158,7 +158,7 @@ pub struct DiagGaussianTree {
     recursive: bool,
 }
 
-impl<D:PointCloud> TreePlugin<D> for DiagGaussianTree {
+impl<D: PointCloud> TreePlugin<D> for DiagGaussianTree {
     fn update(&mut self, _my_tree: &CoverTreeReader<D>) {}
 }
 
@@ -177,7 +177,7 @@ impl GrandmaDiagGaussian {
     }
 }
 
-impl<D:PointCloud> GrandmaPlugin<D> for GrandmaDiagGaussian {
+impl<D: PointCloud> GrandmaPlugin<D> for GrandmaDiagGaussian {
     type NodeComponent = DiagGaussian;
     type TreeComponent = DiagGaussianTree;
     fn node_component(

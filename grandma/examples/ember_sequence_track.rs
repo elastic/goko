@@ -26,7 +26,7 @@ extern crate grandma;
 extern crate pointcloud;
 use grandma::*;
 use pointcloud::*;
-use pointcloud::{data_sources::*,label_sources::*,loaders::*};
+use pointcloud::{data_sources::*, label_sources::*, loaders::*};
 
 use std::sync::Arc;
 use std::time;
@@ -36,7 +36,7 @@ use rand::prelude::*;
 
 use rayon::prelude::*;
 
-fn build_tree() -> CoverTreeWriter<SimpleLabeledCloud<DataRam<L2>,VecLabels>> {
+fn build_tree() -> CoverTreeWriter<SimpleLabeledCloud<DataRam<L2>, VecLabels>> {
     let file_name = "../data/ember_complex.yml";
     let path = Path::new(file_name);
     if !path.exists() {
@@ -47,13 +47,13 @@ fn build_tree() -> CoverTreeWriter<SimpleLabeledCloud<DataRam<L2>,VecLabels>> {
     builder.build(Arc::new(point_cloud)).unwrap()
 }
 
-fn build_test_set() -> SimpleLabeledCloud<DataRam<L2>,VecLabels> {
+fn build_test_set() -> SimpleLabeledCloud<DataRam<L2>, VecLabels> {
     vec_labeled_ram_from_yaml("../data/ember_complex_test.yml").unwrap()
 }
 
 fn test_run(
-    mut tracker: BayesCategoricalTracker<SimpleLabeledCloud<DataRam<L2>,VecLabels>>,
-    test_set: &SimpleLabeledCloud<DataRam<L2>,VecLabels>,
+    mut tracker: BayesCategoricalTracker<SimpleLabeledCloud<DataRam<L2>, VecLabels>>,
+    test_set: &SimpleLabeledCloud<DataRam<L2>, VecLabels>,
     count: usize,
 ) -> Vec<KLDivergenceStats> {
     let mut rng = thread_rng();
@@ -83,7 +83,8 @@ fn main() {
     let window_size = 40;
     let sequence_len = 1000;
 
-    let trackers: Vec<BayesCategoricalTracker<SimpleLabeledCloud<DataRam<L2>,VecLabels>>> = (0..1000)
+    let trackers: Vec<BayesCategoricalTracker<SimpleLabeledCloud<DataRam<L2>, VecLabels>>> = (0
+        ..1000)
         .map(|_| {
             BayesCategoricalTracker::new(prior_weight, observation_weight, window_size, ct.reader())
         })
