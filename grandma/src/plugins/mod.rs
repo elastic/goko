@@ -16,6 +16,7 @@ use std::fmt::Debug;
 use type_map::concurrent::TypeMap;
 
 pub mod distributions;
+pub mod labels;
 
 /*
 mod sequence_kl;

@@ -50,6 +50,8 @@ use std::iter::Rev;
 use std::ops::Range;
 use std::slice::Iter;
 
+use plugins::labels::{LabelSummaryPlugin,TreeLabelSummary};
+
 /// Container for the parameters governing the construction of the covertree
 #[derive(Debug)]
 pub struct CoverTreeParameters<D: PointCloud> {
@@ -102,6 +104,8 @@ pub struct CoverTreeReader<D: PointCloud> {
     root_address: NodeAddress,
 }
 
+
+
 impl<D: PointCloud> Clone for CoverTreeReader<D> {
     fn clone(&self) -> CoverTreeReader<D> {
         CoverTreeReader {
@@ -109,6 +113,23 @@ impl<D: PointCloud> Clone for CoverTreeReader<D> {
             layers: self.layers.clone(),
             root_address: self.root_address.clone(),
         }
+    }
+}
+
+impl<D: PointCloud + LabeledCloud> CoverTreeReader<D> {
+    /// Reads the contents of a plugin, due to the nature of the plugin map we have to access it with a
+    /// closure.
+    pub fn get_node_label_summary_and<F, S>(
+        &self,
+        node_address: (i32, PointIndex),
+        transform_fn: F,
+    ) -> Option<S>
+    where
+        F: Fn(&D::LabelSummary) -> S,
+    {
+        self.layers[self.parameters.internal_index(node_address.0)]
+            .get_node_and(node_address.1, |n| n.label_summary().map(transform_fn))
+            .flatten()
     }
 }
 
@@ -404,6 +425,13 @@ pub struct CoverTreeWriter<D: PointCloud> {
     pub(crate) parameters: Arc<CoverTreeParameters<D>>,
     pub(crate) layers: Vec<CoverLayerWriter<D>>,
     pub(crate) root_address: NodeAddress,
+}
+
+impl<D: PointCloud + LabeledCloud> CoverTreeWriter<D> {
+    /// 
+    pub fn generate_summaries(&mut self){
+        self.add_plugin::<LabelSummaryPlugin>(TreeLabelSummary::default())
+    }
 }
 
 impl<D: PointCloud> CoverTreeWriter<D> {

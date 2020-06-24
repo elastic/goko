@@ -21,7 +21,7 @@
 //! This is the workhorse of the library. Each node
 //!
 use crate::errors::{GrandmaError, GrandmaResult};
-use crate::plugins::{NodePlugin, NodePluginSet};
+use crate::plugins::{NodePlugin, NodePluginSet, labels::NodeLabelSummary};
 use crate::query_tools::{RoutingQueryHeap, SingletonQueryHeap};
 use crate::tree_file_format::*;
 use crate::NodeAddress;
@@ -67,6 +67,13 @@ impl<D: PointCloud> Clone for CoverNode<D> {
             plugins: NodePluginSet::new(),
             metic: PhantomData,
         }
+    }
+}
+
+impl<D: PointCloud + LabeledCloud> CoverNode<D> {
+    /// If the node has a summary attached, this returns the summary.
+    pub fn label_summary(&self) -> Option<&D::LabelSummary> {
+        self.plugins.get::<NodeLabelSummary<D::LabelSummary>>().map(|c| c.summary.as_ref())
     }
 }
 

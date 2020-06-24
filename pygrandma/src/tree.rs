@@ -93,10 +93,10 @@ impl PyGrandma {
             data_dim,
             my_labels,
         );
-        println!("{:?}", pointcloud);
         let builder = self.builder.take();
         self.writer = Some(builder.unwrap().build(Arc::new(pointcloud)).unwrap());
         let writer = self.writer.as_mut().unwrap();
+        writer.generate_summaries();
         writer.add_plugin::<GrandmaDiagGaussian>(GrandmaDiagGaussian::singletons());
         writer.add_plugin::<GrandmaDirichlet>(DirichletTree {});
         let reader = writer.reader();
@@ -108,6 +108,7 @@ impl PyGrandma {
     pub fn fit_yaml(&mut self, file_name: String) -> PyResult<()> {
         let path = Path::new(&file_name);
         let mut writer = cover_tree_from_labeled_yaml(&path).unwrap();
+        writer.generate_summaries();
         writer.add_plugin::<GrandmaDiagGaussian>(GrandmaDiagGaussian::singletons());
         writer.add_plugin::<GrandmaDirichlet>(DirichletTree {});
         self.reader = Some(Arc::new(writer.reader()));

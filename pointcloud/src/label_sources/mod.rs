@@ -14,7 +14,7 @@ pub struct SmallIntLabels {
 
 impl LabelSet for SmallIntLabels {
     type Label = u64;
-    type LabelSummary = SmallCatSummary<u64>;
+    type LabelSummary = CategorySummary;
 
     fn len(&self) -> usize {
         self.labels.len()

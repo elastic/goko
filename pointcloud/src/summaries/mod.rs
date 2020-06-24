@@ -2,7 +2,6 @@
 
 use crate::pc_errors::PointCloudResult;
 use hashbrown::HashMap;
-use std::cmp::Eq;
 use std::default::Default;
 use std::iter::Iterator;
 
@@ -12,15 +11,18 @@ use crate::base_traits::*;
 
 /// A summary for a small number of categories.
 #[derive(Clone, Debug)]
-pub struct SmallCatSummary<T: Eq + Clone> {
-    items: SmallVec<[(T, usize); 4]>,
-    nones: usize,
-    errors: usize,
+pub struct CategorySummary {
+    /// The categorical summary
+    pub items: SmallVec<[(u64, usize); 4]>,
+    /// How many unlabeled elements this summary covers
+    pub nones: usize,
+    /// How many elements under this summary errored out
+    pub errors: usize,
 }
 
-impl<T: Eq + Clone> Default for SmallCatSummary<T> {
+impl Default for CategorySummary {
     fn default() -> Self {
-        SmallCatSummary {
+        CategorySummary {
             items: SmallVec::new(),
             nones: 0,
             errors: 0,
@@ -28,8 +30,9 @@ impl<T: Eq + Clone> Default for SmallCatSummary<T> {
     }
 }
 
-impl<T: Eq + Clone> Summary<T> for SmallCatSummary<T> {
-    fn add(&mut self, v: PointCloudResult<Option<&T>>) {
+impl Summary for CategorySummary {
+    type Label = u64;
+    fn add(&mut self, v: PointCloudResult<Option<&u64>>) {
         if let Ok(v) = v {
             if let Some(val) = v {
                 let mut added_to_existing = false;
@@ -51,7 +54,7 @@ impl<T: Eq + Clone> Summary<T> for SmallCatSummary<T> {
         }
     }
 
-    fn combine(&mut self, other: SmallCatSummary<T>) {
+    fn combine(&mut self, other: &CategorySummary) {
         for (val, count) in other.items.iter() {
             let mut added_to_existing = false;
             for (stored_val, totals) in self.items.iter_mut() {
@@ -91,7 +94,9 @@ pub struct VecSummary {
     errors: usize,
 }
 
-impl Summary<[f32]> for VecSummary {
+impl Summary for VecSummary {
+    type Label = [f32];
+
     fn add(&mut self, v: PointCloudResult<Option<&[f32]>>) {
         if let Ok(vv) = v {
             if let Some(val) = vv {
@@ -117,14 +122,14 @@ impl Summary<[f32]> for VecSummary {
             self.errors += 1;
         }
     }
-    fn combine(&mut self, other: VecSummary) {
+    fn combine(&mut self, other: &VecSummary) {
         self.moment1
             .iter_mut()
-            .zip(other.moment1)
+            .zip(&other.moment1)
             .for_each(|(x, y)| *x += y);
         self.moment2
             .iter_mut()
-            .zip(other.moment2)
+            .zip(&other.moment2)
             .for_each(|(x, y)| *x += y);
         self.count += other.count;
         self.nones += other.nones;
@@ -162,7 +167,8 @@ impl Default for StringSummary {
     }
 }
 
-impl Summary<String> for StringSummary {
+impl Summary for StringSummary {
+    type Label = String;
     fn add(&mut self, v: PointCloudResult<Option<&String>>) {
         if let Ok(v) = v {
             if let Some(val) = v {
@@ -175,7 +181,7 @@ impl Summary<String> for StringSummary {
         }
     }
 
-    fn combine(&mut self, other: StringSummary) {
+    fn combine(&mut self, other: &StringSummary) {
         self.nones += other.nones;
         self.errors += other.errors;
         for (val, count) in other.items.iter() {

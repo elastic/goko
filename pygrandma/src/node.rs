@@ -9,6 +9,8 @@ use grandma::*;
 use pointcloud::*;
 use std::sync::Arc;
 
+use pyo3::types::PyDict;
+
 #[pyclass]
 pub struct IterLayerNode {
     pub parameters: Arc<CoverTreeParameters<DefaultLabeledCloud<L2>>>,
@@ -148,5 +150,21 @@ impl PyGrandNode {
         let gil = GILGuard::acquire();
         let py = gil.python();
         Ok(py_mean.into_pyarray(py).to_owned())
+    }
+
+    pub fn label_summary(&self) -> PyResult<Option<PyObject>> {
+        let gil = GILGuard::acquire();
+        let py = gil.python();
+        let dict = PyDict::new(py);
+        let py_result = self.tree.get_node_label_summary_and::<_,PyResult<()>>(self.address, |s| {
+            dict.set_item("errors", s.errors)?;
+            dict.set_item("nones", s.nones)?;
+            dict.set_item("items", s.items.to_vec())?;
+            Ok(())
+        });
+        match py_result {
+            Some(res) => {res?; Ok(Some(dict.into()))},
+            None => Ok(None),
+        }
     }
 }

@@ -249,12 +249,14 @@ impl AdjMatrix {
 }
 
 /// A summary for labels and metadata. You can make this an empty zero sized type for when you don't need it.
-pub trait Summary<T: ?Sized>: Default {
+pub trait Summary: Debug + Default + Send + Sync + 'static {
+    /// Underlying type.
+    type Label: ?Sized;
     /// Adding a single value to the summary.
-    fn add(&mut self, v: PointCloudResult<Option<&T>>);
+    fn add(&mut self, v: PointCloudResult<Option<&Self::Label>>);
     /// Merging several summaries of your data source together. This results in a summary of underlying column over
     /// the union of the indexes used to create the input summaries.
-    fn combine(&mut self, other: Self);
+    fn combine(&mut self, other: &Self);
     /// The number of elements this summary covers
     fn count(&self) -> usize;
     /// The number of elements that were unlabeled that this summary covers
@@ -269,7 +271,7 @@ pub trait LabelSet: Debug + Send + Sync + 'static {
     /// Underlying type.
     type Label: ?Sized;
     /// Summary of a set of labels
-    type LabelSummary: Summary<Self::Label>;
+    type LabelSummary: Summary<Label = Self::Label>;
 
     /// Number of elements in this label set
     fn len(&self) -> usize;
@@ -287,7 +289,7 @@ pub trait LabeledCloud: PointCloud {
     /// Underlying type.
     type Label: ?Sized;
     /// Summary of a set of labels
-    type LabelSummary: Summary<Self::Label>;
+    type LabelSummary: Summary<Label = Self::Label>;
     /// Grabs a label reference. Supports errors (the label could be remote),
     /// and partially labeled datasets with the option.
     fn label(&self, pn: PointIndex) -> PointCloudResult<Option<&Self::Label>>;
