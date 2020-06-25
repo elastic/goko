@@ -44,8 +44,7 @@ impl<V> fmt::Debug for Updater<V> {
 /// Note that this enum should be considered
 /// [non-exhaustive](https://github.com/rust-lang/rust/issues/44109).
 #[derive(PartialEq, Eq, Debug)]
-// TODO: #[non_exhaustive]
-// https://github.com/rust-lang/rust/issues/44109
+#[non_exhaustive]
 pub enum MonoOperation<K, V> {
     /// Add this value to the set of entries for this key.
     Insert(K, V),
@@ -57,11 +56,6 @@ pub enum MonoOperation<K, V> {
     ///
     /// Note that this will iterate once over all the keys internally.
     Purge,
-    // Since we have a feature that adds an enum variant, features are only additive (as they need
-    // to be) if users never try to exhaustively match on this enum. Once rust-lang/rust#44109
-    // lands, we'll have a more standard way to do this, but for now we rely on this trick:
-    #[doc(hidden)]
-    __Nonexhaustive,
 }
 
 mod write;

@@ -28,13 +28,13 @@ use grandma::utils::*;
 use grandma::CoverTreeWriter;
 use pointcloud::*;
 
-fn build_tree() -> CoverTreeWriter<L2> {
+fn build_tree() -> CoverTreeWriter<DefaultLabeledCloud<L2>> {
     let file_name = "../data/ember_complex.yml";
     let path = Path::new(file_name);
     if !path.exists() {
         panic!(file_name.to_owned() + &" does not exist".to_string());
     }
-    cover_tree_from_yaml(&path).unwrap()
+    cover_tree_from_labeled_yaml(&path).unwrap()
 }
 
 fn main() {

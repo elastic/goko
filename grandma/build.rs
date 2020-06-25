@@ -25,11 +25,11 @@ use std::env;
 fn main() {
     if env::var("TRAVIS_RUST_VERSION").is_err() {
         protoc_rust::Codegen::new()
-        .out_dir("src")
-        .include("protos")
-        .input("protos/tree_file_format.proto")
-        .run()
-        .expect("protoc");
+            .out_dir("src")
+            .include("protos")
+            .input("protos/tree_file_format.proto")
+            .run()
+            .expect("protoc");
     }
     println!("cargo:rerun-if-changed=protos/tree_file_format.proto");
 }

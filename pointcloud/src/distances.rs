@@ -19,6 +19,8 @@
 
 //! Supported distances
 
+use super::PointRef;
+use crate::pc_errors::*;
 use packed_simd::*;
 use std::fmt::Debug;
 
@@ -31,6 +33,20 @@ pub trait Metric: 'static + Send + Sync + Debug + Clone {
     fn sparse(x_ind: &[u32], x_val: &[f32], y_ind: &[u32], y_val: &[f32]) -> f32;
     /// The norm, dense(x,x)
     fn norm(x: &[f32]) -> f32;
+    /// Useful external calculation
+    fn dist<'a, 'b, T, S>(x: T, y: S) -> PointCloudResult<f32>
+    where
+        T: Into<PointRef<'a>>,
+        S: Into<PointRef<'b>>,
+    {
+        match ((x).into(), (y).into()) {
+            (PointRef::Dense(x_vals), PointRef::Dense(y_vals)) => Ok((Self::dense)(x_vals, y_vals)),
+            (PointRef::Sparse(x_vals, x_ind), PointRef::Sparse(y_vals, y_inds)) => {
+                Ok((Self::sparse)(x_ind, x_vals, y_inds, y_vals))
+            }
+            _ => Err(PointCloudError::MetricError),
+        }
+    }
 }
 
 /// L2 norm, the square root of the sum of squares

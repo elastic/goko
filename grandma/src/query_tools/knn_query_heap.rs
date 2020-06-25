@@ -230,7 +230,7 @@ pub(crate) mod tests {
         let unpack = heap.unpack();
 
         for i in 1..5 {
-            assert!(unpack[i - 1].1 == i as u64);
+            assert!(unpack[i - 1].1 == i);
         }
     }
 

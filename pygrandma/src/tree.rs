@@ -17,7 +17,7 @@
 * under the License.
 */
 
-use ndarray::{Array1};
+use ndarray::Array1;
 use numpy::{IntoPyArray, PyArray1, PyArray2};
 use pyo3::prelude::*;
 
@@ -36,8 +36,8 @@ use crate::plugins::*;
 #[pyclass]
 pub struct PyGrandma {
     builder: Option<CoverTreeBuilder>,
-    writer: Option<CoverTreeWriter<L2>>,
-    reader: Option<Arc<CoverTreeReader<L2>>>,
+    writer: Option<CoverTreeWriter<DefaultLabeledCloud<L2>>>,
+    reader: Option<Arc<CoverTreeReader<DefaultLabeledCloud<L2>>>>,
     metric: String,
 }
 
@@ -49,7 +49,7 @@ impl PyGrandma {
             builder: Some(CoverTreeBuilder::new()),
             writer: None,
             reader: None,
-            metric: "L2".to_string(),
+            metric: "DefaultLabeledCloud<L2>".to_string(),
         })
     }
     pub fn set_scale_base(&mut self, x: f32) {
@@ -81,31 +81,22 @@ impl PyGrandma {
         self.metric = metric_name;
     }
 
-    pub fn fit(&mut self, data: &PyArray2<f32>, labels: Option<&PyArray2<f32>>) -> PyResult<()> {
+    pub fn fit(&mut self, data: &PyArray2<f32>, labels: Option<&PyArray1<u64>>) -> PyResult<()> {
         let len = data.shape()[0];
         let data_dim = data.shape()[1];
-        let labels_dim;
-        let my_labels: Box<[f32]> = match labels {
-            Some(labels) => {
-                labels_dim = labels.shape()[1];
-                Box::from(labels.as_slice().unwrap())
-            }
-            None => {
-                labels_dim = 1;
-                Box::from(vec![0.0; len])
-            }
+        let my_labels: Vec<u64> = match labels {
+            Some(labels) => Vec::from(labels.as_slice().unwrap()),
+            None => vec![0; len],
         };
-        let pointcloud = PointCloud::<L2>::simple_from_ram(
-            Box::from(data.as_slice().unwrap()),
+        let pointcloud = DefaultLabeledCloud::<L2>::new_simple(
+            Vec::from(data.as_slice().unwrap()),
             data_dim,
             my_labels,
-            labels_dim,
-        )
-        .unwrap();
-        println!("{:?}", pointcloud);
+        );
         let builder = self.builder.take();
-        self.writer = Some(builder.unwrap().build(pointcloud).unwrap());
+        self.writer = Some(builder.unwrap().build(Arc::new(pointcloud)).unwrap());
         let writer = self.writer.as_mut().unwrap();
+        writer.generate_summaries();
         writer.add_plugin::<GrandmaDiagGaussian>(GrandmaDiagGaussian::singletons());
         writer.add_plugin::<GrandmaDirichlet>(DirichletTree {});
         let reader = writer.reader();
@@ -116,7 +107,8 @@ impl PyGrandma {
 
     pub fn fit_yaml(&mut self, file_name: String) -> PyResult<()> {
         let path = Path::new(&file_name);
-        let mut writer = cover_tree_from_yaml(&path).unwrap();
+        let mut writer = cover_tree_from_labeled_yaml(&path).unwrap();
+        writer.generate_summaries();
         writer.add_plugin::<GrandmaDiagGaussian>(GrandmaDiagGaussian::singletons());
         writer.add_plugin::<GrandmaDirichlet>(DirichletTree {});
         self.reader = Some(Arc::new(writer.reader()));
@@ -125,20 +117,19 @@ impl PyGrandma {
         Ok(())
     }
 
-    pub fn data_point(&self, point_index: u64) -> PyResult<Option<Py<PyArray1<f32>>>> {
+    pub fn data_point(&self, point_index: usize) -> PyResult<Option<Py<PyArray1<f32>>>> {
         let reader = self.reader.as_ref().unwrap();
         let dim = reader.parameters().point_cloud.dim();
-        Ok(
-            match reader.parameters().point_cloud.get_point(point_index) {
-                Err(_) => None,
-                Ok(point) => {
-                    let py_point = Array1::from_shape_vec((dim,), Vec::from(point)).unwrap();
-                    let gil = GILGuard::acquire();
-                    let py = gil.python();
-                    Some(py_point.into_pyarray(py).to_owned())
-                }
-            },
-        )
+        Ok(match reader.parameters().point_cloud.point(point_index) {
+            Err(_) => None,
+            Ok(point) => {
+                let py_point =
+                    Array1::from_shape_vec((dim,), point.dense_iter(dim).collect()).unwrap();
+                let gil = GILGuard::acquire();
+                let py = gil.python();
+                Some(py_point.into_pyarray(py).to_owned())
+            }
+        })
     }
 
     //pub fn layers(&self) ->
@@ -170,7 +161,7 @@ impl PyGrandma {
         })
     }
 
-    pub fn node(&self, address: (i32, u64)) -> PyResult<PyGrandNode> {
+    pub fn node(&self, address: (i32, usize)) -> PyResult<PyGrandNode> {
         let reader = self.reader.as_ref().unwrap();
         // Check node exists
         reader.get_node_and(address, |_| true).unwrap();
@@ -186,7 +177,7 @@ impl PyGrandma {
         self.node(reader.root_address())
     }
 
-    pub fn knn(&self, point: &PyArray1<f32>, k: usize) -> Vec<(f32, u64)> {
+    pub fn knn(&self, point: &PyArray1<f32>, k: usize) -> Vec<(f32, usize)> {
         let results = self
             .reader
             .as_ref()
@@ -196,7 +187,7 @@ impl PyGrandma {
         results
     }
 
-    pub fn dry_insert(&self, point: &PyArray1<f32>) -> Vec<(f32, (i32, u64))> {
+    pub fn dry_insert(&self, point: &PyArray1<f32>) -> Vec<(f32, (i32, usize))> {
         let results = self
             .reader
             .as_ref()

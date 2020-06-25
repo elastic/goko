@@ -62,13 +62,13 @@ pub use errors::GrandmaResult;
 
 pub(crate) mod evmap;
 
-mod tree_file_format;
 mod builders;
 mod data_caches;
 pub mod layer;
 pub mod node;
 pub mod query_tools;
 mod tree;
+mod tree_file_format;
 pub mod utils;
 
 pub mod plugins;
@@ -78,6 +78,6 @@ pub use tree::*;
 
 /// The data structure explicitly seperates the covertree by layer, and the addressing schema for nodes
 /// is a pair for the layer index and the center point index of that node.
-pub type NodeAddress = (i32, PointIndex);
+pub type NodeAddress = (i32, usize);
 /// Like with a node address, the clusters are segmented by layer so we also reference by layer. The ClusterID is not meaningful, it's just a uint.
 pub type ClusterAddress = (i32, usize);

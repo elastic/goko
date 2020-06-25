@@ -50,9 +50,11 @@ use std::iter::Rev;
 use std::ops::Range;
 use std::slice::Iter;
 
+use plugins::labels::{LabelSummaryPlugin,TreeLabelSummary};
+
 /// Container for the parameters governing the construction of the covertree
 #[derive(Debug)]
-pub struct CoverTreeParameters<M: Metric> {
+pub struct CoverTreeParameters<D: PointCloud> {
     /// An atomic that tracks all nodes as they are created across all threads.
     /// This may not reflect what your current reader can see.
     pub total_nodes: atomic::AtomicUsize,
@@ -65,14 +67,14 @@ pub struct CoverTreeParameters<M: Metric> {
     /// If you don't want singletons messing with your tree and want everything to be a node or a element of leaf node, make this true.
     pub use_singletons: bool,
     /// The point cloud this tree references
-    pub point_cloud: PointCloud<M>,
+    pub point_cloud: Arc<D>,
     /// This should be replaced by a logging solution
     pub verbosity: u32,
     /// This is where the base plugins are are stored.
     pub plugins: RwLock<TreePluginSet>,
 }
 
-impl<M: Metric> CoverTreeParameters<M> {
+impl<D: PointCloud> CoverTreeParameters<D> {
     /// Gets the index of the layer in the vector.
     #[inline]
     pub fn internal_index(&self, scale_index: i32) -> usize {
@@ -85,7 +87,7 @@ impl<M: Metric> CoverTreeParameters<M> {
 }
 
 /// Helper struct for iterating thru the reader's of the the layers.
-pub type LayerIter<'a, M> = Rev<std::iter::Zip<Range<i32>, Iter<'a, CoverLayerReader<M>>>>;
+pub type LayerIter<'a, D> = Rev<std::iter::Zip<Range<i32>, Iter<'a, CoverLayerReader<D>>>>;
 
 /// # Cover Tree Reader Head
 ///
@@ -96,22 +98,50 @@ pub type LayerIter<'a, M> = Rev<std::iter::Zip<Range<i32>, Iter<'a, CoverLayerRe
 ///
 /// The data structure is just a list of `CoverLayerReader`s, the parameter's object and the root address. Copies are relatively
 /// expensive as each `CoverLayerReader` contains several Arcs that need to be cloned.
-#[derive(Clone)]
-pub struct CoverTreeReader<M: Metric> {
-    parameters: Arc<CoverTreeParameters<M>>,
-    layers: Vec<CoverLayerReader<M>>,
+pub struct CoverTreeReader<D: PointCloud> {
+    parameters: Arc<CoverTreeParameters<D>>,
+    layers: Vec<CoverLayerReader<D>>,
     root_address: NodeAddress,
 }
 
-impl<M: Metric> CoverTreeReader<M> {
+
+
+impl<D: PointCloud> Clone for CoverTreeReader<D> {
+    fn clone(&self) -> CoverTreeReader<D> {
+        CoverTreeReader {
+            parameters: self.parameters.clone(),
+            layers: self.layers.clone(),
+            root_address: self.root_address,
+        }
+    }
+}
+
+impl<D: PointCloud + LabeledCloud> CoverTreeReader<D> {
+    /// Reads the contents of a plugin, due to the nature of the plugin map we have to access it with a
+    /// closure.
+    pub fn get_node_label_summary_and<F, S>(
+        &self,
+        node_address: (i32, PointIndex),
+        transform_fn: F,
+    ) -> Option<S>
+    where
+        F: Fn(&D::LabelSummary) -> S,
+    {
+        self.layers[self.parameters.internal_index(node_address.0)]
+            .get_node_and(node_address.1, |n| n.label_summary().map(transform_fn))
+            .flatten()
+    }
+}
+
+impl<D: PointCloud> CoverTreeReader<D> {
     /// A reference to the point cloud the tree was built on.
-    pub fn point_cloud(&self) -> &PointCloud<M> {
+    pub fn point_cloud(&self) -> &Arc<D> {
         &self.parameters.point_cloud
     }
 
     /// Returns a borrowed reader for a cover layer.
     ///
-    pub fn layer(&self, scale_index: i32) -> &CoverLayerReader<M> {
+    pub fn layer(&self, scale_index: i32) -> &CoverLayerReader<D> {
         &self.layers[self.parameters.internal_index(scale_index)]
     }
 
@@ -123,7 +153,7 @@ impl<M: Metric> CoverTreeReader<M> {
     /// Read only access to the internals of a node.
     pub fn get_node_and<F, T>(&self, node_address: (i32, PointIndex), f: F) -> Option<T>
     where
-        F: FnOnce(&CoverNode<M>) -> T,
+        F: FnOnce(&CoverNode<D>) -> T,
     {
         self.layers[self.parameters.internal_index(node_address.0)]
             .get_node_and(node_address.1, |n| f(n))
@@ -145,7 +175,7 @@ impl<M: Metric> CoverTreeReader<M> {
     }
 
     /// An iterator for accessing the layers starting from the layer who holds the root.
-    pub fn layers(&self) -> LayerIter<M> {
+    pub fn layers(&self) -> LayerIter<D> {
         ((self.parameters.resolution - 1)
             ..(self.layers.len() as i32 + self.parameters.resolution - 1))
             .zip(self.layers.iter())
@@ -163,7 +193,7 @@ impl<M: Metric> CoverTreeReader<M> {
     }
 
     /// If you want to build a new tree with shared parameters, this is helpful.
-    pub fn parameters(&self) -> &Arc<CoverTreeParameters<M>> {
+    pub fn parameters(&self) -> &Arc<CoverTreeParameters<D>> {
         &self.parameters
     }
 
@@ -222,18 +252,23 @@ impl<M: Metric> CoverTreeReader<M> {
     ///
     /// See `query_tools::KnnQueryHeap` for the pair of heaps and mechanisms for tracking the minimum distance and the current knn set.
     /// See the `nodes::CoverNode::singleton_knn` and `nodes::CoverNode::child_knn` for the brute force node based knn.
-    pub fn knn(&self, point: &[f32], k: usize) -> GrandmaResult<Vec<(f32, PointIndex)>> {
+    pub fn knn<'a, T: Into<PointRef<'a>>>(
+        &self,
+        point: T,
+        k: usize,
+    ) -> GrandmaResult<Vec<(f32, PointIndex)>> {
         let mut query_heap = KnnQueryHeap::new(k, self.parameters.scale_base);
+        let point: PointRef<'a> = point.into();
 
-        let root_center = self.parameters.point_cloud.get_point(self.root_address.1)?;
-        let dist_to_root = M::dense(root_center, point);
+        let root_center = self.parameters.point_cloud.point(self.root_address.1)?;
+        let dist_to_root = D::Metric::dist(&root_center, point)?;
         query_heap.push_nodes(&[self.root_address], &[dist_to_root], None);
         self.greedy_knn_nodes(&point, &mut query_heap);
 
         while let Some((_dist, address)) = query_heap.closest_unvisited_singleton_covering_address()
         {
             self.get_node_and(address, |n| {
-                n.singleton_knn(point, &self.parameters.point_cloud, &mut query_heap)
+                n.singleton_knn(&point, &self.parameters.point_cloud, &mut query_heap)
             });
             self.greedy_knn_nodes(&point, &mut query_heap);
         }
@@ -242,11 +277,16 @@ impl<M: Metric> CoverTreeReader<M> {
     }
 
     /// Same as knn, but only deals with non-singleton points
-    pub fn routing_knn(&self, point: &[f32], k: usize) -> GrandmaResult<Vec<(f32, PointIndex)>> {
+    pub fn routing_knn<'a, T: Into<PointRef<'a>>>(
+        &self,
+        point: T,
+        k: usize,
+    ) -> GrandmaResult<Vec<(f32, PointIndex)>> {
         let mut query_heap = KnnQueryHeap::new(k, self.parameters.scale_base);
+        let point: PointRef<'a> = point.into();
 
-        let root_center = self.parameters.point_cloud.get_point(self.root_address.1)?;
-        let dist_to_root = M::dense(root_center, point);
+        let root_center = self.parameters.point_cloud.point(self.root_address.1)?;
+        let dist_to_root = D::Metric::dist(&root_center, point)?;
         query_heap.push_nodes(&[self.root_address], &[dist_to_root], None);
         self.greedy_knn_nodes(&point, &mut query_heap);
 
@@ -254,7 +294,12 @@ impl<M: Metric> CoverTreeReader<M> {
         Ok(query_heap.unpack())
     }
 
-    fn greedy_knn_nodes(&self, point: &[f32], query_heap: &mut KnnQueryHeap) -> bool {
+    fn greedy_knn_nodes<'a, T: Into<PointRef<'a>>>(
+        &self,
+        point: T,
+        query_heap: &mut KnnQueryHeap,
+    ) -> bool {
+        let point: PointRef<'a> = point.into();
         let mut did_something = false;
         while let Some((dist, nearest_address)) =
             query_heap.closest_unvisited_child_covering_address()
@@ -266,7 +311,7 @@ impl<M: Metric> CoverTreeReader<M> {
                 break;
             } else {
                 self.get_node_and(nearest_address, |n| {
-                    n.child_knn(Some(dist), point, &self.parameters.point_cloud, query_heap)
+                    n.child_knn(Some(dist), &point, &self.parameters.point_cloud, query_heap)
                 });
             }
             did_something = true;
@@ -280,15 +325,15 @@ impl<M: Metric> CoverTreeReader<M> {
     /// when the closest node is a leaf node.
     ///
     /// Todo: More Documentation, make this the k closest nodes on each layer.
-    pub fn multiscale_knn(
+    pub fn multiscale_knn<'a, T: Into<PointRef<'a>>>(
         &self,
-        point: &[f32],
+        point: T,
         k: usize,
     ) -> GrandmaResult<HashMap<i32, Vec<(f32, NodeAddress)>>> {
         let mut query_heap = MultiscaleQueryHeap::new(k, self.parameters.scale_base);
-
-        let root_center = self.parameters.point_cloud.get_point(self.root_address.1)?;
-        let dist_to_root = M::dense(root_center, point);
+        let point: PointRef<'a> = point.into();
+        let root_center = self.parameters.point_cloud.point(self.root_address.1)?;
+        let dist_to_root = D::Metric::dist(&root_center, point)?;
         query_heap.push_nodes(&[self.root_address], &[dist_to_root], None);
         println!("========================");
         println!("{:#?}", query_heap);
@@ -302,7 +347,7 @@ impl<M: Metric> CoverTreeReader<M> {
                             self.get_node_and(nearest_address, |n| {
                                 n.child_knn(
                                     Some(q_dist),
-                                    point,
+                                    &point,
                                     &self.parameters.point_cloud,
                                     &mut query_heap,
                                 )
@@ -321,26 +366,30 @@ impl<M: Metric> CoverTreeReader<M> {
     }
 
     /// # Dry Insert Query
-    pub fn dry_insert(&self, point: &[f32]) -> GrandmaResult<Vec<(f32, NodeAddress)>> {
-        let root_center = self.parameters.point_cloud.get_point(self.root_address.1)?;
-        let mut current_distance = M::dense(root_center, point);
+    pub fn dry_insert<'a, T: Into<PointRef<'a>>>(
+        &self,
+        point: T,
+    ) -> GrandmaResult<Vec<(f32, NodeAddress)>> {
+        let point: PointRef<'a> = point.into();
+        let root_center = self.parameters.point_cloud.point(self.root_address.1)?;
+        let mut current_distance = D::Metric::dist(&root_center, point)?;
         let mut current_address = self.root_address;
         let mut trace = vec![(current_distance, current_address)];
         while let Some(nearest) = self.get_node_and(current_address, |n| {
-                n.covering_child(
-                    self.parameters.scale_base,
-                    current_distance,
-                    point,
-                    &self.parameters.point_cloud,
-                )
-            }) {
-                if let Some(nearest) = nearest? {
-                    trace.push(nearest);
-                    current_distance = nearest.0;
-                    current_address = nearest.1;
-                } else {
-                    break;
-                }
+            n.covering_child(
+                self.parameters.scale_base,
+                current_distance,
+                point,
+                &self.parameters.point_cloud,
+            )
+        }) {
+            if let Some(nearest) = nearest? {
+                trace.push(nearest);
+                current_distance = nearest.0;
+                current_address = nearest.1;
+            } else {
+                break;
+            }
         }
         Ok(trace)
     }
@@ -353,9 +402,13 @@ impl<M: Metric> CoverTreeReader<M> {
             println!("checking {:?}", node_addr);
             println!("refs_to_check: {:?}", refs_to_check);
             let node_exists = self.get_node_and(node_addr, |n| {
-                if let Some((nested_scale,other_children)) = n.children() {
-                    println!("Pushing: {:?}, {:?}", (nested_scale,other_children), other_children);
-                    refs_to_check.push((nested_scale,node_addr.1));
+                if let Some((nested_scale, other_children)) = n.children() {
+                    println!(
+                        "Pushing: {:?}, {:?}",
+                        (nested_scale, other_children),
+                        other_children
+                    );
+                    refs_to_check.push((nested_scale, node_addr.1));
                     refs_to_check.extend(&other_children[..]);
                 }
             });
@@ -368,20 +421,27 @@ impl<M: Metric> CoverTreeReader<M> {
 }
 
 ///
-pub struct CoverTreeWriter<M: Metric> {
-    pub(crate) parameters: Arc<CoverTreeParameters<M>>,
-    pub(crate) layers: Vec<CoverLayerWriter<M>>,
+pub struct CoverTreeWriter<D: PointCloud> {
+    pub(crate) parameters: Arc<CoverTreeParameters<D>>,
+    pub(crate) layers: Vec<CoverLayerWriter<D>>,
     pub(crate) root_address: NodeAddress,
 }
 
-impl<M: Metric> CoverTreeWriter<M> {
+impl<D: PointCloud + LabeledCloud> CoverTreeWriter<D> {
+    /// 
+    pub fn generate_summaries(&mut self){
+        self.add_plugin::<LabelSummaryPlugin>(TreeLabelSummary::default())
+    }
+}
+
+impl<D: PointCloud> CoverTreeWriter<D> {
     ///
-    pub fn add_plugin<P: GrandmaPlugin<M>>(
+    pub fn add_plugin<P: GrandmaPlugin<D>>(
         &mut self,
-        plug_in: <P as plugins::GrandmaPlugin<M>>::TreeComponent,
+        plug_in: <P as plugins::GrandmaPlugin<D>>::TreeComponent,
     ) where
-        <P as plugins::GrandmaPlugin<M>>::TreeComponent: 'static,
-        <P as plugins::GrandmaPlugin<M>>::NodeComponent: 'static,
+        <P as plugins::GrandmaPlugin<D>>::TreeComponent: 'static,
+        <P as plugins::GrandmaPlugin<D>>::NodeComponent: 'static,
     {
         let reader = self.reader();
         for layer in self.layers.iter_mut() {
@@ -395,19 +455,19 @@ impl<M: Metric> CoverTreeWriter<M> {
     }
 
     /// Provides a reference to a `CoverLayerWriter`. Do not use, unless you're going to leave the tree in a *valid* state.
-    pub(crate) unsafe fn layer(&mut self, scale_index: i32) -> &mut CoverLayerWriter<M> {
+    pub(crate) unsafe fn layer(&mut self, scale_index: i32) -> &mut CoverLayerWriter<D> {
         &mut self.layers[self.parameters.internal_index(scale_index)]
     }
 
     pub(crate) unsafe fn update_node<F>(&mut self, address: NodeAddress, update_fn: F)
     where
-        F: Fn(&mut CoverNode<M>) + 'static + Send + Sync,
+        F: Fn(&mut CoverNode<D>) + 'static + Send + Sync,
     {
         self.layers[self.parameters.internal_index(address.0)].update_node(address.1, update_fn);
     }
 
     /// Creates a reader for queries.
-    pub fn reader(&self) -> CoverTreeReader<M> {
+    pub fn reader(&self) -> CoverTreeReader<D> {
         CoverTreeReader {
             parameters: Arc::clone(&self.parameters),
             layers: self.layers.iter().map(|l| l.reader()).collect(),
@@ -419,16 +479,13 @@ impl<M: Metric> CoverTreeWriter<M> {
         &mut self,
         scale_index: i32,
         point_index: PointIndex,
-        node: CoverNode<M>,
+        node: CoverNode<D>,
     ) {
         self.layers[self.parameters.internal_index(scale_index)].insert_raw(point_index, node);
     }
 
     /// Loads a tree from a protobuf. There's a `load_tree` in `utils` that handles loading from a path to a protobuf file.
-    pub fn load(
-        cover_proto: &CoreProto,
-        point_cloud: PointCloud<M>,
-    ) -> GrandmaResult<CoverTreeWriter<M>> {
+    pub fn load(cover_proto: &CoreProto, point_cloud: Arc<D>) -> GrandmaResult<CoverTreeWriter<D>> {
         let parameters = Arc::new(CoverTreeParameters {
             total_nodes: atomic::AtomicUsize::new(0),
             use_singletons: cover_proto.use_singletons,
@@ -439,7 +496,10 @@ impl<M: Metric> CoverTreeWriter<M> {
             verbosity: 2,
             plugins: RwLock::new(TreePluginSet::new()),
         });
-        let root_address = (cover_proto.get_root_scale(), cover_proto.get_root_index());
+        let root_address = (
+            cover_proto.get_root_scale(),
+            cover_proto.get_root_index() as usize,
+        );
         let layers = cover_proto
             .get_layers()
             .par_iter()
@@ -463,7 +523,7 @@ impl<M: Metric> CoverTreeWriter<M> {
         cover_proto.set_dim(self.parameters.point_cloud.dim() as u64);
         cover_proto.set_count(self.parameters.point_cloud.len() as u64);
         cover_proto.set_root_scale(self.root_address.0);
-        cover_proto.set_root_index(self.root_address.1);
+        cover_proto.set_root_index(self.root_address.1 as u64);
         cover_proto.set_layers(self.layers.iter().map(|l| l.save()).collect());
         cover_proto
     }
@@ -478,24 +538,23 @@ impl<M: Metric> CoverTreeWriter<M> {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::utils::cover_tree_from_yaml;
+    use crate::utils::cover_tree_from_labeled_yaml;
     use std::path::Path;
 
-    pub(crate) fn build_mnist_tree() -> CoverTreeWriter<L2> {
+    pub(crate) fn build_mnist_tree() -> CoverTreeWriter<DefaultLabeledCloud<L2>> {
         let file_name = "../data/mnist_complex.yml";
         let path = Path::new(file_name);
         if !path.exists() {
             panic!(file_name.to_owned() + &" does not exist".to_string());
         }
-        cover_tree_from_yaml(&path).unwrap()
+        cover_tree_from_labeled_yaml(&path).unwrap()
     }
 
-    pub(crate) fn build_basic_tree() -> CoverTreeWriter<L2> {
+    pub(crate) fn build_basic_tree() -> CoverTreeWriter<DefaultLabeledCloud<L2>> {
         let data = vec![0.499, 0.49, 0.48, -0.49, 0.0];
-        let labels = vec![0.0, 0.0, 0.0, 1.0, 1.0];
+        let labels = vec![0, 0, 0, 1, 1];
 
-        let point_cloud =
-            PointCloud::<L2>::simple_from_ram(Box::from(data), 1, Box::from(labels), 1).unwrap();
+        let point_cloud = DefaultLabeledCloud::<L2>::new_simple(data, 1, labels);
         let builder = CoverTreeBuilder {
             scale_base: 2.0,
             cutoff: 1,
@@ -503,7 +562,7 @@ pub(crate) mod tests {
             use_singletons: true,
             verbosity: 0,
         };
-        builder.build(point_cloud).unwrap()
+        builder.build(Arc::new(point_cloud)).unwrap()
     }
 
     #[test]
@@ -538,10 +597,9 @@ pub(crate) mod tests {
     #[test]
     fn greedy_knn_nodes() {
         let data = vec![0.499, 0.49, 0.48, -0.49, 0.0];
-        let labels = vec![0.0, 0.0, 0.0, 1.0, 1.0];
+        let labels = vec![0, 0, 0, 1, 1];
 
-        let point_cloud =
-            PointCloud::<L2>::simple_from_ram(Box::from(data), 1, Box::from(labels), 1).unwrap();
+        let point_cloud = DefaultLabeledCloud::<L2>::new_simple(data, 1, labels);
         let builder = CoverTreeBuilder {
             scale_base: 2.0,
             cutoff: 1,
@@ -549,7 +607,7 @@ pub(crate) mod tests {
             use_singletons: false,
             verbosity: 0,
         };
-        let tree = builder.build(point_cloud).unwrap();
+        let tree = builder.build(Arc::new(point_cloud)).unwrap();
         let reader = tree.reader();
 
         let point = [-0.5];
@@ -582,7 +640,7 @@ pub(crate) mod tests {
     fn dry_insert_sanity() {
         let writer = build_basic_tree();
         let reader = writer.reader();
-        let trace = reader.dry_insert(&[0.495]).unwrap();
+        let trace = reader.dry_insert(&[0.495f32][..]).unwrap();
         assert!(trace.len() == 4 || trace.len() == 3);
         println!("{:?}", trace);
         for i in 0..(trace.len() - 1) {
@@ -594,7 +652,7 @@ pub(crate) mod tests {
     fn multiscale_sanity() {
         let writer = build_basic_tree();
         let reader = writer.reader();
-        let trace = reader.multiscale_knn(&[0.495], 2).unwrap();
+        let trace = reader.multiscale_knn(&[0.495f32][..], 2).unwrap();
         assert_eq!(
             trace.get(&reader.root_address().0).unwrap()[0],
             (0.495, reader.root_address())
@@ -607,19 +665,18 @@ pub(crate) mod tests {
         println!("2 nearest neighbors of 0.0 are 0.48 and 0.0");
         let writer = build_basic_tree();
         let reader = writer.reader();
-        let zero_nbrs = reader.knn(&[0.1], 2).unwrap();
+        let zero_nbrs = reader.knn(&[0.1f32][..], 2).unwrap();
         println!("{:?}", zero_nbrs);
         assert!(zero_nbrs[0].1 == 4);
         assert!(zero_nbrs[1].1 == 2);
     }
 
     #[test]
-    fn knn_singletons_off() {
+    fn label_summary() {
         let data = vec![0.499, 0.49, 0.48, -0.49, 0.0];
-        let labels = vec![0.0, 0.0, 0.0, 1.0, 1.0];
+        let labels = vec![0, 0, 0, 1, 1];
 
-        let point_cloud =
-            PointCloud::<L2>::simple_from_ram(Box::from(data), 1, Box::from(labels), 1).unwrap();
+        let point_cloud = DefaultLabeledCloud::<L2>::new_simple(data, 1, labels);
         let builder = CoverTreeBuilder {
             scale_base: 2.0,
             cutoff: 1,
@@ -627,11 +684,39 @@ pub(crate) mod tests {
             use_singletons: false,
             verbosity: 0,
         };
-        let tree = builder.build(point_cloud).unwrap();
+        let mut tree = builder.build(Arc::new(point_cloud)).unwrap();
+        tree.generate_summaries();
+        let reader = tree.reader();
+
+        for (_,layer) in reader.layers() {
+            layer.for_each_node(|_,n| println!("{:?}", n.label_summary()));
+        }
+
+        reader.get_node_label_summary_and(reader.root_address(),|l| {
+            assert_eq!(l.items.len(),2);
+            assert_eq!(l.nones,0);
+            assert_eq!(l.errors,0);
+        });
+    }
+
+    #[test]
+    fn knn_singletons_off() {
+        let data = vec![0.499, 0.49, 0.48, -0.49, 0.0];
+        let labels = vec![0, 0, 0, 1, 1];
+
+        let point_cloud = DefaultLabeledCloud::<L2>::new_simple(data, 1, labels);
+        let builder = CoverTreeBuilder {
+            scale_base: 2.0,
+            cutoff: 1,
+            resolution: -9,
+            use_singletons: false,
+            verbosity: 0,
+        };
+        let tree = builder.build(Arc::new(point_cloud)).unwrap();
         let reader = tree.reader();
 
         println!("2 nearest neighbors of 0.1 are 0.48 and 0.0");
-        let zero_nbrs = reader.knn(&[0.1], 2).unwrap();
+        let zero_nbrs = reader.knn(&[0.1f32][..], 2).unwrap();
         println!("{:?}", zero_nbrs);
         assert!(zero_nbrs[0].1 == 4);
         assert!(zero_nbrs[1].1 == 2);

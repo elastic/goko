@@ -4,7 +4,7 @@ import pygrandma
 import pandas as pd
 
 tree = pygrandma.PyGrandma()
-tree.fit_yaml("../data/ember_complex.yml")
+tree.fit_yaml("../../data/ember_complex.yml")
 
 print(tree.knn(tree.data_point(0),5))
 

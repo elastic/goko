@@ -3,14 +3,11 @@ from sklearn.neighbors import KDTree
 import pygrandma
 import pandas as pd
 
-data = np.memmap("../data/mnist.dat", dtype=np.float32)
+data = np.memmap("../../data/mnist.dat", dtype=np.float32)
 data = data.reshape([-1,784])
 
 tree = pygrandma.PyGrandma()
-tree.set_cutoff(0)
-tree.set_scale_base(1.2)
-tree.set_resolution(-30)
-tree.fit(data)
+tree.fit_yaml("../../data/mnist_complex.yml")
 
 print(tree.knn(data[0],5))
 
@@ -23,10 +20,11 @@ for i,layer in enumerate(tree.layers()):
 print("============= TRACE =============")
 trace = tree.dry_insert(data[59999])
 for address in trace:
-    node = tree.node(address)
+    print(address)
+    node = tree.node(address[1])
     mean = node.cover_mean()
     if mean is not None:
-        print(f"\tNode {node.address()}, mean: {mean.mean()}")
+        print(f"\tNode {node.address()}, mean: {mean.mean()}, summary: {node.label_summary()}")
     else:
         print(f"\tNode {node.address()}, MEAN IS BROKEN")
 
