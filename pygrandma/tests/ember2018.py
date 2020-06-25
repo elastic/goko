@@ -4,6 +4,8 @@ import pygrandma
 tree = pygrandma.PyGrandma()
 tree.load_yaml_config("../data/ember_complex.yml")
 tree.fit()
+
+
 print(tree.knn(tree.data_point(0),5))
 
 print("============= TRACE =============")

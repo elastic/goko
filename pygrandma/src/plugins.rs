@@ -26,8 +26,8 @@ impl PyBucketProbs {
 
 #[pyclass]
 pub struct PyBayesCategoricalTracker {
-    pub hkl: BayesCategoricalTracker<L2>,
-    pub tree: Arc<CoverTreeReader<L2>>,
+    pub hkl: BayesCategoricalTracker<DefaultLabeledCloud<L2>>,
+    pub tree: Arc<CoverTreeReader<DefaultLabeledCloud<L2>>>,
 }
 
 #[pymethods]
@@ -41,7 +41,7 @@ impl PyBayesCategoricalTracker {
         println!("{:#?}", self.hkl);
     }
 
-    pub fn all_kl(&self) -> Vec<(f64, (i32, u64))> {
+    pub fn all_kl(&self) -> Vec<(f64, (i32, usize))> {
         self.hkl.all_node_kl()
     }
     pub fn stats(&self) -> PyKLDivergenceStats {
@@ -67,7 +67,7 @@ impl PyKLDivergenceStats {
         self.stats.min
     }
     #[getter]
-    pub fn nz_count(&self) -> u64 {
+    pub fn nz_count(&self) -> usize {
         self.stats.nz_count
     }
     #[getter]

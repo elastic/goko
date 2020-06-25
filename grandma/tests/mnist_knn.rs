@@ -48,14 +48,13 @@ use grandma::{CoverTreeReader, CoverTreeWriter};
 use pointcloud::*;
 use std::env;
 
-fn build_tree() -> CoverTreeWriter<L2> {
+fn build_tree() -> CoverTreeWriter<DefaultLabeledCloud<L2>> {
     let file_name = "../data/mnist_complex.yml";
     let path = Path::new(file_name);
     if !path.exists() {
         panic!(file_name.to_owned() + &" does not exist".to_string());
     }
-    let (builder, point_cloud) = builder_from_yaml(&path).unwrap();
-    builder.build(point_cloud).unwrap()
+    cover_tree_from_labeled_yaml(&path).unwrap()
 }
 /*
 #[test]
@@ -75,7 +74,7 @@ fn load_tree_and_query() {
 }
 */
 
-fn test_dry_insert(ct_reader: &CoverTreeReader<L2>, query_index: u64) {
+fn test_dry_insert(ct_reader: &CoverTreeReader<DefaultLabeledCloud<L2>>, query_index: usize) {
     // Testing dry insert on prebuilt tree
 
     let trace = ct_reader
@@ -83,7 +82,7 @@ fn test_dry_insert(ct_reader: &CoverTreeReader<L2>, query_index: u64) {
             ct_reader
                 .parameters()
                 .point_cloud
-                .get_point(query_index)
+                .point(query_index)
                 .unwrap(),
         )
         .unwrap();
@@ -103,7 +102,7 @@ fn run_knn_query() {
         save_tree(Path::new("../data/mnist.tree"), &ct).unwrap();
         let ct_reader = ct.reader();
         let zeros = [0.0; 784];
-        let query = ct_reader.knn(&zeros, 5).unwrap();
+        let query = ct_reader.knn(&zeros[..], 5).unwrap();
         println!("{:#?}", query);
         println!("Expected: (array([3.56982747, 3.65066243, 3.83593169, 3.84857365, 3.86859321]), array([17664, 21618, 51468,  8080, 37920]))");
         assert!(query[0].1 == 17664);

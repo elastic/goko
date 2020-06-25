@@ -20,26 +20,10 @@
 //! Some data sources and a trait to dimension and uniformly reference the data contained.
 //! The only currently supported are memmaps and ram blobs.
 
-use crate::errors::*;
-use std::fmt::Debug;
+mod memmap_ram;
 
-mod memmap;
 #[allow(dead_code)]
 mod memmapf32;
 
 #[doc(hidden)]
-pub use memmap::*;
-
-/// The trait for uniform access across many data types
-pub trait DataSource: Send + Sync + Debug {
-    /// Make this panic with `DataAccessError` when implementing,
-    fn get(&self, i: usize) -> Result<&[f32], PointCloudError>;
-    /// The dimension that this dimensioned data respects
-    fn dim(&self) -> usize;
-    /// This should always be the number of points contained in this portion of the dataset.
-    fn len(&self) -> usize;
-    ///
-    fn is_empty(&self) -> bool;
-    /// The name of this portion of the dataset. Useful for reporting errors to the user.
-    fn name(&self) -> String;
-}
+pub use memmap_ram::*;

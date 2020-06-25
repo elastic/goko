@@ -9,11 +9,13 @@ use grandma::*;
 use pointcloud::*;
 use std::sync::Arc;
 
+use pyo3::types::PyDict;
+
 #[pyclass]
 pub struct IterLayerNode {
-    pub parameters: Arc<CoverTreeParameters<L2>>,
+    pub parameters: Arc<CoverTreeParameters<DefaultLabeledCloud<L2>>>,
     pub addresses: Vec<NodeAddress>,
-    pub tree: Arc<CoverTreeReader<L2>>,
+    pub tree: Arc<CoverTreeReader<DefaultLabeledCloud<L2>>>,
     pub index: usize,
 }
 
@@ -46,21 +48,21 @@ impl PyIterProtocol for IterLayerNode {
 
 #[pyclass]
 pub struct PyGrandNode {
-    pub parameters: Arc<CoverTreeParameters<L2>>,
+    pub parameters: Arc<CoverTreeParameters<DefaultLabeledCloud<L2>>>,
     pub address: NodeAddress,
-    pub tree: Arc<CoverTreeReader<L2>>,
+    pub tree: Arc<CoverTreeReader<DefaultLabeledCloud<L2>>>,
 }
 
 #[pymethods]
 impl PyGrandNode {
-    pub fn address(&self) -> (i32, u64) {
+    pub fn address(&self) -> (i32, usize) {
         self.address
     }
 
-    pub fn coverage_count(&self) -> u64 {
+    pub fn coverage_count(&self) -> usize {
         self.tree
-            .get_node_plugin_and::<Dirichlet, _, _>(self.address, |p| p.total())
-            .unwrap() as u64
+            .get_node_and(self.address, |n| n.cover_count())
+            .unwrap()
     }
 
     pub fn children(&self) -> Vec<PyGrandNode> {
@@ -74,11 +76,11 @@ impl PyGrandNode {
             .collect()
     }
 
-    pub fn children_addresses(&self) -> Vec<(i32, u64)> {
+    pub fn children_addresses(&self) -> Vec<(i32, usize)> {
         self.tree
             .get_node_and(self.address, |n| {
                 n.children().map(|(nested_scale, children)| {
-                    let mut py_nodes: Vec<(i32, u64)> = Vec::from(children);
+                    let mut py_nodes: Vec<(i32, usize)> = Vec::from(children);
                     py_nodes.push((nested_scale, *n.center_index()));
                     py_nodes
                 })
@@ -101,16 +103,19 @@ impl PyGrandNode {
         let mut ret_matrix = Vec::with_capacity(len * dim);
         self.tree.get_node_and(self.address, |n| {
             n.singletons().iter().for_each(|pi| {
-                ret_matrix.extend(self.parameters.point_cloud.get_point(*pi).unwrap_or(&[]));
+                if let Ok(p) = self.parameters
+                        .point_cloud
+                        .point(*pi) {
+                    ret_matrix.extend(p.dense_iter(dim));
+                }
             });
 
             if n.is_leaf() {
-                ret_matrix.extend(
-                    self.parameters
+                if let Ok(p) = self.parameters
                         .point_cloud
-                        .get_point(*n.center_index())
-                        .unwrap_or(&[]),
-                );
+                        .point(*n.center_index()) {
+                    ret_matrix.extend(p.dense_iter(dim));
+                }
             }
         });
 
@@ -120,7 +125,7 @@ impl PyGrandNode {
         Ok(ret_matrix.into_pyarray(py).to_owned())
     }
 
-    pub fn singletons_indexes(&self) -> Vec<u64> {
+    pub fn singletons_indexes(&self) -> Vec<usize> {
         self.tree
             .get_node_and(self.address, |n| Vec::from(n.singletons()))
             .unwrap_or(vec![])
@@ -153,5 +158,21 @@ impl PyGrandNode {
         let gil = GILGuard::acquire();
         let py = gil.python();
         Ok(py_mean.into_pyarray(py).to_owned())
+    }
+
+    pub fn label_summary(&self) -> PyResult<Option<PyObject>> {
+        let gil = GILGuard::acquire();
+        let py = gil.python();
+        let dict = PyDict::new(py);
+        let py_result = self.tree.get_node_label_summary_and::<_,PyResult<()>>(self.address, |s| {
+            dict.set_item("errors", s.errors)?;
+            dict.set_item("nones", s.nones)?;
+            dict.set_item("items", s.items.to_vec())?;
+            Ok(())
+        });
+        match py_result {
+            Some(res) => {res?; Ok(Some(dict.into()))},
+            None => Ok(None),
+        }
     }
 }

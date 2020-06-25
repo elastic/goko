@@ -136,16 +136,16 @@ impl DiscreteDistribution for Dirichlet {
     }
 }
 
-impl<M: Metric> NodePlugin<M> for Dirichlet {
-    fn update(&mut self, _my_node: &CoverNode<M>, _my_tree: &CoverTreeReader<M>) {}
+impl<D: PointCloud> NodePlugin<D> for Dirichlet {
+    fn update(&mut self, _my_node: &CoverNode<D>, _my_tree: &CoverTreeReader<D>) {}
 }
 
 /// Zero sized type that can be passed around. Equivilant to `()`
 #[derive(Debug, Clone)]
 pub struct DirichletTree {}
 
-impl<M: Metric> TreePlugin<M> for DirichletTree {
-    fn update(&mut self, _my_tree: &CoverTreeReader<M>) {}
+impl<D: PointCloud> TreePlugin<D> for DirichletTree {
+    fn update(&mut self, _my_tree: &CoverTreeReader<D>) {}
 }
 
 /// Zero sized type that can be passed around. Equivilant to `()`
@@ -153,13 +153,13 @@ impl<M: Metric> TreePlugin<M> for DirichletTree {
 pub struct GrandmaDirichlet {}
 
 /// Parent trait that make this all work. Ideally this should be included in the `TreePlugin` but rust doesn't like it.
-impl<M: Metric> GrandmaPlugin<M> for GrandmaDirichlet {
+impl<D: PointCloud> GrandmaPlugin<D> for GrandmaDirichlet {
     type NodeComponent = Dirichlet;
     type TreeComponent = DirichletTree;
     fn node_component(
         _parameters: &Self::TreeComponent,
-        my_node: &CoverNode<M>,
-        my_tree: &CoverTreeReader<M>,
+        my_node: &CoverNode<D>,
+        my_tree: &CoverTreeReader<D>,
     ) -> Self::NodeComponent {
         let mut bucket = Dirichlet::new();
 
@@ -185,16 +185,16 @@ impl<M: Metric> GrandmaPlugin<M> for GrandmaDirichlet {
 }
 
 /// Computes a frequentist KL divergence calculation on each node the sequence touches.
-pub struct BayesCategoricalTracker<M: Metric> {
+pub struct BayesCategoricalTracker<D: PointCloud> {
     running_distributions: HashMap<NodeAddress, Dirichlet>,
     sequence: VecDeque<Vec<(f32, NodeAddress)>>,
     window_size: usize,
     prior_weight: f64,
     observation_weight: f64,
-    reader: CoverTreeReader<M>,
+    reader: CoverTreeReader<D>,
 }
 
-impl<M: Metric> fmt::Debug for BayesCategoricalTracker<M> {
+impl<D: PointCloud> fmt::Debug for BayesCategoricalTracker<D> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
@@ -204,14 +204,14 @@ impl<M: Metric> fmt::Debug for BayesCategoricalTracker<M> {
     }
 }
 
-impl<M: Metric> BayesCategoricalTracker<M> {
+impl<D: PointCloud> BayesCategoricalTracker<D> {
     /// Creates a new blank thing with capacity `size`, input 0 for unlimited.
     pub fn new(
         prior_weight: f64,
         observation_weight: f64,
         window_size: usize,
-        reader: CoverTreeReader<M>,
-    ) -> BayesCategoricalTracker<M> {
+        reader: CoverTreeReader<D>,
+    ) -> BayesCategoricalTracker<D> {
         BayesCategoricalTracker {
             running_distributions: HashMap::new(),
             sequence: VecDeque::new(),
@@ -223,7 +223,7 @@ impl<M: Metric> BayesCategoricalTracker<M> {
     }
 
     /// Accessor for the reader associated to this tracker
-    pub fn reader(&self) -> &CoverTreeReader<M> {
+    pub fn reader(&self) -> &CoverTreeReader<D> {
         &self.reader
     }
 
@@ -282,7 +282,7 @@ impl<M: Metric> BayesCategoricalTracker<M> {
             .remove_child_pop(None, self.observation_weight);
     }
 }
-impl<M: Metric> DiscreteBayesianSequenceTracker<M> for BayesCategoricalTracker<M> {
+impl<D: PointCloud> DiscreteBayesianSequenceTracker<D> for BayesCategoricalTracker<D> {
     type Distribution = Dirichlet;
     /// Adds an element to the trace
     fn add_dry_insert(&mut self, trace: Vec<(f32, NodeAddress)>) {
@@ -296,7 +296,7 @@ impl<M: Metric> DiscreteBayesianSequenceTracker<M> for BayesCategoricalTracker<M
     fn running_distributions(&self) -> &HashMap<NodeAddress, Dirichlet> {
         &self.running_distributions
     }
-    fn tree_reader(&self) -> &CoverTreeReader<M> {
+    fn tree_reader(&self) -> &CoverTreeReader<D> {
         &self.reader
     }
     fn sequence_len(&self) -> usize {
@@ -306,18 +306,18 @@ impl<M: Metric> DiscreteBayesianSequenceTracker<M> for BayesCategoricalTracker<M
 
 /// Trains a baseline by sampling randomly from the training set (used to create the tree)
 /// This baseline is _not_ realistic.
-pub struct DirichletBaseline<M: Metric> {
+pub struct DirichletBaseline<D: PointCloud> {
     sequence_len: usize,
     num_sequences: usize,
     window_size: usize,
     prior_weight: f64,
     observation_weight: f64,
-    reader: CoverTreeReader<M>,
+    reader: CoverTreeReader<D>,
 }
 
-impl<M: Metric> DirichletBaseline<M> {
+impl<D: PointCloud> DirichletBaseline<D> {
     /// New with sensible defaults
-    pub fn new(reader: CoverTreeReader<M>) -> DirichletBaseline<M> {
+    pub fn new(reader: CoverTreeReader<D>) -> DirichletBaseline<D> {
         DirichletBaseline {
             sequence_len: 200,
             num_sequences: 100,
@@ -370,9 +370,8 @@ impl<M: Metric> DirichletBaseline<M> {
             );
             for _ in 0..self.sequence_len {
                 let mut rng = thread_rng();
-                let query_point =
-                    point_cloud.get_point(rng.gen_range(0, point_cloud.len()) as u64)?;
-                tracker.add_dry_insert(self.reader.dry_insert(query_point)?);
+                let query_point = point_cloud.point(rng.gen_range(0, point_cloud.len()))?;
+                tracker.add_dry_insert(self.reader.dry_insert(&query_point)?);
                 seq_results.push(tracker.current_stats());
             }
         }

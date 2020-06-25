@@ -21,6 +21,7 @@ use crate::errors::GrandmaResult;
 use pointcloud::*;
 use rand::{thread_rng, Rng};
 use std::fmt;
+use std::sync::Arc;
 
 #[derive(Clone)]
 pub(crate) struct CoveredData {
@@ -35,10 +36,10 @@ pub(crate) struct UncoveredData {
 }
 
 impl UncoveredData {
-    pub(crate) fn pick_center<M: Metric>(
+    pub(crate) fn pick_center<D: PointCloud>(
         &mut self,
         radius: f32,
-        point_cloud: &PointCloud<M>,
+        point_cloud: &Arc<D>,
     ) -> GrandmaResult<CoveredData> {
         let mut rng = thread_rng();
         let new_center: usize = rng.gen_range(0, self.coverage.len());
@@ -101,7 +102,7 @@ fn find_split(dist_indexes: &[(f32, usize)], thresh: f32) -> usize {
 }
 
 impl CoveredData {
-    pub(crate) fn new<M: Metric>(point_cloud: &PointCloud<M>) -> GrandmaResult<CoveredData> {
+    pub(crate) fn new<D: PointCloud>(point_cloud: &Arc<D>) -> GrandmaResult<CoveredData> {
         let mut coverage = point_cloud.reference_indexes();
         let center_index = coverage.pop().unwrap();
         let dists = point_cloud.distances_to_point_index(center_index, &coverage)?;
@@ -162,15 +163,10 @@ mod tests {
         }
         data.push(0.0);
 
-        let labels: Vec<f32> = data
-            .iter()
-            .map(|x| if *x > 0.5 { 1.0 } else { 0.0 })
-            .collect();
+        let labels: Vec<u64> = data.iter().map(|x| if *x > 0.5 { 1 } else { 0 }).collect();
 
-        //data.sort_unstable_by(|a, b| (a).partial_cmp(&b).unwrap_or(Ordering::Equal));
+        let point_cloud = DefaultLabeledCloud::<L2>::new_simple(data, 1, labels);
 
-        let point_cloud =
-            PointCloud::<L2>::simple_from_ram(Box::from(data), 1, Box::from(labels), 1).unwrap();
         let cache = CoveredData::new(&Arc::new(point_cloud)).unwrap();
         let (close, far) = cache.split(1.0).unwrap();
 
@@ -186,15 +182,10 @@ mod tests {
         }
         data.push(0.0);
 
-        let labels: Vec<f32> = data
-            .iter()
-            .map(|x| if *x > 0.5 { 1.0 } else { 0.0 })
-            .collect();
+        let labels: Vec<u64> = data.iter().map(|x| if *x > 0.5 { 1 } else { 0 }).collect();
 
-        //data.sort_unstable_by(|a, b| (a).partial_cmp(&b).unwrap_or(Ordering::Equal));
+        let point_cloud = Arc::new(DefaultLabeledCloud::<L2>::new_simple(data, 1, labels));
 
-        let point_cloud =
-            PointCloud::<L2>::simple_from_ram(Box::from(data), 1, Box::from(labels), 1).unwrap();
         let mut cache = UncoveredData {
             coverage: (0..19 as PointIndex).collect(),
         };
@@ -218,26 +209,21 @@ mod tests {
         }
         data.push(0.0);
 
-        let labels: Vec<f32> = data
-            .iter()
-            .map(|x| if *x > 0.5 { 1.0 } else { 0.0 })
-            .collect();
+        let labels: Vec<u64> = data.iter().map(|x| if *x > 0.5 { 1 } else { 0 }).collect();
 
         //data.sort_unstable_by(|a, b| (a).partial_cmp(&b).unwrap_or(Ordering::Equal));
+        let point_cloud = DefaultLabeledCloud::<L2>::new_simple(data.clone(), 1, labels);
 
-        let point_cloud =
-            PointCloud::<L2>::simple_from_ram(Box::from(data.clone()), 1, Box::from(labels), 1)
-                .unwrap();
-        let cache = CoveredData::new(&point_cloud).unwrap();
+        let cache = CoveredData::new(&Arc::new(point_cloud)).unwrap();
 
         let thresh = 0.5;
-        let mut true_close: Vec<u64> = Vec::new();
-        let mut true_far: Vec<u64> = Vec::new();
+        let mut true_close = Vec::new();
+        let mut true_far = Vec::new();
         for i in 0..19 {
             if data[i] < thresh {
-                true_close.push(i as u64);
+                true_close.push(i);
             } else {
-                true_far.push(i as u64);
+                true_far.push(i);
             }
             assert_approx_eq!(data[i], cache.dists[i]);
         }

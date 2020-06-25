@@ -4,7 +4,6 @@
 //! It also has trackers used to see when queries and sequences are out of distribution.
 
 use super::*;
-use crate::*;
 use std::collections::HashMap;
 use std::fmt::Debug;
 
@@ -31,7 +30,7 @@ pub trait DiscreteDistribution: Clone + 'static {
 ///
 pub trait ContinousDistribution: Clone + 'static {
     /// Pass none if you want to test for a singleton, returns 0 if
-    fn ln_prob(&self, point: &[f32]) -> Option<f64>;
+    fn ln_prob(&self, point: &PointRef) -> Option<f64>;
 
     /// Computes the KL divergence of two bucket probs.
     /// KL(self || other)
@@ -50,20 +49,21 @@ pub trait DiscreteBayesianDistribution: DiscreteDistribution + Clone + 'static {
 pub trait ContinousBayesianDistribution: ContinousDistribution + Clone + 'static {
     /// Adds an observation to the distribution.
     /// This currently shifts the underlying parameters of the distribution rather than be tracked.
-    fn add_observation(&mut self, point: &[f32]);
+    fn add_observation(&mut self, point: &PointRef);
 }
 
+
 /// Tracks the KL divergence for a given distribution.
-pub trait DiscreteBayesianSequenceTracker<M: Metric>: Debug {
+pub trait DiscreteBayesianSequenceTracker<D: PointCloud>: Debug {
     /// The. underlying distribution that this is tracking.
-    type Distribution: DiscreteBayesianDistribution + NodePlugin<M> + 'static;
+    type Distribution: DiscreteBayesianDistribution + NodePlugin<D> + 'static;
 
     /// Adds a dry insert.
     fn add_dry_insert(&mut self, trace: Vec<(f32, NodeAddress)>);
     /// The current distributions that a dry insert touched.
     fn running_distributions(&self) -> &HashMap<NodeAddress, Self::Distribution>;
     /// Helper function, each sequence tracker should carry it's own reader.
-    fn tree_reader(&self) -> &CoverTreeReader<M>;
+    fn tree_reader(&self) -> &CoverTreeReader<D>;
     /// The length of the sequence
     fn sequence_len(&self) -> usize;
     /// A set of stats for the sequence that are helpful.
@@ -90,7 +90,7 @@ pub trait DiscreteBayesianSequenceTracker<M: Metric>: Debug {
                     layer_totals[parameters.internal_index(address.0)] += 1;
                     layer_node_counts[parameters.internal_index(address.0)].push(
                         self.tree_reader()
-                            .get_node_and(*address, |n| n.cover_count)
+                            .get_node_and(*address, |n| n.cover_count())
                             .unwrap(),
                     );
 
