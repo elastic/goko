@@ -1,6 +1,7 @@
 use glob::{glob_with, MatchOptions};
 use std::fs;
 use yaml_rust::YamlLoader;
+use std::cmp::Ordering;
 
 use crate::{DefaultCloud, DefaultLabeledCloud};
 use crate::distances::L2;
@@ -119,7 +120,7 @@ pub fn labels_from_yaml<P: AsRef<Path>>(path: P) -> PointCloudResult<SmallIntLab
         params_files["labels_path"]
             .as_str()
             .expect("Unable to read the 'labels_path'"),
-        path.as_ref(),
+        path,
     );
 
     let labels_index = params_files["labels_index"].as_i64().map(|i| i as usize);
@@ -132,15 +133,16 @@ pub fn labels_from_yaml<P: AsRef<Path>>(path: P) -> PointCloudResult<SmallIntLab
                 ("csv", Some(index), _) | ("gz", Some(index), _) => open_int_csv(&path, index),
                 ("dat", _, Some(dim)) => {
                     let labels: VecLabels = DataMemmap::<L2>::new(dim, &path)?.convert_to_labels();
-                    if dim == 1 {
-                        Ok(labels.binary_to_int())
-                    } else if dim > 1 {
-                        Ok(labels.one_hot_to_int())
-                    } else {
-                        panic!(
-                            "Could not determine if labels are one hot or binary. {:?}, {:?}",
-                            path, dim
-                        );
+
+                    match dim.cmp(&1) {
+                        Ordering::Greater => Ok(labels.one_hot_to_int()),
+                         Ordering::Less => {
+                            panic!(
+                                "Could not determine if labels are one hot or binary. {:?}, {:?}",
+                                path, dim
+                            );
+                         },
+                         Ordering::Equal => Ok(labels.binary_to_int())
                     }
                 }
                 _ => panic!("Unable to detemine label source. {:?}, index: {:?}, dim: {:?}", path, labels_index, labels_dim),

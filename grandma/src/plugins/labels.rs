@@ -46,7 +46,6 @@ impl<D: PointCloud + LabeledCloud> GrandmaPlugin<D> for LabelSummaryPlugin {
         my_tree: &CoverTreeReader<D>,
     ) -> Self::NodeComponent {
         let mut bucket = my_tree.parameters().point_cloud.label_summary(my_node.singletons()).unwrap();
-
         // If we're a routing node then grab the childen's values
         if let Some((nested_scale, child_addresses)) = my_node.children() {
             my_tree.get_node_plugin_and::<Self::NodeComponent, _, _>(
@@ -60,6 +59,7 @@ impl<D: PointCloud + LabeledCloud> GrandmaPlugin<D> for LabelSummaryPlugin {
                     |p| bucket.combine(p.summary.as_ref()),
                 );
             }
+
         } else {
             bucket.add(my_tree.parameters().point_cloud.label(*my_node.center_index()));
         }

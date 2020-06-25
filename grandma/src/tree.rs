@@ -111,7 +111,7 @@ impl<D: PointCloud> Clone for CoverTreeReader<D> {
         CoverTreeReader {
             parameters: self.parameters.clone(),
             layers: self.layers.clone(),
-            root_address: self.root_address.clone(),
+            root_address: self.root_address,
         }
     }
 }
@@ -669,6 +669,34 @@ pub(crate) mod tests {
         println!("{:?}", zero_nbrs);
         assert!(zero_nbrs[0].1 == 4);
         assert!(zero_nbrs[1].1 == 2);
+    }
+
+    #[test]
+    fn label_summary() {
+        let data = vec![0.499, 0.49, 0.48, -0.49, 0.0];
+        let labels = vec![0, 0, 0, 1, 1];
+
+        let point_cloud = DefaultLabeledCloud::<L2>::new_simple(data, 1, labels);
+        let builder = CoverTreeBuilder {
+            scale_base: 2.0,
+            cutoff: 1,
+            resolution: -9,
+            use_singletons: false,
+            verbosity: 0,
+        };
+        let mut tree = builder.build(Arc::new(point_cloud)).unwrap();
+        tree.generate_summaries();
+        let reader = tree.reader();
+
+        for (_,layer) in reader.layers() {
+            layer.for_each_node(|_,n| println!("{:?}", n.label_summary()));
+        }
+
+        reader.get_node_label_summary_and(reader.root_address(),|l| {
+            assert_eq!(l.items.len(),2);
+            assert_eq!(l.nones,0);
+            assert_eq!(l.errors,0);
+        });
     }
 
     #[test]

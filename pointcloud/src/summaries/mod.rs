@@ -33,8 +33,9 @@ impl Default for CategorySummary {
 impl Summary for CategorySummary {
     type Label = u64;
     fn add(&mut self, v: PointCloudResult<Option<&u64>>) {
-        if let Ok(v) = v {
-            if let Some(val) = v {
+        if let Ok(vv) = v {
+            if let Some(val) = vv {
+
                 let mut added_to_existing = false;
                 for (stored_val, totals) in self.items.iter_mut() {
                     if val == stored_val {
@@ -43,8 +44,8 @@ impl Summary for CategorySummary {
                         break;
                     }
                 }
-                if added_to_existing {
-                    self.items.push((val.clone(), 1));
+                if !added_to_existing {
+                    self.items.push((*val, 1));
                 }
             } else {
                 self.nones += 1;
@@ -65,13 +66,13 @@ impl Summary for CategorySummary {
                 }
             }
             if !added_to_existing {
-                self.items.push((val.clone(), *count));
+                self.items.push((*val, *count));
             }
         }
     }
 
     fn count(&self) -> usize {
-        self.items.iter().map(|(_a, b)| b).fold(0, |a, c| a + c)
+        self.items.iter().map(|(_a, b)| b).sum()
     }
 
     fn nones(&self) -> usize {
@@ -190,7 +191,7 @@ impl Summary for StringSummary {
     }
 
     fn count(&self) -> usize {
-        self.items.values().fold(0, |a, c| a + c)
+        self.items.values().sum()
     }
 
     fn nones(&self) -> usize {

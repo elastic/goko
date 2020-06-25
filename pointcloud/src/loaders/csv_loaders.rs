@@ -46,7 +46,7 @@ fn read_csv<P: AsRef<Path> + std::fmt::Debug, R: Read>(
                     PointCloudError::ParsingError(ParsingError::CSVReadError {
                         file_name: path.as_ref().to_string_lossy().to_string(),
                         line_number: record.position().unwrap().line() as usize,
-                        key: format!("Unable to read u64 from {:?}", record).to_string(),
+                        key: format!("Unable to read u64 from {:?}", record),
                     })
                 })?;
                 if 0 < val {

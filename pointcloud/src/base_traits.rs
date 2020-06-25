@@ -169,18 +169,14 @@ pub trait PointCloud: Debug + Send + Sync + 'static {
         for i in is.iter() {
             let x = self.point(*i)?;
             for j in js.iter() {
-                if i < j {
-                    if !indexes.contains(&(*i, *j)) {
-                        let y = self.point(*j)?;
-                        vals.push((Self::Metric::dist)(&x, &y)?);
-                        indexes.push((*i, *j));
-                    }
-                } else if j < i {
-                    if !indexes.contains(&(*j, *i)) {
-                        let y = self.point(*j)?;
-                        vals.push((Self::Metric::dist)(&x, &y)?);
-                        indexes.push((*j, *i));
-                    }
+                if i < j && !indexes.contains(&(*i, *j)) {
+                    let y = self.point(*j)?;
+                    vals.push((Self::Metric::dist)(&x, &y)?);
+                    indexes.push((*i, *j));
+                } else if j < i && !indexes.contains(&(*j, *i)) {
+                    let y = self.point(*j)?;
+                    vals.push((Self::Metric::dist)(&x, &y)?);
+                    indexes.push((*j, *i));
                 }
             }
         }

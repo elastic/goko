@@ -353,7 +353,6 @@ where
             MonoOperation::Purge => {
                 inner.data.clear();
             }
-            MonoOperation::__Nonexhaustive => unreachable!(),
         }
     }
 
@@ -378,7 +377,6 @@ where
             MonoOperation::Purge => {
                 inner.data.clear();
             }
-            MonoOperation::__Nonexhaustive => unreachable!(),
         }
     }
 }

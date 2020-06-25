@@ -83,7 +83,7 @@ impl<M: Metric> DataMemmap<M> {
         data.extend_from_slice(&*self.data);
         DataRam {
             name,
-            data: data,
+            data,
             dim,
             metric: PhantomData,
         }
@@ -158,6 +158,7 @@ pub mod tests {
     use super::*;
     use crate::distances::*;
     use crate::{Point, PointRef};
+    use crate::label_sources::SmallIntLabels;
     use rand;
     use std::iter;
 
@@ -197,8 +198,7 @@ pub mod tests {
     pub fn build_ram_fixed_labeled_test(
         count: usize,
         data_dim: usize,
-        labels_dim: usize,
-    ) -> SimpleLabeledCloud<DataRam<L2>, VecLabels> {
+    ) -> SimpleLabeledCloud<DataRam<L2>, SmallIntLabels> {
         let data = DataRam::<L2>::new(
             (0..count)
                 .map(|i| iter::repeat(i as f32).take(data_dim))
@@ -207,11 +207,10 @@ pub mod tests {
             data_dim,
         )
         .unwrap();
-        let labels = VecLabels::new(
-            (0..count * labels_dim)
-                .map(|_i| rand::random::<f32>())
+        let labels = SmallIntLabels::new(
+            (0..count)
+                .map(|i| i as u64)
                 .collect(),
-            labels_dim,
             None,
         );
 

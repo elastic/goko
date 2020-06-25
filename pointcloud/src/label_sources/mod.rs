@@ -109,7 +109,7 @@ impl VecLabels {
 
     /// coverts a one-hot encoding to a integer label set
     pub fn one_hot_to_int(&self) -> SmallIntLabels {
-        let mut mask = self.mask.clone().unwrap_or(vec![true; self.len()]);
+        let mut mask = self.mask.clone().unwrap_or_else(|| vec![true; self.len()]);
         let labels = (0..self.len())
             .map(|i| {
                 let label: u64 = self
@@ -136,7 +136,7 @@ impl VecLabels {
 
     /// coverts a binary encoding to a integer label set
     pub fn binary_to_int(&self) -> SmallIntLabels {
-        let mut mask = self.mask.clone().unwrap_or(vec![true; self.len()]);
+        let mut mask = self.mask.clone().unwrap_or_else(|| vec![true; self.len()]);
         let labels: Vec<u64> = (0..self.len())
             .map(|i| {
                 let label = self

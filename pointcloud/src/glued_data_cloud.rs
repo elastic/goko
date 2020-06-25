@@ -140,11 +140,10 @@ mod tests {
         partitions: usize,
         count: usize,
         data_dim: usize,
-        labels_dim: usize,
-    ) -> HashGluedCloud<SimpleLabeledCloud<DataRam<L2>, VecLabels>> {
+    ) -> HashGluedCloud<SimpleLabeledCloud<DataRam<L2>, SmallIntLabels>> {
         HashGluedCloud::new(
             (0..partitions)
-                .map(|_i| build_ram_fixed_labeled_test(count, data_dim, labels_dim))
+                .map(|_i| build_ram_fixed_labeled_test(count, data_dim))
                 .collect(),
         )
     }
@@ -191,6 +190,29 @@ mod tests {
     }
 
     #[test]
+    fn label_correct() {
+        let pc = build_glue_fixed_labeled_test(5, 2, 3);
+        println!("{:?}", pc);
+
+        for i in &[1, 3, 5, 7, 9] {
+            let label = pc.label(*i).unwrap();
+            assert_eq!(label, Some(&1));
+        }
+    }
+
+    #[test]
+    fn summary_correct() {
+        let pc = build_glue_fixed_labeled_test(5, 2, 3);
+        println!("{:?}", pc);
+
+        let label_summary = pc.label_summary(&[1, 3, 5, 7, 9]).unwrap();
+        println!("{:?}", label_summary);
+        assert_eq!(label_summary.nones, 0);
+        assert_eq!(label_summary.errors, 0);
+        assert_eq!(label_summary.items[0], (1,5));
+    }
+
+    #[test]
     fn distance_correct() {
         let pc = build_glue_fixed_test(5, 2, 3);
         println!("{:?}", pc);
@@ -207,4 +229,6 @@ mod tests {
             assert_approx_eq!(3.0f32.sqrt(), d);
         }
     }
+
+
 }
