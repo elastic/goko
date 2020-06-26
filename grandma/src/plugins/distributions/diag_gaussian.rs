@@ -195,7 +195,7 @@ impl<D: PointCloud> GrandmaPlugin<D> for GrandmaDiagGaussian {
             .point_cloud
             .moment_subset(2, my_node.singletons())
             .unwrap();
-        let count = my_node.singleton_len();
+        let count = my_node.singletons_len();
         let mut my_dg = DiagGaussian {
             moment1,
             moment2,

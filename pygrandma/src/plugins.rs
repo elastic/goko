@@ -80,7 +80,15 @@ impl PyKLDivergenceStats {
     }
     #[getter]
     pub fn sequence_len(&self) -> u64 {
-        self.stats.sequence_len as u64
+        self.stats.sequence_len
+    }
+    #[getter]
+    pub fn layer_totals(&self) -> Vec<u64> {
+        self.stats.layer_totals.clone()
+    }
+    #[getter]
+    pub fn weighed_layer_totals(&self) -> Vec<f32> {
+        self.stats.weighted_layer_totals.clone()
     }
 }
 

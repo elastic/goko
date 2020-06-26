@@ -39,8 +39,8 @@ use pointcloud::*;
 ///
 /// ```yaml
 /// ---
-/// cutoff: 5
-/// resolution: -10
+/// leaf_cutoff: 5
+/// min_res_index: -10
 /// scale_base: 1.3
 /// data_path: DATAMEMMAPs
 /// labels_path: LABELS_CSV
@@ -70,8 +70,8 @@ pub fn cover_tree_from_labeled_yaml<P: AsRef<Path>>(
 
     let builder = CoverTreeBuilder::from_yaml(&path);
     println!(
-        "Loaded dataset, building a cover tree with scale base {}, cutoff {}, min resolution {}, and use_singletons {}",
-        &builder.scale_base, &builder.cutoff, &builder.resolution, &builder.use_singletons
+        "Loaded dataset, building a cover tree with scale base {}, leaf_cutoff {}, min_res_index {}, and use_singletons {}",
+        &builder.scale_base, &builder.min_res_index, &builder.min_res_index, &builder.use_singletons
     );
     Ok(builder.build(Arc::new(point_cloud))?)
 }
@@ -80,13 +80,14 @@ pub fn cover_tree_from_labeled_yaml<P: AsRef<Path>>(
 ///
 /// ```yaml
 /// ---
-/// cutoff: 5
-/// resolution: -10
+/// leaf_cutoff: 5
+/// min_res_index: -10
 /// scale_base: 1.3
 /// data_path: DATAMEMMAPs
 /// count: NUMBER_OF_DATA_POINTS
 /// data_dim: 784
 /// ```
+
 pub fn cover_tree_from_yaml<P: AsRef<Path>>(
     path: P,
 ) -> GrandmaResult<CoverTreeWriter<DefaultCloud<L2>>> {
@@ -106,11 +107,10 @@ pub fn cover_tree_from_yaml<P: AsRef<Path>>(
             );
         }
     }
-
     let builder = CoverTreeBuilder::from_yaml(&path);
     println!(
-        "Loaded dataset, building a cover tree with scale base {}, cutoff {}, min resolution {}, and use_singletons {}",
-        &builder.scale_base, &builder.cutoff, &builder.resolution, &builder.use_singletons
+        "Loaded dataset, building a cover tree with scale base {}, leaf_cutoff {}, min_res_index {}, and use_singletons {}",
+        &builder.scale_base, &builder.min_res_index, &builder.min_res_index, &builder.use_singletons
     );
     Ok(builder.build(Arc::new(point_cloud))?)
 }

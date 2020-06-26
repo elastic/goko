@@ -34,6 +34,7 @@ fn build_tree() -> CoverTreeWriter<DefaultLabeledCloud<L2>> {
     if !path.exists() {
         panic!(file_name.to_owned() + &" does not exist".to_string());
     }
+
     cover_tree_from_labeled_yaml(&path).unwrap()
 }
 
@@ -43,12 +44,12 @@ fn main() {
         //ct.cluster().unwrap();
         ct.refresh();
         let ct_reader = ct.reader();
-        println!("Tree has {} nodes", ct_reader.node_count());
+        println!("Tree has {} nodes", ct_reader.len());
         for scale_index in ct_reader.scale_range() {
             println!(
                 "Layer {} has {} nodes in scale {}",
                 scale_index,
-                ct_reader.layer(scale_index).node_count(),
+                ct_reader.layer(scale_index).len(),
                 ct_reader.scale(scale_index)
             );
         }

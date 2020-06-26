@@ -115,8 +115,13 @@ impl<D: PointCloud> CoverLayerReader<D> {
     }
 
     /// Total number of nodes on this layer
-    pub fn node_count(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.node_reader.len()
+    }
+
+    /// Total number of nodes on this layer
+    pub fn is_empty(&self) -> bool {
+        self.node_reader.is_empty()
     }
 
     /// Read only accessor for the scale index.

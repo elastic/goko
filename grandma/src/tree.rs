@@ -61,9 +61,9 @@ pub struct CoverTreeParameters<D: PointCloud> {
     /// See paper or main description, governs the number of children of each node. Higher is more.
     pub scale_base: f32,
     /// If a node covers less than or equal to this number of points, it becomes a leaf.
-    pub cutoff: usize,
+    pub leaf_cutoff: usize,
     /// If a node has scale index less than or equal to this, it becomes a leaf
-    pub resolution: i32,
+    pub min_res_index: i32,
     /// If you don't want singletons messing with your tree and want everything to be a node or a element of leaf node, make this true.
     pub use_singletons: bool,
     /// The point cloud this tree references
@@ -78,10 +78,10 @@ impl<D: PointCloud> CoverTreeParameters<D> {
     /// Gets the index of the layer in the vector.
     #[inline]
     pub fn internal_index(&self, scale_index: i32) -> usize {
-        if scale_index < self.resolution {
+        if scale_index < self.min_res_index {
             0
         } else {
-            (scale_index - self.resolution + 1) as usize
+            (scale_index - self.min_res_index + 1) as usize
         }
     }
 }
@@ -176,8 +176,8 @@ impl<D: PointCloud> CoverTreeReader<D> {
 
     /// An iterator for accessing the layers starting from the layer who holds the root.
     pub fn layers(&self) -> LayerIter<D> {
-        ((self.parameters.resolution - 1)
-            ..(self.layers.len() as i32 + self.parameters.resolution - 1))
+        ((self.parameters.min_res_index - 1)
+            ..(self.layers.len() as i32 + self.parameters.min_res_index - 1))
             .zip(self.layers.iter())
             .rev()
     }
@@ -199,12 +199,13 @@ impl<D: PointCloud> CoverTreeReader<D> {
 
     /// This is the total number of nodes in the tree. This queries each layer, so it's not a simple return int.
     pub fn node_count(&self) -> usize {
-        self.layers().fold(0, |a, (_si, l)| a + l.node_count())
+        self.layers().fold(0, |a, (_si, l)| a + l.len())
     }
 
-    /// Returns the scale index range. It starts at the minimum resolution and ends at the top. You can reverse this for the correct order.
+    /// Returns the scale index range. It starts at the minimum min_res_index and ends at the top. You can reverse this for the correct order.
     pub fn scale_range(&self) -> Range<i32> {
-        (self.parameters.resolution)..(self.parameters.resolution - 1 + self.layers.len() as i32)
+        (self.parameters.min_res_index)
+            ..(self.parameters.min_res_index - 1 + self.layers.len() as i32)
     }
 
     /// Access the stored tree plugin
@@ -394,6 +395,97 @@ impl<D: PointCloud> CoverTreeReader<D> {
         Ok(trace)
     }
 
+    ///Computes the fractal dimension of a node
+    pub fn node_fractal_dim(&self, node_address: NodeAddress) -> f32 {
+        let count: f32 = self
+            .get_node_and(node_address, |n| {
+                (n.singletons_len() + n.children_len()) as f32
+            })
+            .unwrap() as f32;
+        count.log(self.parameters.scale_base)
+    }
+
+    ///Computes the weighted fractal dimension of a node
+    pub fn node_weighted_fractal_dim(&self, node_address: NodeAddress) -> f32 {
+        let weighted_count: f32 = self
+            .get_node_and(node_address, |n| {
+                let singleton_count = n.singletons().len() as f32;
+                let mut max_pop: usize = 1;
+                let mut weighted_count: f32 = 0.0;
+                if let Some((nested_scale, children)) = n.children() {
+                    let mut pops: Vec<usize> = children
+                        .iter()
+                        .map(|child_addr| {
+                            self.get_node_and(*child_addr, |child| child.cover_count())
+                                .unwrap()
+                        })
+                        .collect();
+                    pops.push(
+                        self.get_node_and((nested_scale, node_address.1), |child| {
+                            child.cover_count()
+                        })
+                        .unwrap(),
+                    );
+                    max_pop = *pops.iter().max().unwrap();
+                    pops.iter()
+                        .for_each(|p| weighted_count += (*p as f32) / (max_pop as f32));
+                }
+                weighted_count + singleton_count / (max_pop as f32)
+            })
+            .unwrap();
+        weighted_count.log(self.parameters.scale_base)
+    }
+
+    ///Computes the fractal dimension of a layer
+    pub fn layer_fractal_dim(&self, scale_index: i32) -> f32 {
+        let parent_layer = self.layer(scale_index);
+        let parent_count = parent_layer.len() as f32;
+        let mut child_count: f32 = 0.0;
+        parent_layer
+            .for_each_node(|_, n| child_count += (n.singletons_len() + n.children_len()) as f32);
+        child_count.log(self.parameters.scale_base) - parent_count.log(self.parameters.scale_base)
+    }
+
+    ///Computes the weighted fractal dimension of a node
+    pub fn layer_weighted_fractal_dim(&self, scale_index: i32) -> f32 {
+        // gather the coverages of every node on the layer and their's children
+        let parent_layer = self.layer(scale_index);
+        let mut parent_coverage_counts: Vec<usize> = Vec::new();
+        let mut child_coverage_counts: Vec<usize> = Vec::new();
+        let mut singletons_count: f32 = 0.0;
+        parent_layer.for_each_node(|center_index, n| {
+            parent_coverage_counts.push(n.cover_count());
+
+            singletons_count += n.singletons().len() as f32;
+            if let Some((nested_scale, children)) = n.children() {
+                child_coverage_counts.extend(children.iter().map(|child_addr| {
+                    self.get_node_and(*child_addr, |child| child.cover_count())
+                        .unwrap()
+                }));
+                child_coverage_counts.push(
+                    self.get_node_and((nested_scale, *center_index), |child| child.cover_count())
+                        .unwrap(),
+                );
+            }
+        });
+        // Get the maximum count
+        let max_parent_pop: f32 = *parent_coverage_counts.iter().max().unwrap_or(&1) as f32;
+        let max_child_pop: f32 = *child_coverage_counts.iter().max().unwrap_or(&1) as f32;
+
+        // Normalize the counts by the maximum
+        let weighted_child_sum: f32 = singletons_count / max_child_pop
+            + child_coverage_counts
+                .iter()
+                .fold(0.0, |a, c| a + (*c as f32) / max_child_pop);
+        let weighted_parent_sum: f32 = parent_coverage_counts
+            .iter()
+            .fold(0.0, |a, c| a + (*c as f32) / max_parent_pop);
+
+        // take the log and return
+        weighted_child_sum.log(self.parameters.scale_base)
+            - weighted_parent_sum.log(self.parameters.scale_base)
+    }
+
     /// Checks that there are no node addresses in the child list of any node that don't reference a node in the tree.
     /// Please calmly panic if there are, the tree is very invalid.
     pub(crate) fn no_dangling_refs(&self) -> bool {
@@ -490,8 +582,8 @@ impl<D: PointCloud> CoverTreeWriter<D> {
             total_nodes: atomic::AtomicUsize::new(0),
             use_singletons: cover_proto.use_singletons,
             scale_base: cover_proto.scale_base as f32,
-            cutoff: cover_proto.cutoff as usize,
-            resolution: cover_proto.resolution as i32,
+            leaf_cutoff: cover_proto.cutoff as usize,
+            min_res_index: cover_proto.resolution as i32,
             point_cloud,
             verbosity: 2,
             plugins: RwLock::new(TreePluginSet::new()),
@@ -517,8 +609,8 @@ impl<D: PointCloud> CoverTreeWriter<D> {
     pub fn save(&self) -> CoreProto {
         let mut cover_proto = CoreProto::new();
         cover_proto.set_scale_base(self.parameters.scale_base);
-        cover_proto.set_cutoff(self.parameters.cutoff as u64);
-        cover_proto.set_resolution(self.parameters.resolution);
+        cover_proto.set_cutoff(self.parameters.leaf_cutoff as u64);
+        cover_proto.set_resolution(self.parameters.min_res_index);
         cover_proto.set_use_singletons(self.parameters.use_singletons);
         cover_proto.set_dim(self.parameters.point_cloud.dim() as u64);
         cover_proto.set_count(self.parameters.point_cloud.len() as u64);
@@ -538,6 +630,7 @@ impl<D: PointCloud> CoverTreeWriter<D> {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
+
     use crate::utils::cover_tree_from_labeled_yaml;
     use std::path::Path;
 
@@ -547,6 +640,7 @@ pub(crate) mod tests {
         if !path.exists() {
             panic!(file_name.to_owned() + &" does not exist".to_string());
         }
+
         cover_tree_from_labeled_yaml(&path).unwrap()
     }
 
@@ -557,8 +651,8 @@ pub(crate) mod tests {
         let point_cloud = DefaultLabeledCloud::<L2>::new_simple(data, 1, labels);
         let builder = CoverTreeBuilder {
             scale_base: 2.0,
-            cutoff: 1,
-            resolution: -9,
+            leaf_cutoff: 1,
+            min_res_index: -9,
             use_singletons: true,
             verbosity: 0,
         };
@@ -602,8 +696,8 @@ pub(crate) mod tests {
         let point_cloud = DefaultLabeledCloud::<L2>::new_simple(data, 1, labels);
         let builder = CoverTreeBuilder {
             scale_base: 2.0,
-            cutoff: 1,
-            resolution: -9,
+            leaf_cutoff: 1,
+            min_res_index: -9,
             use_singletons: false,
             verbosity: 0,
         };
@@ -679,8 +773,8 @@ pub(crate) mod tests {
         let point_cloud = DefaultLabeledCloud::<L2>::new_simple(data, 1, labels);
         let builder = CoverTreeBuilder {
             scale_base: 2.0,
-            cutoff: 1,
-            resolution: -9,
+            leaf_cutoff: 1,
+            min_res_index: -9,
             use_singletons: false,
             verbosity: 0,
         };
@@ -707,8 +801,8 @@ pub(crate) mod tests {
         let point_cloud = DefaultLabeledCloud::<L2>::new_simple(data, 1, labels);
         let builder = CoverTreeBuilder {
             scale_base: 2.0,
-            cutoff: 1,
-            resolution: -9,
+            leaf_cutoff: 1,
+            min_res_index: -9,
             use_singletons: false,
             verbosity: 0,
         };

@@ -154,9 +154,9 @@ impl<D: PointCloud> GrandmaPlugin<D> for GrandmaCategorical {
                     bucket.add_child_pop(Some(*ca), p.total() as f64);
                 });
             }
-            bucket.add_child_pop(None, my_node.singleton_len() as f64);
+            bucket.add_child_pop(None, my_node.singletons_len() as f64);
         } else {
-            bucket.add_child_pop(None, my_node.singleton_len() as f64 + 1.0);
+            bucket.add_child_pop(None, my_node.singletons_len() as f64 + 1.0);
         }
         bucket
     }

@@ -7,7 +7,11 @@ data = np.memmap("../../data/mnist.dat", dtype=np.float32)
 data = data.reshape([-1,784])
 
 tree = pygrandma.PyGrandma()
-tree.fit_yaml("../../data/mnist_complex.yml")
+tree.load_yaml_config("../../data/mnist_complex.yml")
+tree.set_leaf_cutoff(0)
+tree.set_scale_base(1.2)
+tree.set_min_res_index(-30)
+tree.fit()
 
 print(tree.knn(data[0],5))
 

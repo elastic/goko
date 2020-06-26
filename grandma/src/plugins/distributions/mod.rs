@@ -52,7 +52,8 @@ pub trait ContinousBayesianDistribution: ContinousDistribution + Clone + 'static
     fn add_observation(&mut self, point: &PointRef);
 }
 
-///
+
+/// Tracks the KL divergence for a given distribution.
 pub trait DiscreteBayesianSequenceTracker<D: PointCloud>: Debug {
     /// The. underlying distribution that this is tracking.
     type Distribution: DiscreteBayesianDistribution + NodePlugin<D> + 'static;
@@ -72,6 +73,10 @@ pub trait DiscreteBayesianSequenceTracker<D: PointCloud>: Debug {
         let mut nz_count = 0;
         let mut moment1_nz = 0.0;
         let mut moment2_nz = 0.0;
+        // For computing the fracta dimensions
+        let mut layer_totals: Vec<u64> = vec![0; self.tree_reader().len()];
+        let mut layer_node_counts = vec![Vec::<usize>::new(); self.tree_reader().len()];
+        let parameters = self.tree_reader().parameters();
         self.running_distributions()
             .iter()
             .for_each(|(address, sequence_pdf)| {
@@ -82,6 +87,13 @@ pub trait DiscreteBayesianSequenceTracker<D: PointCloud>: Debug {
                     })
                     .unwrap();
                 if kl > 1.0e-10 {
+                    layer_totals[parameters.internal_index(address.0)] += 1;
+                    layer_node_counts[parameters.internal_index(address.0)].push(
+                        self.tree_reader()
+                            .get_node_and(*address, |n| n.cover_count())
+                            .unwrap(),
+                    );
+
                     moment1_nz += kl;
                     moment2_nz += kl * kl;
                     if max < kl {
@@ -94,13 +106,19 @@ pub trait DiscreteBayesianSequenceTracker<D: PointCloud>: Debug {
                     nz_count += 1;
                 }
             });
+        let weighted_layer_totals: Vec<f32> = layer_node_counts.iter().map(|counts| {
+            let max: f32 = *counts.iter().max().unwrap_or(&1) as f32;
+            counts.iter().fold(0.0, |a,c| a + (*c as f32)/max)
+        }).collect();
         KLDivergenceStats {
             max,
             min,
             nz_count,
             moment1_nz,
             moment2_nz,
-            sequence_len: self.sequence_len(),
+            sequence_len: self.sequence_len() as u64,
+            layer_totals,
+            weighted_layer_totals,
         }
     }
 
@@ -129,12 +147,16 @@ pub struct KLDivergenceStats {
     /// The minimum non-zero KL divergence
     pub min: f64,
     /// The number of nodes that have a non-zero divergence
-    pub nz_count: usize,
+    pub nz_count: u64,
     /// The first moment, use this with the `nz_count` to get the mean
     pub moment1_nz: f64,
     /// The second moment, use this with the `nz_count` and first moment to get the variance
     pub moment2_nz: f64,
     /// The number of sequence elements that went into calculating this stat. This is not the total lenght
     /// We can drop old sequence elements
-    pub sequence_len: usize,
+    pub sequence_len: u64,
+    /// The number of nodes per layer this sequence touches
+    pub layer_totals: Vec<u64>,
+    /// The number of nodes per layer this sequence touches
+    pub weighted_layer_totals: Vec<f32>,
 }

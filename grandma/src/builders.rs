@@ -92,10 +92,10 @@ impl BuilderNode {
         let radius = covered.max_distance();
         let mut new_nodes = Vec::new();
         node.set_radius(radius);
-        /* Occasionally there's a small cluster split off of at a low resolution.
-        This brings the scale-index down/resolution up quickly, locally.
+        /* Occasionally there's a small cluster split off of at a low min_res_index.
+        This brings the scale-index down/min_res_index up quickly, locally.
         */
-        if covered.len() <= parameters.cutoff || scale_index < parameters.resolution {
+        if covered.len() <= parameters.leaf_cutoff || scale_index < parameters.min_res_index {
             //println!("== This is getting cut down by parameters ==");
             node.insert_singletons(covered.into_indexes());
         } else {
@@ -103,7 +103,7 @@ impl BuilderNode {
                 scale_index - 1,
                 max(
                     radius.log(parameters.scale_base).ceil() as i32,
-                    parameters.resolution,
+                    parameters.min_res_index,
                 ),
             );
             let next_scale = parameters.scale_base.powi(next_scale_index);
@@ -188,9 +188,9 @@ pub struct CoverTreeBuilder {
     /// See paper or main description, governs the number of children of each node. Higher is more.
     pub scale_base: f32,
     /// If a node covers less than or equal to this number of points, it becomes a leaf.
-    pub cutoff: usize,
+    pub leaf_cutoff: usize,
     /// If a node has scale index less than or equal to this, it becomes a leaf
-    pub resolution: i32,
+    pub min_res_index: i32,
     /// If you don't want singletons messing with your tree and want everything to be a node or a element of leaf node, make this true.
     pub use_singletons: bool,
     /// Printing verbosity. 2 is the default and gives a progress bar. Still not fully pulled thru the codebase.
@@ -203,8 +203,8 @@ impl CoverTreeBuilder {
     pub fn new() -> CoverTreeBuilder {
         CoverTreeBuilder {
             scale_base: 2.0,
-            cutoff: 1,
-            resolution: -10,
+            leaf_cutoff: 1,
+            min_res_index: -10,
             use_singletons: true,
             verbosity: 2,
         }
@@ -217,8 +217,8 @@ impl CoverTreeBuilder {
         let params = &params_files[0];
         CoverTreeBuilder {
             scale_base: params["scale_base"].as_f64().unwrap_or(2.0) as f32,
-            cutoff: params["cutoff"].as_i64().unwrap_or(1) as usize,
-            resolution: params["resolution"].as_i64().unwrap_or(-10) as i32,
+            leaf_cutoff: params["leaf_cutoff"].as_i64().unwrap_or(1) as usize,
+            min_res_index: params["min_res_index"].as_i64().unwrap_or(-10) as i32,
             use_singletons: params["use_singletons"].as_bool().unwrap_or(true),
             verbosity: params["verbosity"].as_i64().unwrap_or(2) as u32,
         }
@@ -230,13 +230,13 @@ impl CoverTreeBuilder {
         self
     }
     ///
-    pub fn set_cutoff(&mut self, x: usize) -> &mut Self {
-        self.cutoff = x;
+    pub fn set_leaf_cutoff(&mut self, x: usize) -> &mut Self {
+        self.leaf_cutoff = x;
         self
     }
     ///
-    pub fn set_resolution(&mut self, x: i32) -> &mut Self {
-        self.resolution = x;
+    pub fn set_min_res_index(&mut self, x: i32) -> &mut Self {
+        self.min_res_index = x;
         self
     }
     ///
@@ -255,8 +255,8 @@ impl CoverTreeBuilder {
         let parameters = CoverTreeParameters {
             total_nodes: atomic::AtomicUsize::new(1),
             scale_base: self.scale_base,
-            cutoff: self.cutoff,
-            resolution: self.resolution,
+            leaf_cutoff: self.leaf_cutoff,
+            min_res_index: self.min_res_index,
             use_singletons: self.use_singletons,
             point_cloud,
             verbosity: self.verbosity,
@@ -265,11 +265,11 @@ impl CoverTreeBuilder {
 
         let root = BuilderNode::new(&parameters)?;
         let root_address = root.address();
-        let scale_range = root_address.0 - parameters.resolution;
+        let scale_range = root_address.0 - parameters.min_res_index;
         let mut layers = Vec::with_capacity(scale_range as usize);
-        layers.push(CoverLayerWriter::new(parameters.resolution - 1));
+        layers.push(CoverLayerWriter::new(parameters.min_res_index - 1));
         for i in 0..(scale_range + 1) {
-            layers.push(CoverLayerWriter::new(parameters.resolution + i as i32));
+            layers.push(CoverLayerWriter::new(parameters.min_res_index + i as i32));
         }
 
         let (node_sender, node_receiver): (
@@ -338,8 +338,8 @@ mod tests {
         Arc::new(CoverTreeParameters {
             total_nodes: atomic::AtomicUsize::new(1),
             scale_base: 2.0,
-            cutoff: 0,
-            resolution: -9,
+            leaf_cutoff: 0,
+            min_res_index: -9,
             use_singletons: true,
             point_cloud,
             verbosity: 0,
@@ -428,8 +428,8 @@ mod tests {
         let point_cloud = Arc::new(DefaultCloud::<L2>::new(data, 1).unwrap());
         let builder = CoverTreeBuilder {
             scale_base: 2.0,
-            cutoff: 1,
-            resolution: -9,
+            leaf_cutoff: 1,
+            min_res_index: -9,
             use_singletons: true,
             verbosity: 0,
         };
@@ -439,7 +439,7 @@ mod tests {
         println!("Testing top layer");
         let top_layer = reader.layer(-1);
         println!("Should only be one node");
-        assert!(top_layer.node_count() == 1);
+        assert!(top_layer.len() == 1);
         println!("The root should not be a leaf");
         assert!(reader.get_node_and((-1, 3), |n| !n.is_leaf()).unwrap());
         println!("The root should have children");
@@ -450,7 +450,7 @@ mod tests {
         println!("Testing Mid Layer");
         let mid_layer = reader.layer(-2);
         println!("Should have 2 nodes");
-        assert!(mid_layer.node_count() == 2);
+        assert!(mid_layer.len() == 2);
         println!("Nested child of root should leafify");
         assert!(reader.get_node_and((-2, 3), |n| n.is_leaf()).unwrap());
         println!("Nested child of root should not have any children");
@@ -470,8 +470,8 @@ mod tests {
 
         let builder = CoverTreeBuilder {
             scale_base: 2.0,
-            cutoff: 1,
-            resolution: -9,
+            leaf_cutoff: 1,
+            min_res_index: -9,
             use_singletons: false,
             verbosity: 0,
         };

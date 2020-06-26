@@ -73,11 +73,11 @@ nbrs = {"d0":dist[:,0],
         "d2":dist[:,2],
         "d3":dist[:,3],
         "d4":dist[:,4],
-        "i0":ind[:,0],
-        "i1":ind[:,1],
-        "i2":ind[:,2],
-        "i3":ind[:,3],
-        "i4":ind[:,4],}
+        "i0": ind[:,0],
+        "i1": ind[:,1],
+        "i2": ind[:,2],
+        "i3": ind[:,3],
+        "i4": ind[:,4],}
 
 csv = pd.DataFrame(nbrs)
 csv.to_csv("mnist_nbrs.csv")

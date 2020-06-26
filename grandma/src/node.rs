@@ -136,7 +136,7 @@ impl<D: PointCloud> CoverNode<D> {
     }
 
     /// The number of singleton points attached to the node
-    pub fn singleton_len(&self) -> usize {
+    pub fn singletons_len(&self) -> usize {
         self.singles_indexes.len()
     }
 
@@ -644,10 +644,7 @@ mod tests {
                 .unwrap();
 
             let layer = reader.layer(reader.root_address().0 - 3);
-            println!(
-                "Testing 3 layers below root, with {} nodes",
-                layer.node_count()
-            );
+            println!("Testing 3 layers below root, with {} nodes", layer.len());
             // Allowed 3 errors.
             let mut errors = 0;
             layer.for_each_node(|_, n| {
