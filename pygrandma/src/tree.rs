@@ -25,9 +25,9 @@ use std::path::Path;
 use std::sync::Arc;
 
 use grandma::plugins::distributions::*;
-use grandma::utils::*;
 use grandma::*;
 use pointcloud::*;
+use pointcloud::loaders::labeled_ram_from_yaml;
 
 use crate::layer::*;
 use crate::node::*;
@@ -80,7 +80,8 @@ impl PyGrandma {
     }
     pub fn load_yaml_config(&mut self, file_name: String) -> PyResult<()> {
         let path = Path::new(&file_name);
-        let (builder,point_cloud) = builder_from_yaml(&path).unwrap();
+        let point_cloud = Arc::new(labeled_ram_from_yaml::<_,L2>(&path).unwrap());
+        let builder = CoverTreeBuilder::from_yaml(&path);
         self.builder = Some(builder);
         self.temp_point_cloud = Some(point_cloud);
         Ok(())
@@ -90,28 +91,23 @@ impl PyGrandma {
         self.metric = metric_name;
     }
 
-    pub fn fit(&mut self, data: Option<&PyArray2<f32>>, labels: Option<&PyArray2<f32>>) -> PyResult<()> {
+    pub fn fit(&mut self, data: Option<&PyArray2<f32>>, labels: Option<&PyArray1<u64>>) -> PyResult<()> {
         let point_cloud = if let Some(data) = data {
             let len = data.shape()[0];
             let data_dim = data.shape()[1];
-            let labels_dim;
-            let my_labels: Box<[f32]> = match labels {
+            let my_labels: Vec<u64> = match labels {
                 Some(labels) => {
-                    labels_dim = labels.shape()[1];
-                    Box::from(labels.as_slice().unwrap())
+                    Vec::from(labels.as_slice().unwrap())
                 }
                 None => {
-                    labels_dim = 1;
-                    Box::from(vec![0.0; len])
+                    vec![0; len]
                 }
             };
-            PointCloud::<L2>::simple_from_ram(
-                Box::from(data.as_slice().unwrap()),
+            Arc::new(DefaultLabeledCloud::<L2>::new_simple(
+                Vec::from(data.as_slice().unwrap()),
                 data_dim,
                 my_labels,
-                labels_dim,
-            )
-            .unwrap()
+            ))
         } else {
             if let Some(point_cloud) = self.temp_point_cloud.take() {
                 point_cloud
@@ -133,7 +129,7 @@ impl PyGrandma {
         Ok(())
     }
 
-    pub fn data_point(&self, point_index: u64) -> PyResult<Option<Py<PyArray1<f32>>>> {
+    pub fn data_point(&self, point_index: usize) -> PyResult<Option<Py<PyArray1<f32>>>> {
         let reader = self.reader.as_ref().unwrap();
         let dim = reader.parameters().point_cloud.dim();
         Ok(match reader.parameters().point_cloud.point(point_index) {
