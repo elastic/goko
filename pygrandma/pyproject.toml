@@ -1,3 +1,9 @@
+[tool.poetry]
+name = "pygrandma"
+version = "0.1.0"
+description = "A fast covertree implementation"
+authors = []
+
 [build-system]
 requires = ["setuptools>=41.0.0", "wheel", "setuptools_rust>=0.10.2", "toml"]
 build-backend = "setuptools.build_meta"
