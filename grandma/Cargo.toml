@@ -30,7 +30,7 @@ path = "src/lib.rs"
 test = true
 
 [dependencies]
-protobuf = "2.15.0"
+protobuf = "2.16.2"
 rand = "0.7.3"
 yaml-rust = "0.4.4"
 pbr = "1.0.3"
@@ -39,15 +39,15 @@ indexmap = {version = "1.4.0", features = ["serde-1"]}
 crossbeam-channel = "0.4.2"
 pointcloud = { version = "0.3.0", path = "../pointcloud" }
 #evmap = { git = "https://github.com/comath/rust-evmap" }
-smallvec = "1.4.0"
+smallvec = "1.4.1"
 type-map = "0.3.0"
-statrs = "0.12.0"
+statrs = "0.13.0"
 
 [dev-dependencies]
 assert_approx_eq = "1.0.0"
 
 [build-dependencies]
-protoc-rust = "2.15.0"
+protoc-rust = "2.16.2"
 
 [package.metadata.docs.rs]
 features = [ "docs-only" ]
