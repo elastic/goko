@@ -67,7 +67,7 @@ impl PyKLDivergenceStats {
         self.stats.min
     }
     #[getter]
-    pub fn nz_count(&self) -> usize {
+    pub fn nz_count(&self) -> u64 {
         self.stats.nz_count
     }
     #[getter]
