@@ -1,12 +1,12 @@
 [workspace]
 
 members = [
-    "grandma",
+    "goko",
     "pointcloud",
     "pygrandma",
 ]
 default-members = [
-    "grandma", 
+    "goko", 
     "pointcloud",
 ]
 
