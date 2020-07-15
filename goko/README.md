@@ -1,4 +1,4 @@
-# Grandma
+# Goko
 
 ## Plugins
 
@@ -8,7 +8,7 @@ Plugins are currently partially implemented. Expect them in the coming weeks!
 
 ## Read-Write heads
 
-`grandma` stores the covertree as an array of layers, each with an arena style allocation of all nodes on that layer in a `evmap`. This is a pair of hashmaps where all the readers point at one constant map (so it can be safely, locklessly queried), while the writer edits the other map. When the writer is done it swaps the pointer. The readers then can see the updates, while the writer writes the same changes (and more) to the other hashmap. Plugins cannot control the update order, however the tree will be updated from leaf to root so you can use recursive logic. 
+`goko` stores the covertree as an array of layers, each with an arena style allocation of all nodes on that layer in a `evmap`. This is a pair of hashmaps where all the readers point at one constant map (so it can be safely, locklessly queried), while the writer edits the other map. When the writer is done it swaps the pointer. The readers then can see the updates, while the writer writes the same changes (and more) to the other hashmap. Plugins cannot control the update order, however the tree will be updated from leaf to root so you can use recursive logic. 
 
 ## Singleton Children
 

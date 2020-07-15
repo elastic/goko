@@ -23,7 +23,7 @@
 #![doc(test(attr(allow(unused_variables), deny(warnings))))]
 #![feature(binary_heap_into_iter_sorted)]
 
-//! # Grandma
+//! # Goko
 //! This is an lock-free efficient implementation of a covertree for data science. The traditional
 //! application of this is for KNN, but it can be applied and used in lots of other applications.
 //!

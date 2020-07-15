@@ -3,7 +3,7 @@
 members = [
     "goko",
     "pointcloud",
-    "pygrandma",
+    "pygoko",
 ]
 default-members = [
     "goko", 
