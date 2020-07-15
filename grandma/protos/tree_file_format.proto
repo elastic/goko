@@ -5,13 +5,19 @@ package CoverTree;
 message NodeProto {
   uint64 cover_count = 1;
   uint64 center_index = 2;
-  bool is_leaf = 3;
-  int32 nested_scale_index = 4;
-  repeated uint64 children_point_indexes = 5;
-  repeated int32 children_scale_indexes = 6;
-  repeated uint64 outlier_point_indexes = 7;
-  string outlier_summary_json = 8;
-  float radius = 9;
+  int32 scale_index = 3;
+  uint64 parent_center_index = 4;
+  int32 parent_scale_index =5;
+
+  bool is_leaf = 6;
+
+  repeated uint64 children_point_indexes = 7;
+  repeated int32 children_scale_indexes = 8;
+  int32 nested_scale_index = 9;
+
+  repeated uint64 outlier_point_indexes = 10;
+  string outlier_summary_json = 11;
+  float radius = 12;
 }
 
 message LayerProto {

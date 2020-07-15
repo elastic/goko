@@ -174,9 +174,10 @@ impl<D: PointCloud> CoverLayerWriter<D> {
         let (_node_reader, mut node_writer) = evmap::monomap::new();
         for node_proto in layer_proto.get_nodes() {
             let index = node_proto.get_center_index() as PointIndex;
-            let node = CoverNode::load(scale_index, node_proto);
+            let node = CoverNode::load(node_proto);
             node_writer.insert(index, node);
         }
+        node_writer.refresh();
         node_writer.refresh();
         CoverLayerWriter {
             scale_index,

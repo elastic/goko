@@ -44,6 +44,8 @@ pub(crate) struct NodeChildren {
 /// (though, this is only 10 wide before we allocate on the heap), and the scale index of the nested child.
 #[derive(Debug)]
 pub struct CoverNode<D: PointCloud> {
+    /// Parent address
+    parent_address: Option<NodeAddress>,
     /// Node address
     address: NodeAddress,
     /// Query caches
@@ -59,6 +61,7 @@ pub struct CoverNode<D: PointCloud> {
 impl<D: PointCloud> Clone for CoverNode<D> {
     fn clone(&self) -> Self {
         Self {
+            parent_address: self.parent_address,
             address: self.address,
             radius: self.radius,
             cover_count: self.cover_count,
@@ -79,8 +82,9 @@ impl<D: PointCloud + LabeledCloud> CoverNode<D> {
 
 impl<D: PointCloud> CoverNode<D> {
     /// Creates a new blank node
-    pub fn new(address: NodeAddress) -> CoverNode<D> {
+    pub fn new(parent_address: Option<NodeAddress>,address: NodeAddress) -> CoverNode<D> {
         CoverNode {
+            parent_address,
             address,
             radius: 0.0,
             cover_count: 0,
@@ -143,6 +147,16 @@ impl<D: PointCloud> CoverNode<D> {
     ///
     pub fn singletons(&self) -> &[PointIndex] {
         &self.singles_indexes
+    }
+
+    ///
+    pub fn address(&self) -> NodeAddress {
+        self.address
+    }
+
+    ///
+    pub fn parent_address(&self) -> Option<NodeAddress> {
+        self.parent_address
     }
 
     ///
@@ -335,14 +349,21 @@ impl<D: PointCloud> CoverNode<D> {
         self.radius = radius;
     }
 
-    pub(crate) fn load(scale_index: i32, node_proto: &NodeProto) -> CoverNode<D> {
+    pub(crate) fn load(node_proto: &NodeProto) -> CoverNode<D> {
         let singles_indexes = node_proto
             .outlier_point_indexes
             .iter()
             .map(|i| *i as PointIndex)
             .collect();
         let radius = node_proto.get_radius();
-        let address = (scale_index, node_proto.get_center_index() as usize);
+        let address = (node_proto.get_scale_index(), node_proto.get_center_index() as usize);
+        let parent_scale_index = node_proto.get_parent_scale_index();
+        let parent_center_index = node_proto.get_parent_center_index();
+        let parent_address = if parent_scale_index == std::i32::MIN && parent_center_index == std::u64::MAX {
+            None
+        } else {
+            Some((parent_scale_index, parent_center_index as usize))
+        };
         let cover_count = node_proto.get_cover_count() as usize;
         let children = if node_proto.get_is_leaf() {
             None
@@ -360,6 +381,7 @@ impl<D: PointCloud> CoverNode<D> {
             })
         };
         CoverNode {
+            parent_address,
             address,
             radius,
             cover_count,
@@ -373,7 +395,20 @@ impl<D: PointCloud> CoverNode<D> {
     pub(crate) fn save(&self) -> NodeProto {
         let mut proto = NodeProto::new();
         proto.set_cover_count(self.cover_count as u64);
+        proto.set_scale_index(self.address.0);
         proto.set_center_index(self.address.1 as u64);
+
+        match self.parent_address {
+            Some(parent_address) => {
+                proto.set_parent_scale_index(parent_address.0);
+                proto.set_parent_center_index(parent_address.1 as u64);
+            },
+            None => {
+                proto.set_parent_scale_index(std::i32::MIN);
+                proto.set_parent_center_index(std::u64::MAX);
+            },
+        }
+
         proto.set_radius(self.radius);
         proto.set_outlier_point_indexes(self.singles_indexes.iter().map(|pi| *pi as u64).collect());
 
@@ -427,6 +462,7 @@ mod tests {
         });
 
         CoverNode {
+            parent_address: None,
             address: (0, 0),
             radius: 1.0,
             cover_count: 8,
@@ -439,6 +475,7 @@ mod tests {
 
     fn create_test_leaf_node<D: PointCloud>() -> CoverNode<D> {
         CoverNode {
+            parent_address: Some((1, 0)),
             address: (0, 0),
             radius: 1.0,
             cover_count: 8,
@@ -654,5 +691,36 @@ mod tests {
             });
             assert!(errors < 3);
         }
+    }
+
+    #[test]
+    fn save_load_root_node() {
+        let node = create_test_node::<DefaultLabeledCloud<L2>>();
+        let proto = node.save();
+        let reconstructed_node = CoverNode::<DefaultLabeledCloud<L2>>::load(&proto);
+
+        assert_eq!(reconstructed_node.parent_address, None);
+        assert_eq!(reconstructed_node.address, (0, 0));
+        assert_eq!(reconstructed_node.radius, 1.0);
+        assert_eq!(reconstructed_node.cover_count, 8);
+        assert_eq!(&reconstructed_node.singles_indexes[..], &[4, 5, 6]);
+
+        let reconstructed_children = reconstructed_node.children.unwrap();
+        assert_eq!(reconstructed_children.nested_scale,0);
+        assert_eq!(&reconstructed_children.addresses[..], &[(-4, 1), (-4, 2), (-4, 3)]);
+    }
+
+    #[test]
+    fn save_load_leaf_node() {
+        let node = create_test_leaf_node::<DefaultLabeledCloud<L2>>();
+        let proto = node.save();
+        let reconstructed_node = CoverNode::<DefaultLabeledCloud<L2>>::load(&proto);
+
+        assert_eq!(reconstructed_node.parent_address, Some((1,0)));
+        assert_eq!(reconstructed_node.address, (0, 0));
+        assert_eq!(reconstructed_node.radius, 1.0);
+        assert_eq!(reconstructed_node.cover_count, 8);
+        assert_eq!(&reconstructed_node.singles_indexes[..], &[1, 2, 3, 4, 5, 6]);
+        assert!(reconstructed_node.children.is_none());
     }
 }

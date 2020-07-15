@@ -28,10 +28,13 @@ pub struct NodeProto {
     // message fields
     pub cover_count: u64,
     pub center_index: u64,
+    pub scale_index: i32,
+    pub parent_center_index: u64,
+    pub parent_scale_index: i32,
     pub is_leaf: bool,
-    pub nested_scale_index: i32,
     pub children_point_indexes: ::std::vec::Vec<u64>,
     pub children_scale_indexes: ::std::vec::Vec<i32>,
+    pub nested_scale_index: i32,
     pub outlier_point_indexes: ::std::vec::Vec<u64>,
     pub outlier_summary_json: ::std::string::String,
     pub radius: f32,
@@ -81,7 +84,52 @@ impl NodeProto {
         self.center_index = v;
     }
 
-    // bool is_leaf = 3;
+    // int32 scale_index = 3;
+
+
+    pub fn get_scale_index(&self) -> i32 {
+        self.scale_index
+    }
+    pub fn clear_scale_index(&mut self) {
+        self.scale_index = 0;
+    }
+
+    // Param is passed by value, moved
+    pub fn set_scale_index(&mut self, v: i32) {
+        self.scale_index = v;
+    }
+
+    // uint64 parent_center_index = 4;
+
+
+    pub fn get_parent_center_index(&self) -> u64 {
+        self.parent_center_index
+    }
+    pub fn clear_parent_center_index(&mut self) {
+        self.parent_center_index = 0;
+    }
+
+    // Param is passed by value, moved
+    pub fn set_parent_center_index(&mut self, v: u64) {
+        self.parent_center_index = v;
+    }
+
+    // int32 parent_scale_index = 5;
+
+
+    pub fn get_parent_scale_index(&self) -> i32 {
+        self.parent_scale_index
+    }
+    pub fn clear_parent_scale_index(&mut self) {
+        self.parent_scale_index = 0;
+    }
+
+    // Param is passed by value, moved
+    pub fn set_parent_scale_index(&mut self, v: i32) {
+        self.parent_scale_index = v;
+    }
+
+    // bool is_leaf = 6;
 
 
     pub fn get_is_leaf(&self) -> bool {
@@ -96,22 +144,7 @@ impl NodeProto {
         self.is_leaf = v;
     }
 
-    // int32 nested_scale_index = 4;
-
-
-    pub fn get_nested_scale_index(&self) -> i32 {
-        self.nested_scale_index
-    }
-    pub fn clear_nested_scale_index(&mut self) {
-        self.nested_scale_index = 0;
-    }
-
-    // Param is passed by value, moved
-    pub fn set_nested_scale_index(&mut self, v: i32) {
-        self.nested_scale_index = v;
-    }
-
-    // repeated uint64 children_point_indexes = 5;
+    // repeated uint64 children_point_indexes = 7;
 
 
     pub fn get_children_point_indexes(&self) -> &[u64] {
@@ -136,7 +169,7 @@ impl NodeProto {
         ::std::mem::replace(&mut self.children_point_indexes, ::std::vec::Vec::new())
     }
 
-    // repeated int32 children_scale_indexes = 6;
+    // repeated int32 children_scale_indexes = 8;
 
 
     pub fn get_children_scale_indexes(&self) -> &[i32] {
@@ -161,7 +194,22 @@ impl NodeProto {
         ::std::mem::replace(&mut self.children_scale_indexes, ::std::vec::Vec::new())
     }
 
-    // repeated uint64 outlier_point_indexes = 7;
+    // int32 nested_scale_index = 9;
+
+
+    pub fn get_nested_scale_index(&self) -> i32 {
+        self.nested_scale_index
+    }
+    pub fn clear_nested_scale_index(&mut self) {
+        self.nested_scale_index = 0;
+    }
+
+    // Param is passed by value, moved
+    pub fn set_nested_scale_index(&mut self, v: i32) {
+        self.nested_scale_index = v;
+    }
+
+    // repeated uint64 outlier_point_indexes = 10;
 
 
     pub fn get_outlier_point_indexes(&self) -> &[u64] {
@@ -186,7 +234,7 @@ impl NodeProto {
         ::std::mem::replace(&mut self.outlier_point_indexes, ::std::vec::Vec::new())
     }
 
-    // string outlier_summary_json = 8;
+    // string outlier_summary_json = 11;
 
 
     pub fn get_outlier_summary_json(&self) -> &str {
@@ -212,7 +260,7 @@ impl NodeProto {
         ::std::mem::replace(&mut self.outlier_summary_json, ::std::string::String::new())
     }
 
-    // float radius = 9;
+    // float radius = 12;
 
 
     pub fn get_radius(&self) -> f32 {
@@ -255,29 +303,50 @@ impl ::protobuf::Message for NodeProto {
                     if wire_type != ::protobuf::wire_format::WireTypeVarint {
                         return ::std::result::Result::Err(::protobuf::rt::unexpected_wire_type(wire_type));
                     }
+                    let tmp = is.read_int32()?;
+                    self.scale_index = tmp;
+                },
+                4 => {
+                    if wire_type != ::protobuf::wire_format::WireTypeVarint {
+                        return ::std::result::Result::Err(::protobuf::rt::unexpected_wire_type(wire_type));
+                    }
+                    let tmp = is.read_uint64()?;
+                    self.parent_center_index = tmp;
+                },
+                5 => {
+                    if wire_type != ::protobuf::wire_format::WireTypeVarint {
+                        return ::std::result::Result::Err(::protobuf::rt::unexpected_wire_type(wire_type));
+                    }
+                    let tmp = is.read_int32()?;
+                    self.parent_scale_index = tmp;
+                },
+                6 => {
+                    if wire_type != ::protobuf::wire_format::WireTypeVarint {
+                        return ::std::result::Result::Err(::protobuf::rt::unexpected_wire_type(wire_type));
+                    }
                     let tmp = is.read_bool()?;
                     self.is_leaf = tmp;
                 },
-                4 => {
+                7 => {
+                    ::protobuf::rt::read_repeated_uint64_into(wire_type, is, &mut self.children_point_indexes)?;
+                },
+                8 => {
+                    ::protobuf::rt::read_repeated_int32_into(wire_type, is, &mut self.children_scale_indexes)?;
+                },
+                9 => {
                     if wire_type != ::protobuf::wire_format::WireTypeVarint {
                         return ::std::result::Result::Err(::protobuf::rt::unexpected_wire_type(wire_type));
                     }
                     let tmp = is.read_int32()?;
                     self.nested_scale_index = tmp;
                 },
-                5 => {
-                    ::protobuf::rt::read_repeated_uint64_into(wire_type, is, &mut self.children_point_indexes)?;
-                },
-                6 => {
-                    ::protobuf::rt::read_repeated_int32_into(wire_type, is, &mut self.children_scale_indexes)?;
-                },
-                7 => {
+                10 => {
                     ::protobuf::rt::read_repeated_uint64_into(wire_type, is, &mut self.outlier_point_indexes)?;
                 },
-                8 => {
+                11 => {
                     ::protobuf::rt::read_singular_proto3_string_into(wire_type, is, &mut self.outlier_summary_json)?;
                 },
-                9 => {
+                12 => {
                     if wire_type != ::protobuf::wire_format::WireTypeFixed32 {
                         return ::std::result::Result::Err(::protobuf::rt::unexpected_wire_type(wire_type));
                     }
@@ -302,23 +371,32 @@ impl ::protobuf::Message for NodeProto {
         if self.center_index != 0 {
             my_size += ::protobuf::rt::value_size(2, self.center_index, ::protobuf::wire_format::WireTypeVarint);
         }
+        if self.scale_index != 0 {
+            my_size += ::protobuf::rt::value_size(3, self.scale_index, ::protobuf::wire_format::WireTypeVarint);
+        }
+        if self.parent_center_index != 0 {
+            my_size += ::protobuf::rt::value_size(4, self.parent_center_index, ::protobuf::wire_format::WireTypeVarint);
+        }
+        if self.parent_scale_index != 0 {
+            my_size += ::protobuf::rt::value_size(5, self.parent_scale_index, ::protobuf::wire_format::WireTypeVarint);
+        }
         if self.is_leaf != false {
             my_size += 2;
         }
-        if self.nested_scale_index != 0 {
-            my_size += ::protobuf::rt::value_size(4, self.nested_scale_index, ::protobuf::wire_format::WireTypeVarint);
-        }
         for value in &self.children_point_indexes {
-            my_size += ::protobuf::rt::value_size(5, *value, ::protobuf::wire_format::WireTypeVarint);
-        };
-        for value in &self.children_scale_indexes {
-            my_size += ::protobuf::rt::value_size(6, *value, ::protobuf::wire_format::WireTypeVarint);
-        };
-        for value in &self.outlier_point_indexes {
             my_size += ::protobuf::rt::value_size(7, *value, ::protobuf::wire_format::WireTypeVarint);
         };
+        for value in &self.children_scale_indexes {
+            my_size += ::protobuf::rt::value_size(8, *value, ::protobuf::wire_format::WireTypeVarint);
+        };
+        if self.nested_scale_index != 0 {
+            my_size += ::protobuf::rt::value_size(9, self.nested_scale_index, ::protobuf::wire_format::WireTypeVarint);
+        }
+        for value in &self.outlier_point_indexes {
+            my_size += ::protobuf::rt::value_size(10, *value, ::protobuf::wire_format::WireTypeVarint);
+        };
         if !self.outlier_summary_json.is_empty() {
-            my_size += ::protobuf::rt::string_size(8, &self.outlier_summary_json);
+            my_size += ::protobuf::rt::string_size(11, &self.outlier_summary_json);
         }
         if self.radius != 0. {
             my_size += 5;
@@ -335,26 +413,35 @@ impl ::protobuf::Message for NodeProto {
         if self.center_index != 0 {
             os.write_uint64(2, self.center_index)?;
         }
-        if self.is_leaf != false {
-            os.write_bool(3, self.is_leaf)?;
+        if self.scale_index != 0 {
+            os.write_int32(3, self.scale_index)?;
         }
-        if self.nested_scale_index != 0 {
-            os.write_int32(4, self.nested_scale_index)?;
+        if self.parent_center_index != 0 {
+            os.write_uint64(4, self.parent_center_index)?;
+        }
+        if self.parent_scale_index != 0 {
+            os.write_int32(5, self.parent_scale_index)?;
+        }
+        if self.is_leaf != false {
+            os.write_bool(6, self.is_leaf)?;
         }
         for v in &self.children_point_indexes {
-            os.write_uint64(5, *v)?;
-        };
-        for v in &self.children_scale_indexes {
-            os.write_int32(6, *v)?;
-        };
-        for v in &self.outlier_point_indexes {
             os.write_uint64(7, *v)?;
         };
+        for v in &self.children_scale_indexes {
+            os.write_int32(8, *v)?;
+        };
+        if self.nested_scale_index != 0 {
+            os.write_int32(9, self.nested_scale_index)?;
+        }
+        for v in &self.outlier_point_indexes {
+            os.write_uint64(10, *v)?;
+        };
         if !self.outlier_summary_json.is_empty() {
-            os.write_string(8, &self.outlier_summary_json)?;
+            os.write_string(11, &self.outlier_summary_json)?;
         }
         if self.radius != 0. {
-            os.write_float(9, self.radius)?;
+            os.write_float(12, self.radius)?;
         }
         os.write_unknown_fields(self.get_unknown_fields())?;
         ::std::result::Result::Ok(())
@@ -404,15 +491,25 @@ impl ::protobuf::Message for NodeProto {
                 |m: &NodeProto| { &m.center_index },
                 |m: &mut NodeProto| { &mut m.center_index },
             ));
+            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeInt32>(
+                "scale_index",
+                |m: &NodeProto| { &m.scale_index },
+                |m: &mut NodeProto| { &mut m.scale_index },
+            ));
+            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeUint64>(
+                "parent_center_index",
+                |m: &NodeProto| { &m.parent_center_index },
+                |m: &mut NodeProto| { &mut m.parent_center_index },
+            ));
+            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeInt32>(
+                "parent_scale_index",
+                |m: &NodeProto| { &m.parent_scale_index },
+                |m: &mut NodeProto| { &mut m.parent_scale_index },
+            ));
             fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeBool>(
                 "is_leaf",
                 |m: &NodeProto| { &m.is_leaf },
                 |m: &mut NodeProto| { &mut m.is_leaf },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeInt32>(
-                "nested_scale_index",
-                |m: &NodeProto| { &m.nested_scale_index },
-                |m: &mut NodeProto| { &mut m.nested_scale_index },
             ));
             fields.push(::protobuf::reflect::accessor::make_vec_accessor::<_, ::protobuf::types::ProtobufTypeUint64>(
                 "children_point_indexes",
@@ -423,6 +520,11 @@ impl ::protobuf::Message for NodeProto {
                 "children_scale_indexes",
                 |m: &NodeProto| { &m.children_scale_indexes },
                 |m: &mut NodeProto| { &mut m.children_scale_indexes },
+            ));
+            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeInt32>(
+                "nested_scale_index",
+                |m: &NodeProto| { &m.nested_scale_index },
+                |m: &mut NodeProto| { &mut m.nested_scale_index },
             ));
             fields.push(::protobuf::reflect::accessor::make_vec_accessor::<_, ::protobuf::types::ProtobufTypeUint64>(
                 "outlier_point_indexes",
@@ -457,10 +559,13 @@ impl ::protobuf::Clear for NodeProto {
     fn clear(&mut self) {
         self.cover_count = 0;
         self.center_index = 0;
+        self.scale_index = 0;
+        self.parent_center_index = 0;
+        self.parent_scale_index = 0;
         self.is_leaf = false;
-        self.nested_scale_index = 0;
         self.children_point_indexes.clear();
         self.children_scale_indexes.clear();
+        self.nested_scale_index = 0;
         self.outlier_point_indexes.clear();
         self.outlier_summary_json.clear();
         self.radius = 0.;
@@ -1128,25 +1233,28 @@ impl ::protobuf::reflect::ProtobufValue for CoreProto {
 }
 
 static file_descriptor_proto_data: &'static [u8] = b"\
-    \n\x16tree_file_format.proto\x12\tCoverTree\"\x80\x03\n\tNodeProto\x12\
+    \n\x16tree_file_format.proto\x12\tCoverTree\"\xff\x03\n\tNodeProto\x12\
     \x1f\n\x0bcover_count\x18\x01\x20\x01(\x04R\ncoverCount\x12!\n\x0ccenter\
-    _index\x18\x02\x20\x01(\x04R\x0bcenterIndex\x12\x17\n\x07is_leaf\x18\x03\
-    \x20\x01(\x08R\x06isLeaf\x12,\n\x12nested_scale_index\x18\x04\x20\x01(\
-    \x05R\x10nestedScaleIndex\x124\n\x16children_point_indexes\x18\x05\x20\
-    \x03(\x04R\x14childrenPointIndexes\x124\n\x16children_scale_indexes\x18\
-    \x06\x20\x03(\x05R\x14childrenScaleIndexes\x122\n\x15outlier_point_index\
-    es\x18\x07\x20\x03(\x04R\x13outlierPointIndexes\x120\n\x14outlier_summar\
-    y_json\x18\x08\x20\x01(\tR\x12outlierSummaryJson\x12\x16\n\x06radius\x18\
-    \t\x20\x01(\x02R\x06radius\"Y\n\nLayerProto\x12\x1f\n\x0bscale_index\x18\
-    \x01\x20\x01(\x05R\nscaleIndex\x12*\n\x05nodes\x18\x02\x20\x03(\x0b2\x14\
-    .CoverTree.NodeProtoR\x05nodes\"\x9e\x02\n\tCoreProto\x12%\n\x0euse_sing\
-    letons\x18\x01\x20\x01(\x08R\ruseSingletons\x12\x1d\n\nscale_base\x18\
-    \x02\x20\x01(\x02R\tscaleBase\x12\x16\n\x06cutoff\x18\x03\x20\x01(\x04R\
-    \x06cutoff\x12\x1e\n\nresolution\x18\x04\x20\x01(\x11R\nresolution\x12\
-    \x10\n\x03dim\x18\x07\x20\x01(\x04R\x03dim\x12\x14\n\x05count\x18\x08\
-    \x20\x01(\x04R\x05count\x12\x1d\n\nroot_scale\x18\t\x20\x01(\x05R\trootS\
-    cale\x12\x1d\n\nroot_index\x18\n\x20\x01(\x04R\trootIndex\x12-\n\x06laye\
-    rs\x18\x0b\x20\x03(\x0b2\x15.CoverTree.LayerProtoR\x06layersb\x06proto3\
+    _index\x18\x02\x20\x01(\x04R\x0bcenterIndex\x12\x1f\n\x0bscale_index\x18\
+    \x03\x20\x01(\x05R\nscaleIndex\x12.\n\x13parent_center_index\x18\x04\x20\
+    \x01(\x04R\x11parentCenterIndex\x12,\n\x12parent_scale_index\x18\x05\x20\
+    \x01(\x05R\x10parentScaleIndex\x12\x17\n\x07is_leaf\x18\x06\x20\x01(\x08\
+    R\x06isLeaf\x124\n\x16children_point_indexes\x18\x07\x20\x03(\x04R\x14ch\
+    ildrenPointIndexes\x124\n\x16children_scale_indexes\x18\x08\x20\x03(\x05\
+    R\x14childrenScaleIndexes\x12,\n\x12nested_scale_index\x18\t\x20\x01(\
+    \x05R\x10nestedScaleIndex\x122\n\x15outlier_point_indexes\x18\n\x20\x03(\
+    \x04R\x13outlierPointIndexes\x120\n\x14outlier_summary_json\x18\x0b\x20\
+    \x01(\tR\x12outlierSummaryJson\x12\x16\n\x06radius\x18\x0c\x20\x01(\x02R\
+    \x06radius\"Y\n\nLayerProto\x12\x1f\n\x0bscale_index\x18\x01\x20\x01(\
+    \x05R\nscaleIndex\x12*\n\x05nodes\x18\x02\x20\x03(\x0b2\x14.CoverTree.No\
+    deProtoR\x05nodes\"\x9e\x02\n\tCoreProto\x12%\n\x0euse_singletons\x18\
+    \x01\x20\x01(\x08R\ruseSingletons\x12\x1d\n\nscale_base\x18\x02\x20\x01(\
+    \x02R\tscaleBase\x12\x16\n\x06cutoff\x18\x03\x20\x01(\x04R\x06cutoff\x12\
+    \x1e\n\nresolution\x18\x04\x20\x01(\x11R\nresolution\x12\x10\n\x03dim\
+    \x18\x07\x20\x01(\x04R\x03dim\x12\x14\n\x05count\x18\x08\x20\x01(\x04R\
+    \x05count\x12\x1d\n\nroot_scale\x18\t\x20\x01(\x05R\trootScale\x12\x1d\n\
+    \nroot_index\x18\n\x20\x01(\x04R\trootIndex\x12-\n\x06layers\x18\x0b\x20\
+    \x03(\x0b2\x15.CoverTree.LayerProtoR\x06layersb\x06proto3\
 ";
 
 static file_descriptor_proto_lazy: ::protobuf::rt::LazyV2<::protobuf::descriptor::FileDescriptorProto> = ::protobuf::rt::LazyV2::INIT;
