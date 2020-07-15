@@ -1,5 +1,5 @@
 import lightgbm as lgb
-import pygrandma
+import pygoko
 import numpy as np
 from collections import defaultdict
 import argparse,os
@@ -308,7 +308,7 @@ def main():
 	X_test = X_test.copy()
 	y_test = y_test.copy()
 
-	tree = pygrandma.PyGrandma()
+	tree = pygoko.CoverTree()
 	tree.load_yaml_config(args.treeyaml)
 	tree.fit()
 	def uniform_generator_factory():

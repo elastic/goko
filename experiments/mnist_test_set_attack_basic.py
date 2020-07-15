@@ -3,7 +3,7 @@ from targets.mnistConvNet import trainMNISTConvNet
 import torch
 from targets.datasets import MNIST
 from targets.utils import *
-import pygrandma
+import pygoko
 import numpy as np
 
 def testAttackAccuracy(model,test_set,device = None, kl_tracker=None):
@@ -49,7 +49,7 @@ def main():
 	trainloader = mnist.training(50000)
 	for arr,label in trainloader:
 		train_set_array = arr.numpy().reshape([-1,784]).astype(np.float32)
-	tree = pygrandma.PyGrandma()
+	tree = pygoko.CoverTree()
 	tree.set_cutoff(50)
 	tree.set_scale_base(1.3)
 	tree.set_resolution(-30)
