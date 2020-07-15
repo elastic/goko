@@ -1,6 +1,6 @@
 # Goko, a Geometric Analysis Library
 
-[![Build Status](https://travis-ci.com/elastic/goko.svg?branch=master)](https://travis-ci.com/elastic/goko)
+[![Build Status](https://travis-ci.com/elastic/grandma.svg?branch=master)](https://travis-ci.com/elastic/goko)
 [![Crate](https://img.shields.io/crates/v/goko.svg)](https://crates.io/crates/goko)
 [![API](https://docs.rs/goko/badge.svg)](https://docs.rs/goko)
 
