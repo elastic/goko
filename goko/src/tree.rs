@@ -592,7 +592,7 @@ impl<D: PointCloud> CoverTreeWriter<D> {
             cover_proto.get_root_scale(),
             cover_proto.get_root_index() as usize,
         );
-        let layers = cover_proto
+        let layers: Vec<CoverLayerWriter<D>> = cover_proto
             .get_layers()
             .par_iter()
             .map(|l| CoverLayerWriter::load(l))
@@ -814,5 +814,47 @@ pub(crate) mod tests {
         println!("{:?}", zero_nbrs);
         assert!(zero_nbrs[0].1 == 4);
         assert!(zero_nbrs[1].1 == 2);
+    }
+
+    #[test]
+    fn test_save_load_tree() {
+        let data = vec![0.499, 0.49, 0.48, -0.49, 0.0];
+        let labels = vec![0, 0, 0, 1, 1];
+
+        let point_cloud = Arc::new(DefaultLabeledCloud::<L2>::new_simple(data, 1, labels));
+        let builder = CoverTreeBuilder {
+            scale_base: 2.0,
+            leaf_cutoff: 1,
+            min_res_index: -9,
+            use_singletons: false,
+            verbosity: 0,
+        };
+        let tree = builder.build(Arc::clone(&point_cloud)).unwrap();
+        let reader = tree.reader();
+        let proto = tree.save();
+
+        assert_eq!(reader.layers.len(), proto.get_layers().len());
+
+        for (layer,proto_layer) in reader.layers.iter().zip(proto.get_layers()) {
+            assert_eq!(layer.len(), proto_layer.get_nodes().len());
+        }
+
+        let reconstructed_tree_writer = CoverTreeWriter::load(&proto,Arc::clone(&point_cloud)).unwrap();
+        let reconstructed_tree = reconstructed_tree_writer.reader();
+
+
+        assert_eq!(reader.layers.len(), reconstructed_tree.layers.len());
+        for (layer,reconstructed_layer) in reader.layers.iter().zip(reconstructed_tree.layers) {
+            assert_eq!(layer.len(), reconstructed_layer.len());
+
+            layer.for_each_node(|pi,n| {
+                reconstructed_layer.get_node_and(*pi,|rn| {
+                    assert_eq!(n.address(), rn.address());
+                    assert_eq!(n.parent_address(), rn.parent_address());
+                    assert_eq!(n.singletons(), rn.singletons());
+                }).unwrap();
+            })
+        }
+
     }
 }

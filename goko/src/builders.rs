@@ -37,6 +37,7 @@ use std::time::Instant;
 
 #[derive(Debug)]
 struct BuilderNode {
+    parent_address: Option<NodeAddress>,
     scale_index: i32,
     covered: CoveredData,
 }
@@ -48,6 +49,7 @@ impl BuilderNode {
         let covered = CoveredData::new::<D>(&parameters.point_cloud)?;
         let scale_index = (covered.max_distance()).log(parameters.scale_base).ceil() as i32;
         Ok(BuilderNode {
+            parent_address: None,
             scale_index,
             covered,
         })
@@ -88,7 +90,8 @@ impl BuilderNode {
 
         let scale_index = self.scale_index;
         let covered = self.covered;
-        let mut node = CoverNode::new((scale_index, covered.center_index));
+        let current_address = (scale_index, covered.center_index);
+        let mut node = CoverNode::new(self.parent_address,current_address);
         let radius = covered.max_distance();
         let mut new_nodes = Vec::new();
         node.set_radius(radius);
@@ -120,6 +123,7 @@ impl BuilderNode {
 
             node.insert_nested_child(next_scale_index, close.len())?;
             let new_node = BuilderNode {
+                parent_address: Some(current_address),
                 scale_index: next_scale_index,
                 covered: close,
             };
@@ -157,6 +161,7 @@ impl BuilderNode {
                 } else {
                     node.insert_child((next_scale_index, new_close.center_index), new_close.len())?;
                     let new_node = BuilderNode {
+                        parent_address: Some(current_address),
                         scale_index: next_scale_index,
                         covered: new_close,
                     };
