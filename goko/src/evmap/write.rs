@@ -1,14 +1,14 @@
 use super::{MonoOperation, Updater};
 use crate::evmap::inner::Inner;
-use crate::evmap::monomap::read::MonoReadHandle;
+use crate::evmap::read::MonoReadHandle;
 
-use std::collections::hash_map::RandomState;
+use fxhash::FxBuildHasher;
 use std::hash::{BuildHasher, Hash};
 use std::sync::atomic;
 use std::sync::{Arc, MutexGuard};
 use std::{mem, thread};
 
-pub struct MonoWriteHandle<K, V, M = (), S = RandomState>
+pub struct MonoWriteHandle<K, V, M = (), S = FxBuildHasher>
 where
     K: Eq + Hash + Clone,
     S: BuildHasher + Clone,

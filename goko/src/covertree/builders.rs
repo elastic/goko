@@ -19,12 +19,12 @@
 
 use crate::plugins::TreePluginSet;
 use crate::*;
-use data_caches::*;
-use layer::*;
-use node::*;
+use super::*;
+use super::data_caches::*;
+use super::layer::*;
+use super::node::*;
 use pbr::ProgressBar;
 use std::fs::read_to_string;
-//use pointcloud::*;
 use std::cmp::{max, min};
 use std::path::Path;
 use std::sync::{atomic, Arc, RwLock};

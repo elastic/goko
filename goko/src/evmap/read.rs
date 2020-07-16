@@ -1,8 +1,9 @@
-use crate::evmap::inner::Inner;
+use crate::inner::Inner;
 
 use std::borrow::Borrow;
 use std::cell;
-use std::collections::hash_map::RandomState;
+
+use fxhash::FxBuildHasher;
 use std::hash::{BuildHasher, Hash};
 use std::iter::{self, FromIterator};
 use std::marker::PhantomData;
@@ -16,7 +17,7 @@ use std::sync::{self, Arc};
 /// Note that any changes made to the map will not be made visible until the writer calls
 /// `refresh()`. In other words, all operations performed on a `MonoReadHandle` will *only* see writes
 /// to the map that preceeded the last call to `refresh()`.
-pub struct MonoReadHandle<K, V, M = (), S = RandomState>
+pub struct MonoReadHandle<K, V, M = (), S = FxBuildHasher>
 where
     K: Eq + Hash,
     S: BuildHasher,
@@ -41,7 +42,7 @@ where
 /// additional external locking to synchronize access to the non-`Sync` `MonoReadHandle` type. Note
 /// that this _internally_ takes a lock whenever you call [`MonoReadHandleFactory::handle`], so
 /// you should not expect producing new handles rapidly to scale well.
-pub struct MonoReadHandleFactory<K, V, M = (), S = RandomState>
+pub struct MonoReadHandleFactory<K, V, M = (), S = FxBuildHasher>
 where
     K: Eq + Hash,
     S: BuildHasher,

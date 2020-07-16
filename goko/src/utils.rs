@@ -30,7 +30,7 @@ use yaml_rust::YamlLoader;
 
 use crate::builders::CoverTreeBuilder;
 
-use crate::tree::CoverTreeWriter;
+use crate::CoverTreeWriter;
 
 use pointcloud::loaders::{labeled_ram_from_yaml, ram_from_yaml};
 use pointcloud::*;

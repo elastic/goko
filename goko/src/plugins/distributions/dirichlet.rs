@@ -10,9 +10,9 @@
 //! bayesian way. There may be more applications of this idea, but defending against
 //! attackers has been proven.
 
-use crate::node::CoverNode;
+use crate::covertree::node::CoverNode;
+use crate::covertree::CoverTreeReader;
 use crate::plugins::*;
-use crate::tree::CoverTreeReader;
 
 use super::*;
 use std::fmt;

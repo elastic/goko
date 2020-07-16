@@ -31,14 +31,14 @@
 //! There is also an experimental pair of cluster hashmaps, which need to be replaced by a data structure that
 //! respects and represents the nerve more.
 
-use crate::evmap::monomap::{MonoReadHandle, MonoWriteHandle};
+use crate::evmap::{MonoReadHandle, MonoWriteHandle};
 use pointcloud::*;
 
 //use rayon;
-use super::*;
-use node::*;
+use crate::*;
+use super::node::*;
 use std::iter::FromIterator;
-use tree_file_format::*;
+use crate::tree_file_format::*;
 
 /// Actual reader, primarily contains a read head to the hash-map.
 /// This also contains a reference to the scale_index so that it is easy to save and load. It is largely redundant,

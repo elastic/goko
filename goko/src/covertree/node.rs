@@ -22,7 +22,7 @@
 //!
 use crate::errors::{GokoError, GokoResult};
 use crate::plugins::{NodePlugin, NodePluginSet, labels::NodeLabelSummary};
-use crate::query_tools::{RoutingQueryHeap, SingletonQueryHeap};
+use super::query_tools::{RoutingQueryHeap, SingletonQueryHeap};
 use crate::tree_file_format::*;
 use crate::NodeAddress;
 
@@ -453,7 +453,7 @@ mod tests {
     use crate::query_tools::knn_query_heap::tests::clone_unvisited_nodes;
     use crate::query_tools::query_items::QueryAddress;
     use crate::query_tools::KnnQueryHeap;
-    use crate::tree::tests::build_mnist_tree;
+    use crate::covertree::tests::build_mnist_tree;
 
     fn create_test_node<D: PointCloud>() -> CoverNode<D> {
         let children = Some(NodeChildren {

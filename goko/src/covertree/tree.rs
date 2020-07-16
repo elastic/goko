@@ -34,15 +34,15 @@
 //! The hashmap pair idea is in `layer` and originally comes from Jon Gjengset.
 
 use crate::*;
-use layer::*;
-use node::*;
+use super::layer::*;
+use super::node::*;
 //use pointcloud::*;
 
 use std::sync::{atomic, Arc, RwLock};
-use tree_file_format::*;
+use crate::tree_file_format::*;
 
 use crate::plugins::{GokoPlugin, TreePluginSet};
-use crate::query_tools::{KnnQueryHeap, MultiscaleQueryHeap, RoutingQueryHeap};
+use super::query_tools::{KnnQueryHeap, MultiscaleQueryHeap, RoutingQueryHeap};
 use errors::GokoResult;
 use std::collections::HashMap;
 use std::iter::Iterator;

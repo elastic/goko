@@ -5,8 +5,9 @@
 //! simulate the data, down to the individual point, so this can be arbitrarily accurate.
 
 use super::*;
-use crate::node::CoverNode;
-use crate::tree::CoverTreeReader;
+use crate::covertree::node::CoverNode;
+use crate::covertree::CoverTreeReader;
+
 use std::f32::consts::PI;
 
 /// Node component, coded in such a way that it can be efficiently, recursively computed.
@@ -233,7 +234,7 @@ impl<D: PointCloud> GokoPlugin<D> for GokoDiagGaussian {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::tree::tests::build_basic_tree;
+    use crate::covertree::tests::build_basic_tree;
 
     #[test]
     fn recursive_gaussian_sanity_correct() {

@@ -1,8 +1,8 @@
 //! Plugin for labels
 
-use crate::node::CoverNode;
+use crate::covertree::node::CoverNode;
+use crate::covertree::CoverTreeReader;
 use pointcloud::*;
-use crate::tree::CoverTreeReader;
 use super::*;
 use std::sync::Arc;
 
