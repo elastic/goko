@@ -290,10 +290,13 @@ impl CoverTreeBuilder {
             pb.format("╢▌▌░╟");
         }
 
+        let (_final_addresses_reader, final_addresses) = monomap::new();
+
         let mut cover_tree = CoverTreeWriter {
             parameters: Arc::clone(&parameters),
             layers,
             root_address,
+            final_addresses,
         };
 
         let mut inserted_nodes: usize = 0;

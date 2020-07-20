@@ -11,11 +11,11 @@ use std::sync::Arc;
 
 use pyo3::types::PyDict;
 
-#[pyclass]
+#[pyclass(unsendable)]
 pub struct IterLayerNode {
     pub parameters: Arc<CoverTreeParameters<DefaultLabeledCloud<L2>>>,
     pub addresses: Vec<NodeAddress>,
-    pub tree: Arc<CoverTreeReader<DefaultLabeledCloud<L2>>>,
+    pub tree: CoverTreeReader<DefaultLabeledCloud<L2>>,
     pub index: usize,
 }
 
@@ -28,7 +28,7 @@ impl std::iter::Iterator for IterLayerNode {
             Some(PyNode {
                 parameters: Arc::clone(&self.parameters),
                 address: self.addresses[index],
-                tree: Arc::clone(&self.tree),
+                tree: self.tree.clone(),
             })
         } else {
             None
@@ -46,11 +46,11 @@ impl PyIterProtocol for IterLayerNode {
     }
 }
 
-#[pyclass]
+#[pyclass(unsendable)]
 pub struct PyNode {
     pub parameters: Arc<CoverTreeParameters<DefaultLabeledCloud<L2>>>,
     pub address: NodeAddress,
-    pub tree: Arc<CoverTreeReader<DefaultLabeledCloud<L2>>>,
+    pub tree: CoverTreeReader<DefaultLabeledCloud<L2>>,
 }
 
 #[pymethods]
@@ -71,7 +71,7 @@ impl PyNode {
             .map(|address| PyNode {
                 parameters: Arc::clone(&self.parameters),
                 address: *address,
-                tree: Arc::clone(&self.tree),
+                tree: self.tree.clone(),
             })
             .collect()
     }

@@ -22,7 +22,7 @@ for i,layer in enumerate(tree.layers()):
             print(f"\tNode {node.address()} mean: {node.cover_mean().mean()}")
 
 print("============= TRACE =============")
-trace = tree.dry_insert(data[59999])
+trace = tree.path(data[59999])
 for address in trace:
     print(address)
     node = tree.node(address[1])

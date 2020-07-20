@@ -9,7 +9,7 @@ tree.fit()
 print(tree.knn(tree.data_point(0),5))
 
 print("============= TRACE =============")
-trace = tree.dry_insert(tree.data_point(59999))
+trace = tree.path(tree.data_point(59999))
 for distance,address in trace:
     node = tree.node(address)
     mean = node.cover_mean()

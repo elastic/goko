@@ -85,10 +85,10 @@ pub enum MonoOperation<K, V> {
 }
 
 mod write;
-pub use crate::evmap::write::MonoWriteHandle;
+pub use write::MonoWriteHandle;
 
 mod read;
-pub use crate::evmap::read::{MonoReadHandle, MonoReadHandleFactory};
+pub use read::{MonoReadHandle, MonoReadHandleFactory};
 
 /// Options for how to initialize the map.
 ///

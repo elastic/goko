@@ -1,4 +1,4 @@
-use crate::inner::Inner;
+use super::inner::Inner;
 
 use std::borrow::Borrow;
 use std::cell;
@@ -23,7 +23,7 @@ where
     S: BuildHasher,
 {
     pub(crate) inner: sync::Arc<AtomicPtr<Inner<K, V, M, S>>>,
-    pub(crate) epochs: crate::evmap::Epochs,
+    pub(crate) epochs: crate::monomap::Epochs,
     epoch: sync::Arc<sync::atomic::AtomicUsize>,
     my_epoch: sync::atomic::AtomicUsize,
 
@@ -48,7 +48,7 @@ where
     S: BuildHasher,
 {
     inner: sync::Arc<AtomicPtr<Inner<K, V, M, S>>>,
-    epochs: crate::evmap::Epochs,
+    epochs: crate::monomap::Epochs,
 }
 
 impl<K, V, M, S> Clone for MonoReadHandleFactory<K, V, M, S>
@@ -93,7 +93,7 @@ where
 
 pub(crate) fn new<K, V, M, S>(
     inner: Inner<K, V, M, S>,
-    epochs: crate::evmap::Epochs,
+    epochs: crate::monomap::Epochs,
 ) -> MonoReadHandle<K, V, M, S>
 where
     K: Eq + Hash,
@@ -108,7 +108,7 @@ where
     K: Eq + Hash,
     S: BuildHasher,
 {
-    fn new(inner: sync::Arc<AtomicPtr<Inner<K, V, M, S>>>, epochs: crate::evmap::Epochs) -> Self {
+    fn new(inner: sync::Arc<AtomicPtr<Inner<K, V, M, S>>>, epochs: crate::monomap::Epochs) -> Self {
         // tell writer about our epoch tracker
         let epoch = sync::Arc::new(atomic::AtomicUsize::new(0));
         epochs.lock().unwrap().push(Arc::clone(&epoch));

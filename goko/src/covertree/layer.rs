@@ -31,7 +31,7 @@
 //! There is also an experimental pair of cluster hashmaps, which need to be replaced by a data structure that
 //! respects and represents the nerve more.
 
-use crate::evmap::{MonoReadHandle, MonoWriteHandle};
+use crate::monomap::{MonoReadHandle, MonoWriteHandle};
 use pointcloud::*;
 
 //use rayon;
@@ -155,7 +155,7 @@ impl<D: PointCloud> CoverLayerWriter<D> {
 
     /// Constructs the object. To construct a reader call `reader`.
     pub(crate) fn new(scale_index: i32) -> CoverLayerWriter<D> {
-        let (_node_reader, node_writer) = evmap::monomap::new();
+        let (_node_reader, node_writer) = monomap::new();
         CoverLayerWriter {
             scale_index,
             node_writer,
@@ -171,7 +171,7 @@ impl<D: PointCloud> CoverLayerWriter<D> {
 
     pub(crate) fn load(layer_proto: &LayerProto) -> CoverLayerWriter<D> {
         let scale_index = layer_proto.get_scale_index();
-        let (_node_reader, mut node_writer) = evmap::monomap::new();
+        let (_node_reader, mut node_writer) = monomap::new();
         for node_proto in layer_proto.get_nodes() {
             let index = node_proto.get_center_index() as PointIndex;
             let node = CoverNode::load(node_proto);

@@ -59,7 +59,7 @@ pub trait DiscreteBayesianSequenceTracker<D: PointCloud>: Debug {
     type Distribution: DiscreteBayesianDistribution + NodePlugin<D> + 'static;
 
     /// Adds a dry insert.
-    fn add_dry_insert(&mut self, trace: Vec<(f32, NodeAddress)>);
+    fn add_path(&mut self, trace: Vec<(f32, NodeAddress)>);
     /// The current distributions that a dry insert touched.
     fn running_distributions(&self) -> &HashMap<NodeAddress, Self::Distribution>;
     /// Helper function, each sequence tracker should carry it's own reader.
