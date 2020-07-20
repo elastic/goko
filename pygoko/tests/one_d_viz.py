@@ -69,6 +69,6 @@ if __name__ == '__main__':
 
     tree = pygoko.CoverTree()
     tree.set_scale_base(2)
-    tree.set_cutoff(0)
+    tree.set_leaf_cutoff(0)
     tree.fit(data)
     show1D(tree,data)

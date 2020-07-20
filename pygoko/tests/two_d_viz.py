@@ -53,7 +53,7 @@ if __name__ == '__main__':
     data = np.concatenate(data,axis=1).astype(np.float32)
 
     tree = pygoko.Covertree()
-    tree.set_cutoff(0)
+    tree.set_leaf_cutoff(0)
     tree.fit(data)
 
     show2D(tree,data)
