@@ -34,16 +34,17 @@
 //! The hashmap pair idea is in `layer` and originally comes from Jon Gjengset.
 
 use crate::*;
-use layer::*;
-use node::*;
+use super::layer::*;
+use super::node::*;
 //use pointcloud::*;
 
 use std::sync::{atomic, Arc, RwLock};
-use tree_file_format::*;
+use crate::tree_file_format::*;
+use crate::monomap::{MonoReadHandle, MonoWriteHandle};
 
 use crate::plugins::{GokoPlugin, TreePluginSet};
-use crate::query_tools::{KnnQueryHeap, MultiscaleQueryHeap, RoutingQueryHeap};
-use errors::GokoResult;
+use super::query_tools::{KnnQueryHeap, MultiscaleQueryHeap, RoutingQueryHeap};
+use errors::{GokoResult,GokoError};
 use std::collections::HashMap;
 use std::iter::Iterator;
 use std::iter::Rev;
@@ -102,8 +103,8 @@ pub struct CoverTreeReader<D: PointCloud> {
     parameters: Arc<CoverTreeParameters<D>>,
     layers: Vec<CoverLayerReader<D>>,
     root_address: NodeAddress,
+    final_addresses: MonoReadHandle<PointIndex,NodeAddress>,
 }
-
 
 
 impl<D: PointCloud> Clone for CoverTreeReader<D> {
@@ -112,6 +113,7 @@ impl<D: PointCloud> Clone for CoverTreeReader<D> {
             parameters: self.parameters.clone(),
             layers: self.layers.clone(),
             root_address: self.root_address,
+            final_addresses: self.final_addresses.clone(),
         }
     }
 }
@@ -367,7 +369,7 @@ impl<D: PointCloud> CoverTreeReader<D> {
     }
 
     /// # Dry Insert Query
-    pub fn dry_insert<'a, T: Into<PointRef<'a>>>(
+    pub fn path<'a, T: Into<PointRef<'a>>>(
         &self,
         point: T,
     ) -> GokoResult<Vec<(f32, NodeAddress)>> {
@@ -393,6 +395,22 @@ impl<D: PointCloud> CoverTreeReader<D> {
             }
         }
         Ok(trace)
+    }
+
+    /// 
+    pub fn known_path(&self, point_index: PointIndex) -> GokoResult<Vec<(f32,NodeAddress)>> {
+        self.final_addresses.get_and(&point_index,|addr| {
+            let mut path = Vec::with_capacity((self.root_address().0 - addr.0) as usize);
+            let mut parent = Some(*addr);
+            while let Some(addr) = parent {
+                path.push(addr);
+                parent = self.get_node_and(addr,|n| n.parent_address()).flatten();
+            }
+            (&mut path[..]).reverse();
+            let point_indexes: Vec<PointIndex> = path.iter().map(|na| na.1).collect();
+            let dists = self.parameters.point_cloud.distances_to_point_index(point_index,&point_indexes[..]).unwrap();
+            dists.iter().zip(path).map(|(d,a)|(*d,a)).collect()
+        }).ok_or(GokoError::IndexNotInTree(point_index))
     }
 
     ///Computes the fractal dimension of a node
@@ -517,6 +535,7 @@ pub struct CoverTreeWriter<D: PointCloud> {
     pub(crate) parameters: Arc<CoverTreeParameters<D>>,
     pub(crate) layers: Vec<CoverLayerWriter<D>>,
     pub(crate) root_address: NodeAddress,
+    pub(crate) final_addresses: MonoWriteHandle<PointIndex,NodeAddress>,
 }
 
 impl<D: PointCloud + LabeledCloud> CoverTreeWriter<D> {
@@ -564,6 +583,7 @@ impl<D: PointCloud> CoverTreeWriter<D> {
             parameters: Arc::clone(&self.parameters),
             layers: self.layers.iter().map(|l| l.reader()).collect(),
             root_address: self.root_address,
+            final_addresses: self.final_addresses.factory().handle(),
         }
     }
 
@@ -598,11 +618,38 @@ impl<D: PointCloud> CoverTreeWriter<D> {
             .map(|l| CoverLayerWriter::load(l))
             .collect();
 
-        Ok(CoverTreeWriter {
+        let (_final_addresses_reader, final_addresses) = monomap::new();
+
+        let mut tree = CoverTreeWriter {
             parameters,
             layers,
             root_address,
-        })
+            final_addresses,
+        };
+
+        tree.refresh_final_indexes();
+
+        Ok(tree)
+    }
+
+    fn refresh_final_indexes(&mut self) {
+        let reader = self.reader();
+        let mut unvisited_nodes: Vec<NodeAddress> = vec![self.root_address];
+        while !unvisited_nodes.is_empty() {
+            let cur_add = unvisited_nodes.pop().unwrap();
+            reader.get_node_and(cur_add, |n| {
+                for singleton in n.singletons() {
+                    self.final_addresses.insert(*singleton,cur_add);
+                }
+                if let Some((nested_si,child_addresses)) = n.children() {
+                    unvisited_nodes.extend(child_addresses);
+                    unvisited_nodes.push((nested_si,cur_add.1));
+                }
+            }).unwrap();
+        }
+
+        self.final_addresses.refresh();
+        self.final_addresses.refresh();
     }
 
     /// Encodes the tree into a protobuf. See `utils::save_tree` for saving to a file on disk.
@@ -731,10 +778,10 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn dry_insert_sanity() {
+    fn path_sanity() {
         let writer = build_basic_tree();
         let reader = writer.reader();
-        let trace = reader.dry_insert(&[0.495f32][..]).unwrap();
+        let trace = reader.path(&[0.495f32][..]).unwrap();
         assert!(trace.len() == 4 || trace.len() == 3);
         println!("{:?}", trace);
         for i in 0..(trace.len() - 1) {

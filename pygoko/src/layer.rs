@@ -11,10 +11,10 @@ use std::sync::Arc;
 
 use crate::node::*;
 
-#[pyclass]
+#[pyclass(unsendable)]
 pub struct IterLayers {
     pub parameters: Arc<CoverTreeParameters<DefaultLabeledCloud<L2>>>,
-    pub tree: Arc<CoverTreeReader<DefaultLabeledCloud<L2>>>,
+    pub tree: CoverTreeReader<DefaultLabeledCloud<L2>>,
     pub scale_indexes: Vec<i32>,
     pub index: usize,
 }
@@ -26,7 +26,7 @@ impl std::iter::Iterator for IterLayers {
             self.index += 1;
             Some(PyLayer {
                 parameters: Arc::clone(&self.parameters),
-                tree: Arc::clone(&self.tree),
+                tree: self.tree.clone(),
                 scale_index: self.scale_indexes[self.index - 1],
             })
         } else {
@@ -45,10 +45,10 @@ impl PyIterProtocol for IterLayers {
     }
 }
 
-#[pyclass]
+#[pyclass(unsendable)]
 pub struct PyLayer {
     pub parameters: Arc<CoverTreeParameters<DefaultLabeledCloud<L2>>>,
-    pub tree: Arc<CoverTreeReader<DefaultLabeledCloud<L2>>>,
+    pub tree: CoverTreeReader<DefaultLabeledCloud<L2>>,
     pub scale_index: i32,
 }
 
@@ -162,7 +162,7 @@ impl PyLayer {
         Ok(PyNode {
             parameters: Arc::clone(&self.parameters),
             address: (self.scale_index, center_index),
-            tree: Arc::clone(&self.tree),
+            tree: self.tree.clone(),
         })
     }
 
@@ -175,7 +175,7 @@ impl PyLayer {
                 .iter()
                 .map(|pi| (self.scale_index, *pi))
                 .collect(),
-            tree: Arc::clone(&self.tree),
+            tree: self.tree.clone(),
             index: 0,
         })
     }

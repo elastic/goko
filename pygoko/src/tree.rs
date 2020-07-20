@@ -33,12 +33,11 @@ use crate::layer::*;
 use crate::node::*;
 use crate::plugins::*;
 
-#[pyclass]
+#[pyclass(unsendable)]
 pub struct CoverTree {
     builder: Option<CoverTreeBuilder>,
     temp_point_cloud: Option<Arc<DefaultLabeledCloud<L2>>>,
     writer: Option<CoverTreeWriter<DefaultLabeledCloud<L2>>>,
-    reader: Option<Arc<CoverTreeReader<DefaultLabeledCloud<L2>>>>,
     metric: String,
 }
 
@@ -50,7 +49,6 @@ impl CoverTree {
             builder: Some(CoverTreeBuilder::new()),
             temp_point_cloud: None,
             writer: None,
-            reader: None,
             metric: "DefaultLabeledCloud<L2>".to_string(),
         })
     }
@@ -97,14 +95,14 @@ impl CoverTree {
             let data_dim = data.shape()[1];
             let my_labels: Vec<u64> = match labels {
                 Some(labels) => {
-                    Vec::from(labels.as_slice().unwrap())
+                    Vec::from(labels.readonly().as_slice().unwrap())
                 }
                 None => {
                     vec![0; len]
                 }
             };
             Arc::new(DefaultLabeledCloud::<L2>::new_simple(
-                Vec::from(data.as_slice().unwrap()),
+                Vec::from(data.readonly().as_slice().unwrap()),
                 data_dim,
                 my_labels,
             ))
@@ -123,14 +121,11 @@ impl CoverTree {
         writer.generate_summaries();
         writer.add_plugin::<GokoDiagGaussian>(GokoDiagGaussian::singletons());
         writer.add_plugin::<GokoDirichlet>(DirichletTree {});
-        let reader = writer.reader();
-
-        self.reader = Some(Arc::new(reader));
         Ok(())
     }
 
     pub fn data_point(&self, point_index: usize) -> PyResult<Option<Py<PyArray1<f32>>>> {
-        let reader = self.reader.as_ref().unwrap();
+        let reader = self.writer.as_ref().unwrap().reader();
         let dim = reader.parameters().point_cloud.dim();
         Ok(match reader.parameters().point_cloud.point(point_index) {
             Err(_) => None,
@@ -146,67 +141,67 @@ impl CoverTree {
 
     //pub fn layers(&self) ->
     pub fn top_scale(&self) -> Option<i32> {
-        self.reader.as_ref().map(|r| r.scale_range().end - 1)
+        self.writer.as_ref().map(|w| w.reader().scale_range().end - 1)
     }
 
     pub fn bottom_scale(&self) -> Option<i32> {
-        self.reader.as_ref().map(|r| r.scale_range().start)
+        self.writer.as_ref().map(|w| w.reader().scale_range().start)
     }
 
     pub fn layers(&self) -> PyResult<IterLayers> {
-        let reader = self.reader.as_ref().unwrap();
+        let reader = self.writer.as_ref().unwrap().reader();
         let scale_indexes = reader.layers().map(|(si, _)| si).collect();
         Ok(IterLayers {
             parameters: Arc::clone(reader.parameters()),
-            tree: reader.clone(),
+            tree: reader,
             scale_indexes,
             index: 0,
         })
     }
 
     pub fn layer(&self, scale_index: i32) -> PyResult<PyLayer> {
-        let reader = self.reader.as_ref().unwrap();
+        let reader = self.writer.as_ref().unwrap().reader();
         Ok(PyLayer {
             parameters: Arc::clone(reader.parameters()),
-            tree: reader.clone(),
+            tree: reader,
             scale_index,
         })
     }
 
     pub fn node(&self, address: (i32, usize)) -> PyResult<PyNode> {
-        let reader = self.reader.as_ref().unwrap();
+        let reader = self.writer.as_ref().unwrap().reader();
         // Check node exists
         reader.get_node_and(address, |_| true).unwrap();
         Ok(PyNode {
             parameters: Arc::clone(reader.parameters()),
             address,
-            tree: reader.clone(),
+            tree: reader,
         })
     }
 
     pub fn root(&self) -> PyResult<PyNode> {
-        let reader = self.reader.as_ref().unwrap();
+        let reader = self.writer.as_ref().unwrap().reader();
         self.node(reader.root_address())
     }
 
     pub fn knn(&self, point: &PyArray1<f32>, k: usize) -> Vec<(f32, usize)> {
-        let results = self
-            .reader
-            .as_ref()
+        let reader = self.writer.as_ref().unwrap().reader();
+        reader
+            .knn(point.readonly().as_slice().unwrap(), k)
             .unwrap()
-            .knn(point.as_slice().unwrap(), k)
-            .unwrap();
-        results
     }
 
-    pub fn dry_insert(&self, point: &PyArray1<f32>) -> Vec<(f32, (i32, usize))> {
-        let results = self
-            .reader
-            .as_ref()
+    pub fn known_path(&self, point_index: usize) -> Vec<(f32, (i32, usize))> {
+        let reader = self.writer.as_ref().unwrap().reader();
+        reader
+            .known_path(point_index).unwrap()    
+    }
+
+    pub fn path(&self, point: &PyArray1<f32>) -> Vec<(f32, (i32, usize))> {
+        let reader = self.writer.as_ref().unwrap().reader();
+        reader
+            .path(point.readonly().as_slice().unwrap())
             .unwrap()
-            .dry_insert(point.as_slice().unwrap())
-            .unwrap();
-        results
     }
 
     pub fn kl_div_dirichlet(
@@ -215,7 +210,6 @@ impl CoverTree {
         observation_weight: f64,
         size: u64,
     ) -> PyBayesCategoricalTracker {
-        let reader = self.reader.as_ref().unwrap();
         let writer = self.writer.as_ref().unwrap();
         PyBayesCategoricalTracker {
             hkl: BayesCategoricalTracker::new(
@@ -224,7 +218,7 @@ impl CoverTree {
                 size as usize,
                 writer.reader(),
             ),
-            tree: Arc::clone(&reader),
+            tree: writer.reader(),
         }
     }
 

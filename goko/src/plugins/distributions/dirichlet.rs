@@ -10,9 +10,9 @@
 //! bayesian way. There may be more applications of this idea, but defending against
 //! attackers has been proven.
 
-use crate::node::CoverNode;
+use crate::covertree::node::CoverNode;
+use crate::covertree::CoverTreeReader;
 use crate::plugins::*;
-use crate::tree::CoverTreeReader;
 
 use super::*;
 use std::fmt;
@@ -285,7 +285,7 @@ impl<D: PointCloud> BayesCategoricalTracker<D> {
 impl<D: PointCloud> DiscreteBayesianSequenceTracker<D> for BayesCategoricalTracker<D> {
     type Distribution = Dirichlet;
     /// Adds an element to the trace
-    fn add_dry_insert(&mut self, trace: Vec<(f32, NodeAddress)>) {
+    fn add_path(&mut self, trace: Vec<(f32, NodeAddress)>) {
         self.add_trace_to_pdfs(&trace);
         self.sequence.push_back(trace);
         if self.sequence.len() > self.window_size && self.window_size != 0 {
@@ -371,7 +371,7 @@ impl<D: PointCloud> DirichletBaseline<D> {
             for _ in 0..self.sequence_len {
                 let mut rng = thread_rng();
                 let query_point = point_cloud.point(rng.gen_range(0, point_cloud.len()))?;
-                tracker.add_dry_insert(self.reader.dry_insert(&query_point)?);
+                tracker.add_path(self.reader.path(&query_point)?);
                 seq_results.push(tracker.current_stats());
             }
         }

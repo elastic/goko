@@ -5,7 +5,6 @@ use pyo3::PyObjectProtocol;
 use goko::plugins::distributions::*;
 use goko::*;
 use pointcloud::*;
-use std::sync::Arc;
 
 /*
 pub #[derive(Debug)]
@@ -24,17 +23,17 @@ impl PyBucketProbs {
 }
 */
 
-#[pyclass]
+#[pyclass(unsendable)]
 pub struct PyBayesCategoricalTracker {
     pub hkl: BayesCategoricalTracker<DefaultLabeledCloud<L2>>,
-    pub tree: Arc<CoverTreeReader<DefaultLabeledCloud<L2>>>,
+    pub tree: CoverTreeReader<DefaultLabeledCloud<L2>>,
 }
 
 #[pymethods]
 impl PyBayesCategoricalTracker {
     pub fn push(&mut self, point: &PyArray1<f32>) {
-        let results = self.tree.dry_insert(point.as_slice().unwrap()).unwrap();
-        self.hkl.add_dry_insert(results);
+        let results = self.tree.path(point.readonly().as_slice().unwrap()).unwrap();
+        self.hkl.add_path(results);
     }
 
     pub fn print(&self) {
@@ -51,7 +50,7 @@ impl PyBayesCategoricalTracker {
     }
 }
 
-#[pyclass]
+#[pyclass(unsendable)]
 pub struct PyKLDivergenceStats {
     pub stats: KLDivergenceStats,
 }

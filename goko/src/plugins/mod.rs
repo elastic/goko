@@ -9,8 +9,8 @@
 //!
 //! None of this is parallelized. We need to move to Tokio to take advantage of the async computation there to || it.
 
-use crate::node::CoverNode;
-use crate::tree::CoverTreeReader;
+use crate::covertree::node::CoverNode;
+use crate::covertree::CoverTreeReader;
 use crate::*;
 use std::fmt::Debug;
 use type_map::concurrent::TypeMap;
@@ -58,7 +58,7 @@ pub(crate) type TreePluginSet = TypeMap;
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::tree::tests::build_basic_tree;
+    use crate::covertree::tests::build_basic_tree;
 
     #[derive(Debug, Clone)]
     struct DumbNode1 {

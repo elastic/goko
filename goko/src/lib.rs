@@ -22,6 +22,7 @@
 #![warn(missing_docs)]
 #![doc(test(attr(allow(unused_variables), deny(warnings))))]
 #![feature(binary_heap_into_iter_sorted)]
+#![feature(iterator_fold_self)]
 
 //! # Goko
 //! This is an lock-free efficient implementation of a covertree for data science. The traditional
@@ -60,21 +61,18 @@ use pointcloud::*;
 pub mod errors;
 pub use errors::GokoResult;
 
-pub(crate) mod evmap;
+pub(crate) mod monomap;
 
-mod builders;
-mod data_caches;
-pub mod layer;
-pub mod node;
-pub mod query_tools;
-mod tree;
+mod covertree;
+pub use covertree::*;
+
+pub mod query_interface;
+
 mod tree_file_format;
 pub mod utils;
 
 pub mod plugins;
 
-pub use builders::CoverTreeBuilder;
-pub use tree::*;
 
 /// The data structure explicitly seperates the covertree by layer, and the addressing schema for nodes
 /// is a pair for the layer index and the center point index of that node.

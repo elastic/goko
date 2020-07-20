@@ -3,13 +3,7 @@ use std::hash::{BuildHasher, Hash};
 #[cfg(feature = "indexed")]
 use indexmap::IndexMap as MapImpl;
 #[cfg(not(feature = "indexed"))]
-use std::collections::HashMap as MapImpl;
-
-#[cfg(not(feature = "smallvec"))]
-pub(crate) type Values<T> = Vec<T>;
-
-#[cfg(feature = "smallvec")]
-pub(crate) type Values<T> = smallvec::SmallVec<[T; 1]>;
+use hashbrown::HashMap as MapImpl;
 
 pub(crate) struct Inner<K, T, M, S>
 where

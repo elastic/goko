@@ -1,21 +1,21 @@
 use super::{MonoOperation, Updater};
-use crate::evmap::inner::Inner;
-use crate::evmap::monomap::read::MonoReadHandle;
+use crate::monomap::inner::Inner;
+use crate::monomap::read::MonoReadHandle;
 
-use std::collections::hash_map::RandomState;
+use fxhash::FxBuildHasher;
 use std::hash::{BuildHasher, Hash};
 use std::sync::atomic;
 use std::sync::{Arc, MutexGuard};
 use std::{mem, thread};
 
-pub struct MonoWriteHandle<K, V, M = (), S = RandomState>
+pub struct MonoWriteHandle<K, V, M = (), S = FxBuildHasher>
 where
     K: Eq + Hash + Clone,
     S: BuildHasher + Clone,
     V: Clone,
     M: 'static + Clone,
 {
-    epochs: crate::evmap::Epochs,
+    epochs: crate::monomap::Epochs,
     w_handle: Option<Box<Inner<K, V, M, S>>>,
     oplog: Vec<MonoOperation<K, V>>,
     swap_index: usize,
@@ -28,7 +28,7 @@ where
 
 pub(crate) fn new<K, V, M, S>(
     w_handle: Inner<K, V, M, S>,
-    epochs: crate::evmap::Epochs,
+    epochs: crate::monomap::Epochs,
     r_handle: MonoReadHandle<K, V, M, S>,
 ) -> MonoWriteHandle<K, V, M, S>
 where
@@ -174,7 +174,7 @@ where
                 // following the first refresh).
                 //
                 // this may seem unnecessarily complex, but it has the major advantage that it
-                // is relatively efficient to do lots of writes to the evmap at startup to
+                // is relatively efficient to do lots of writes to the monomap at startup to
                 // populate it, and then refresh().
                 let r_handle = unsafe {
                     self.r_handle

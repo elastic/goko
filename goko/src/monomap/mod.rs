@@ -1,15 +1,41 @@
+/*
+* Licensed to Elasticsearch B.V. under one or more contributor
+* license agreements. See the NOTICE file distributed with
+* this work for additional information regarding copyright
+* ownership. Elasticsearch B.V. licenses this file to you under
+* the Apache License, Version 2.0 (the "License"); you may
+* not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*  http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing,
+* software distributed under the License is distributed on an
+* "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+* KIND, either express or implied.  See the License for the
+* specific language governing permissions and limitations
+* under the License.
+*/
+
+#![deny(missing_docs)]
+
 //! A lock free, eventually consistent, concurrent single-value map.
 //! This is almost identical to the multimap, but duplicates the data.
 //! This stores the values in 2 copies of the hashmap, so it's meant to be used when you care about speed and
 //! concurrency with updates rather than memory efficency. Ideally if your type has any large vectors you'd partner
 //! this with a multimap to store the vector, and keep the complex logic on this structure.
 
-use std::collections::hash_map::RandomState;
+use std::sync::{atomic, Arc, Mutex};
+
+mod inner;
+
+pub(crate) type Epochs = Arc<Mutex<Vec<Arc<atomic::AtomicUsize>>>>;
+
+//use std::collections::hash_map::RandomState;
 use std::fmt;
 use std::hash::{BuildHasher, Hash};
-use std::sync::Arc;
-
-use crate::evmap::inner::Inner;
+use fxhash::FxBuildHasher;
+use inner::Inner;
 
 /// Merge object for reducing the entries of a entry to a single one.
 pub struct Updater<V>(pub(crate) Box<dyn Fn(&mut V) + Send + Sync>);
@@ -59,10 +85,10 @@ pub enum MonoOperation<K, V> {
 }
 
 mod write;
-pub use crate::evmap::monomap::write::MonoWriteHandle;
+pub use write::MonoWriteHandle;
 
 mod read;
-pub use crate::evmap::monomap::read::{MonoReadHandle, MonoReadHandleFactory};
+pub use read::{MonoReadHandle, MonoReadHandleFactory};
 
 /// Options for how to initialize the map.
 ///
@@ -77,11 +103,11 @@ where
     capacity: Option<usize>,
 }
 
-impl Default for MonoOptions<(), RandomState> {
+impl Default for MonoOptions<(), FxBuildHasher> {
     fn default() -> Self {
         MonoOptions {
             meta: (),
-            hasher: RandomState::default(),
+            hasher: FxBuildHasher::default(),
             capacity: None,
         }
     }
@@ -150,8 +176,8 @@ where
 /// Use the [`Options`](./struct.Options.html) builder for more control over initialization.
 #[allow(clippy::type_complexity)]
 pub fn new<K, V>() -> (
-    MonoReadHandle<K, V, (), RandomState>,
-    MonoWriteHandle<K, V, (), RandomState>,
+    MonoReadHandle<K, V, (), FxBuildHasher>,
+    MonoWriteHandle<K, V, (), FxBuildHasher>,
 )
 where
     K: Eq + Hash + Clone,
@@ -167,8 +193,8 @@ where
 pub fn with_meta<K, V, M>(
     meta: M,
 ) -> (
-    MonoReadHandle<K, V, M, RandomState>,
-    MonoWriteHandle<K, V, M, RandomState>,
+    MonoReadHandle<K, V, M, FxBuildHasher>,
+    MonoWriteHandle<K, V, M, FxBuildHasher>,
 )
 where
     K: Eq + Hash + Clone,

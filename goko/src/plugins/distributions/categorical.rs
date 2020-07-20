@@ -3,10 +3,10 @@
 //! Simple probability distribution that enables you to simulated the rough
 //! distribution of data in the tree.
 
-use crate::node::CoverNode;
+use crate::covertree::node::CoverNode;
+use crate::covertree::CoverTreeReader;
 use crate::plugins::distributions::DiscreteDistribution;
 use crate::plugins::*;
-use crate::tree::CoverTreeReader;
 
 /// Simple probability density function for where things go by count
 /// Stored as a flat vector in the order of the node addresses.

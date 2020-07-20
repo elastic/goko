@@ -61,8 +61,8 @@ fn test_run(
     for i in 0..count {
         let point_index: usize = rng.gen_range(0, test_set.len());
         let point = test_set.point(point_index).unwrap();
-        let trace = tracker.tree_reader().dry_insert(point).unwrap();
-        tracker.add_dry_insert(trace);
+        let trace = tracker.tree_reader().path(point).unwrap();
+        tracker.add_path(trace);
         if i % 5 == 0 {
             stats.push(tracker.current_stats());
         }

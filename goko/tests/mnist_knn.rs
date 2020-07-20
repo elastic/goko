@@ -74,11 +74,11 @@ fn load_tree_and_query() {
 }
 */
 
-fn test_dry_insert(ct_reader: &CoverTreeReader<DefaultLabeledCloud<L2>>, query_index: usize) {
+fn test_path(ct_reader: &CoverTreeReader<DefaultLabeledCloud<L2>>, query_index: usize) {
     // Testing dry insert on prebuilt tree
 
     let trace = ct_reader
-        .dry_insert(
+        .path(
             ct_reader
                 .parameters()
                 .point_cloud
@@ -113,9 +113,9 @@ fn run_knn_query() {
         assert!(query.len() == 5);
 
         println!("Testing root address 59999");
-        test_dry_insert(&ct_reader, 59999);
+        test_path(&ct_reader, 59999);
         println!("Testing other address 0");
-        test_dry_insert(&ct_reader, 0);
+        test_path(&ct_reader, 0);
     }
 }
 

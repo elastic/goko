@@ -27,6 +27,8 @@ use std::fmt;
 use std::io;
 use std::str;
 
+use crate::PointIndex;
+
 /// Helper type for a call that could go wrong.
 pub type GokoResult<T> = Result<T, GokoError>;
 
@@ -36,7 +38,7 @@ pub enum GokoError {
     /// Unable to retrieve some data point (given by index) in a file (slice name)
     PointCloudError(PointCloudError),
     /// Most common error, the given point name isn't present in the training data
-    NameNotInTree(String),
+    IndexNotInTree(PointIndex),
     /// IO error when opening files
     IoError(io::Error),
     /// Parsing error when loading a CSV file
@@ -54,7 +56,7 @@ impl fmt::Display for GokoError {
             GokoError::IoError(ref e) => write!(f, "{}", e),
             GokoError::ParsingError(ref e) => write!(f, "{}", e),
             GokoError::PointCloudError(ref e) => write!(f, "{}", e),
-            GokoError::NameNotInTree { .. } => {
+            GokoError::IndexNotInTree { .. } => {
                 write!(f, "there was an issue grabbing a name from the known names")
             }
             GokoError::DoubleNest => write!(
@@ -77,7 +79,7 @@ impl Error for GokoError {
             GokoError::IoError(ref e) => e.description(),
             GokoError::ParsingError(ref e) => e.description(),
             GokoError::PointCloudError(ref e) => e.description(),
-            GokoError::NameNotInTree { .. } => {
+            GokoError::IndexNotInTree { .. } => {
                 "there was an issue grabbing a name from the known names"
             }
             GokoError::DoubleNest => {
@@ -94,7 +96,7 @@ impl Error for GokoError {
             GokoError::IoError(ref e) => Some(e),
             GokoError::ParsingError(ref e) => Some(e),
             GokoError::PointCloudError(ref e) => Some(e),
-            GokoError::NameNotInTree { .. } => None,
+            GokoError::IndexNotInTree { .. } => None,
             GokoError::DoubleNest => None,
             GokoError::InsertBeforeNest => None,
         }
