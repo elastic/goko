@@ -1,6 +1,6 @@
 [package]
 name = "goko"
-version = "0.3.3"
+version = "0.3.5"
 edition = "2018"
 
 description = "A lock-free, eventually consistent, concurrent covertree."
@@ -38,7 +38,7 @@ fxhash = "0.2.1"
 rayon = "1.3.1"
 hashbrown = { version = "0.8", features = ["rayon"] }
 crossbeam-channel = "0.4.2"
-pointcloud = { version = "0.3.0", path = "../pointcloud" }
+pointcloud = { version = "0.3.3", path = "../pointcloud" }
 #evmap = { git = "https://github.com/comath/rust-evmap" }
 smallvec = "1.4.1"
 type-map = "0.3.0"

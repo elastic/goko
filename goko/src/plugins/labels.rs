@@ -10,7 +10,7 @@ use std::sync::Arc;
 #[derive(Debug, Default)]
 pub struct NodeLabelSummary<T: Summary> {
     /// The summary object, refenced counted to eliminate duplicates
-    pub summary: Arc<T>
+    pub summary: Arc<SummaryCounter<T>>
 }
 
 impl<T: Summary> Clone for NodeLabelSummary<T> {

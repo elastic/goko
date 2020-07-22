@@ -92,8 +92,8 @@ impl<D: LabeledCloud> LabeledCloud for HashGluedCloud<D> {
         let (i, j) = self.get_address(pn)?;
         self.data_sources[i].label(j)
     }
-    fn label_summary(&self, pns: &[PointIndex]) -> PointCloudResult<Self::LabelSummary> {
-        let mut summary = Self::LabelSummary::default();
+    fn label_summary(&self, pns: &[PointIndex]) -> PointCloudResult<SummaryCounter<Self::LabelSummary>> {
+        let mut summary = SummaryCounter::<Self::LabelSummary>::default();
         for pn in pns {
             let (i, j) = self.get_address(*pn)?;
             summary.add(self.data_sources[i].label(j));
@@ -209,7 +209,7 @@ mod tests {
         println!("{:?}", label_summary);
         assert_eq!(label_summary.nones, 0);
         assert_eq!(label_summary.errors, 0);
-        assert_eq!(label_summary.items[0], (1,5));
+        assert_eq!(label_summary.summary.items[0], (1,5));
     }
 
     #[test]

@@ -163,7 +163,7 @@ mod tests {
         }
         data.push(0.0);
 
-        let labels: Vec<u64> = data.iter().map(|x| if *x > 0.5 { 1 } else { 0 }).collect();
+        let labels: Vec<i64> = data.iter().map(|x| if *x > 0.5 { 1 } else { 0 }).collect();
 
         let point_cloud = DefaultLabeledCloud::<L2>::new_simple(data, 1, labels);
 
@@ -182,7 +182,7 @@ mod tests {
         }
         data.push(0.0);
 
-        let labels: Vec<u64> = data.iter().map(|x| if *x > 0.5 { 1 } else { 0 }).collect();
+        let labels: Vec<i64> = data.iter().map(|x| if *x > 0.5 { 1 } else { 0 }).collect();
 
         let point_cloud = Arc::new(DefaultLabeledCloud::<L2>::new_simple(data, 1, labels));
 
@@ -209,7 +209,7 @@ mod tests {
         }
         data.push(0.0);
 
-        let labels: Vec<u64> = data.iter().map(|x| if *x > 0.5 { 1 } else { 0 }).collect();
+        let labels: Vec<i64> = data.iter().map(|x| if *x > 0.5 { 1 } else { 0 }).collect();
 
         //data.sort_unstable_by(|a, b| (a).partial_cmp(&b).unwrap_or(Ordering::Equal));
         let point_cloud = DefaultLabeledCloud::<L2>::new_simple(data.clone(), 1, labels);

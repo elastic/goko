@@ -54,7 +54,7 @@ fn read_csv<P: AsRef<Path> + std::fmt::Debug, R: Read>(
                 } else {
                     mask.push(false);
                 }
-                labels.push(val as u64);
+                labels.push(val);
             }
             None => {
                 labels.push(0);

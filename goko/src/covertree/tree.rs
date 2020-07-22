@@ -121,16 +121,13 @@ impl<D: PointCloud> Clone for CoverTreeReader<D> {
 impl<D: PointCloud + LabeledCloud> CoverTreeReader<D> {
     /// Reads the contents of a plugin, due to the nature of the plugin map we have to access it with a
     /// closure.
-    pub fn get_node_label_summary_and<F, S>(
+    pub fn get_node_label_summary(
         &self,
         node_address: (i32, PointIndex),
-        transform_fn: F,
-    ) -> Option<S>
-    where
-        F: Fn(&D::LabelSummary) -> S,
+    ) -> Option<Arc<SummaryCounter<D::LabelSummary>>>
     {
         self.layers[self.parameters.internal_index(node_address.0)]
-            .get_node_and(node_address.1, |n| n.label_summary().map(transform_fn))
+            .get_node_and(node_address.1, |n| n.label_summary())
             .flatten()
     }
 }
@@ -833,11 +830,10 @@ pub(crate) mod tests {
             layer.for_each_node(|_,n| println!("{:?}", n.label_summary()));
         }
 
-        reader.get_node_label_summary_and(reader.root_address(),|l| {
-            assert_eq!(l.items.len(),2);
-            assert_eq!(l.nones,0);
-            assert_eq!(l.errors,0);
-        });
+        let l = reader.get_node_label_summary(reader.root_address()).unwrap();
+        assert_eq!(l.summary.items.len(),2);
+        assert_eq!(l.nones,0);
+        assert_eq!(l.errors,0);
     }
 
     #[test]

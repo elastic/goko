@@ -89,11 +89,11 @@ impl CoverTree {
         self.metric = metric_name;
     }
 
-    pub fn fit(&mut self, data: Option<&PyArray2<f32>>, labels: Option<&PyArray1<u64>>) -> PyResult<()> {
+    pub fn fit(&mut self, data: Option<&PyArray2<f32>>, labels: Option<&PyArray1<i64>>) -> PyResult<()> {
         let point_cloud = if let Some(data) = data {
             let len = data.shape()[0];
             let data_dim = data.shape()[1];
-            let my_labels: Vec<u64> = match labels {
+            let my_labels: Vec<i64> = match labels {
                 Some(labels) => {
                     Vec::from(labels.readonly().as_slice().unwrap())
                 }

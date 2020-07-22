@@ -29,6 +29,7 @@ use crate::NodeAddress;
 use pointcloud::*;
 use smallvec::SmallVec;
 use std::marker::PhantomData;
+use std::sync::Arc;
 /// The node children. This is a separate struct from the `CoverNode` to use the rust compile time type checking and
 /// `Option` data structure to ensure that all nodes with children are valid and cover their nested child.
 #[derive(Debug, Clone)]
@@ -75,8 +76,8 @@ impl<D: PointCloud> Clone for CoverNode<D> {
 
 impl<D: PointCloud + LabeledCloud> CoverNode<D> {
     /// If the node has a summary attached, this returns the summary.
-    pub fn label_summary(&self) -> Option<&D::LabelSummary> {
-        self.plugins.get::<NodeLabelSummary<D::LabelSummary>>().map(|c| c.summary.as_ref())
+    pub fn label_summary(&self) -> Option<Arc<SummaryCounter<D::LabelSummary>>> {
+        self.plugins.get::<NodeLabelSummary<D::LabelSummary>>().map(|c| Arc::clone(&c.summary))
     }
 }
 

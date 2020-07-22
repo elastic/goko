@@ -1,6 +1,5 @@
 //! Summaries for some label types
 
-use crate::pc_errors::PointCloudResult;
 use hashbrown::HashMap;
 use std::default::Default;
 use std::iter::Iterator;
@@ -8,50 +7,37 @@ use std::iter::Iterator;
 use smallvec::SmallVec;
 
 use crate::base_traits::*;
+use serde::{Deserialize, Serialize};
+use std::fmt::Debug;
 
 /// A summary for a small number of categories.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct CategorySummary {
-    /// The categorical summary
-    pub items: SmallVec<[(u64, usize); 4]>,
-    /// How many unlabeled elements this summary covers
-    pub nones: usize,
-    /// How many elements under this summary errored out
-    pub errors: usize,
+    /// Hashmap that counts how many of each instance of string there is
+    pub items: SmallVec<[(i64, usize); 4]>,
 }
 
 impl Default for CategorySummary {
     fn default() -> Self {
         CategorySummary {
             items: SmallVec::new(),
-            nones: 0,
-            errors: 0,
         }
     }
 }
 
 impl Summary for CategorySummary {
-    type Label = u64;
-    fn add(&mut self, v: PointCloudResult<Option<&u64>>) {
-        if let Ok(vv) = v {
-            if let Some(val) = vv {
-
-                let mut added_to_existing = false;
-                for (stored_val, totals) in self.items.iter_mut() {
-                    if val == stored_val {
-                        *totals += 1;
-                        added_to_existing = true;
-                        break;
-                    }
-                }
-                if !added_to_existing {
-                    self.items.push((*val, 1));
-                }
-            } else {
-                self.nones += 1;
+    type Label = i64;
+    fn add(&mut self, val: &i64) {
+        let mut added_to_existing = false;
+        for (stored_val, totals) in self.items.iter_mut() {
+            if val == stored_val {
+                *totals += 1;
+                added_to_existing = true;
+                break;
             }
-        } else {
-            self.errors += 1;
+        }
+        if !added_to_existing {
+            self.items.push((*val, 1));
         }
     }
 
@@ -74,54 +60,39 @@ impl Summary for CategorySummary {
     fn count(&self) -> usize {
         self.items.iter().map(|(_a, b)| b).sum()
     }
-
-    fn nones(&self) -> usize {
-        self.nones
-    }
-
-    fn errors(&self) -> usize {
-        self.nones
-    }
 }
 
 /// Summary of vectors
 #[derive(Clone, Debug, Default)]
 pub struct VecSummary {
-    // First moment is stored in the first half, the second in the second
-    moment1: Vec<f32>,
-    moment2: Vec<f32>,
-    count: usize,
-    nones: usize,
-    errors: usize,
+    /// First moment, see https://en.wikipedia.org/wiki/Moment_(mathematics)
+    pub moment1: Vec<f32>,
+    /// Second moment, see https://en.wikipedia.org/wiki/Moment_(mathematics)
+    pub moment2: Vec<f32>,
+    /// The count of the number of labels included
+    pub count: usize,
 }
 
 impl Summary for VecSummary {
     type Label = [f32];
 
-    fn add(&mut self, v: PointCloudResult<Option<&[f32]>>) {
-        if let Ok(vv) = v {
-            if let Some(val) = vv {
-                if !self.moment1.is_empty() {
-                    if self.moment1.len() == val.len() {
-                        self.moment1.iter_mut().zip(val).for_each(|(m, x)| *m += x);
-                        self.moment2
-                            .iter_mut()
-                            .zip(val)
-                            .for_each(|(m, x)| *m += x * x);
-                        self.count += 1;
-                    } else {
-                        self.errors += 1;
-                    }
-                } else {
-                    self.moment1.extend(val);
-                    self.moment2.extend(val.iter().map(|x| x * x))
-                }
+    fn add(&mut self, val: &[f32]) {
+        if !self.moment1.is_empty() {
+            if self.moment1.len() == val.len() {
+                self.moment1.iter_mut().zip(val).for_each(|(m, x)| *m += x);
+                self.moment2
+                    .iter_mut()
+                    .zip(val)
+                    .for_each(|(m, x)| *m += x * x);
+                self.count += 1;
             } else {
-                self.nones += 1;
+                panic!("Combining a vec of len {:?} and of len {:?}", self.moment1.len(), val.len());
             }
         } else {
-            self.errors += 1;
+            self.moment1.extend(val);
+            self.moment2.extend(val.iter().map(|x| x * x))
         }
+
     }
     fn combine(&mut self, other: &VecSummary) {
         self.moment1
@@ -133,58 +104,96 @@ impl Summary for VecSummary {
             .zip(&other.moment2)
             .for_each(|(x, y)| *x += y);
         self.count += other.count;
-        self.nones += other.nones;
-        self.errors += other.errors;
     }
 
     fn count(&self) -> usize {
         self.count
     }
+}
 
-    fn nones(&self) -> usize {
-        self.nones
+/// Summary of a bunch of underlying floats
+#[derive(Debug, Serialize, Deserialize, Default)]
+pub struct FloatSummary {
+    /// First moment, see https://en.wikipedia.org/wiki/Moment_(mathematics)
+    pub moment1: f64,
+    /// Second moment, see https://en.wikipedia.org/wiki/Moment_(mathematics)
+    pub moment2: f64,
+    /// The count of the number of labels included
+    pub count: usize,
+}
+
+impl Summary for FloatSummary {
+    type Label = f64;
+
+    fn add(&mut self, val: &f64) {
+        self.moment1 += val;
+        self.moment2 += val*val;
+        self.count += 1;
+    }
+    fn combine(&mut self, other: &FloatSummary) {
+        self.moment1 += other.moment1;
+        self.moment2 += other.moment2;
+        self.count += other.count;
     }
 
-    fn errors(&self) -> usize {
-        self.nones
+    fn count(&self) -> usize {
+        self.count
     }
 }
 
+/// Summary of a bunch of underlying integers, more accurate for int than the float summary
+#[derive(Debug, Serialize, Deserialize, Default)]
+pub struct IntSummary {
+    /// First moment, see https://en.wikipedia.org/wiki/Moment_(mathematics)
+    pub moment1: i64,
+    /// Second moment, see https://en.wikipedia.org/wiki/Moment_(mathematics)
+    pub moment2: i64,
+    /// The count of the number of labels included
+    pub count: usize,
+}
+
+impl Summary for IntSummary {
+    type Label = i64;
+
+    fn add(&mut self, val: &i64) {
+        self.moment1 += val;
+        self.moment2 += val*val;
+        self.count += 1;
+    }
+    fn combine(&mut self, other: &IntSummary) {
+        self.moment1 += other.moment1;
+        self.moment2 += other.moment2;
+        self.count += other.count;
+    }
+
+    fn count(&self) -> usize {
+        self.count
+    }
+}
+
+
 /// A summary for a small number of categories.
-#[derive(Clone, Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct StringSummary {
-    items: HashMap<String, usize>,
-    nones: usize,
-    errors: usize,
+    /// Hashmap that counts how many of each instance of string there is
+    pub items: HashMap<String, usize>,
 }
 
 impl Default for StringSummary {
     fn default() -> Self {
         StringSummary {
             items: HashMap::new(),
-            nones: 0,
-            errors: 0,
         }
     }
 }
 
 impl Summary for StringSummary {
     type Label = String;
-    fn add(&mut self, v: PointCloudResult<Option<&String>>) {
-        if let Ok(v) = v {
-            if let Some(val) = v {
-                *self.items.entry(val.to_string()).or_insert(0) += 1;
-            } else {
-                self.nones += 1;
-            }
-        } else {
-            self.errors += 1;
-        }
+    fn add(&mut self, val: &String) {
+        *self.items.entry(val.to_string()).or_insert(0) += 1;
     }
 
     fn combine(&mut self, other: &StringSummary) {
-        self.nones += other.nones;
-        self.errors += other.errors;
         for (val, count) in other.items.iter() {
             *self.items.entry(val.to_string()).or_insert(0) += count;
         }
@@ -192,13 +201,5 @@ impl Summary for StringSummary {
 
     fn count(&self) -> usize {
         self.items.values().sum()
-    }
-
-    fn nones(&self) -> usize {
-        self.nones
-    }
-
-    fn errors(&self) -> usize {
-        self.nones
     }
 }
