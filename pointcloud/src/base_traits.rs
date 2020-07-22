@@ -338,7 +338,7 @@ impl<S:Summary> SummaryCounter<S> {
 
     /// how many samples labels errored out
     pub fn errors(&self) -> usize {
-        self.nones
+        self.errors
     }
 }
 
@@ -393,18 +393,27 @@ impl<D: PointCloud, L: LabelSet> LabeledCloud for SimpleLabeledCloud<D, L> {
     }
 }
 
-/*
+/// Enables the points in the underlying cloud to be named with strings. 
 pub trait NamedCloud: PointCloud {
-    fn name(&self, pi: PointIndex) -> Option<&PointName>;
-    fn index(&self, pn: PointName) -> Option<&PointIndex>;
+    /// Grabs the name of the point. 
+    /// Returns an error if the access errors out, and a None if the name is unknown
+    fn name(&self, pi: PointIndex) -> PointCloudResult<Option<&String>>;
+    /// Converts a name to an index you can use
+    fn index(&self, pn: &String) -> PointCloudResult<&PointIndex>;
+    /// Gather's all valid known names
     fn names(&self) -> Vec<PointName>;
 }
 
+/// Allows for expensive metadata, this is identical to the label trait, but enables slower update
 pub trait MetaCloud: PointCloud {
+    /// Underlying metadata
     type Metadata: ?Sized;
+    /// A summary of the underlying metadata
     type MetaSummary: Summary<Label = Self::Metadata>;
 
-    fn metadata(&self, pn: PointIndex) -> PointCloudResult<&Self::Metadata>;
-    fn metasummary(&self, pns: &[PointIndex]) -> PointCloudResult<Self::MetaSummary>;
+    /// Expensive metadata object for the sample
+    fn metadata(&self, pn: PointIndex) -> PointCloudResult<Option<&Self::Metadata>>;
+    /// Expensive metadata summary over the samples
+    fn metasummary(&self, pns: &[PointIndex]) -> PointCloudResult<SummaryCounter<Self::MetaSummary>>;
 }
-*/
+
