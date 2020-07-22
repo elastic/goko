@@ -81,6 +81,13 @@ impl<D: PointCloud + LabeledCloud> CoverNode<D> {
     }
 }
 
+impl<D: PointCloud + MetaCloud> CoverNode<D> {
+    /// If the node has a summary attached, this returns the summary.
+    pub fn metasummary(&self) -> Option<Arc<SummaryCounter<D::MetaSummary>>> {
+        self.plugins.get::<NodeLabelSummary<D::MetaSummary>>().map(|c| Arc::clone(&c.summary))
+    }
+}
+
 impl<D: PointCloud> CoverNode<D> {
     /// Creates a new blank node
     pub fn new(parent_address: Option<NodeAddress>,address: NodeAddress) -> CoverNode<D> {

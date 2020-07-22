@@ -51,7 +51,7 @@ use std::iter::Rev;
 use std::ops::Range;
 use std::slice::Iter;
 
-use plugins::labels::{LabelSummaryPlugin,TreeLabelSummary};
+use plugins::labels::*;
 
 /// Container for the parameters governing the construction of the covertree
 #[derive(Debug)]
@@ -128,6 +128,20 @@ impl<D: PointCloud + LabeledCloud> CoverTreeReader<D> {
     {
         self.layers[self.parameters.internal_index(node_address.0)]
             .get_node_and(node_address.1, |n| n.label_summary())
+            .flatten()
+    }
+}
+
+impl<D: PointCloud + MetaCloud> CoverTreeReader<D> {
+    /// Reads the contents of a plugin, due to the nature of the plugin map we have to access it with a
+    /// closure.
+    pub fn get_node_metasummary(
+        &self,
+        node_address: (i32, PointIndex),
+    ) -> Option<Arc<SummaryCounter<D::MetaSummary>>>
+    {
+        self.layers[self.parameters.internal_index(node_address.0)]
+            .get_node_and(node_address.1, |n| n.metasummary())
             .flatten()
     }
 }
@@ -539,6 +553,13 @@ impl<D: PointCloud + LabeledCloud> CoverTreeWriter<D> {
     /// 
     pub fn generate_summaries(&mut self){
         self.add_plugin::<LabelSummaryPlugin>(TreeLabelSummary::default())
+    }
+}
+
+impl<D: PointCloud + MetaCloud> CoverTreeWriter<D> {
+    /// 
+    pub fn generate_meta_summaries(&mut self){
+        self.add_plugin::<MetaSummaryPlugin>(TreeMetaSummary::default())
     }
 }
 
