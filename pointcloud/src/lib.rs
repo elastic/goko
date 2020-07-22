@@ -56,7 +56,7 @@ pub type DefaultCloud<M> = DataRam<M>;
 
 impl<M: Metric> DefaultLabeledCloud<M> {
     /// Simple way of gluing together the most common data source
-    pub fn new_simple(data: Vec<f32>, dim: usize, labels: Vec<u64>) -> DefaultLabeledCloud<M> {
+    pub fn new_simple(data: Vec<f32>, dim: usize, labels: Vec<i64>) -> DefaultLabeledCloud<M> {
         SimpleLabeledCloud::new(
             DataRam::<M>::new(data, dim).unwrap(),
             SmallIntLabels::new(labels, None),

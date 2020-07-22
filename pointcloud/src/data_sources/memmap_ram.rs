@@ -209,7 +209,7 @@ pub mod tests {
         .unwrap();
         let labels = SmallIntLabels::new(
             (0..count)
-                .map(|i| i as u64)
+                .map(|i| i as i64)
                 .collect(),
             None,
         );

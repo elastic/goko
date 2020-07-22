@@ -249,16 +249,12 @@ pub trait Summary: Debug + Default + Send + Sync + 'static {
     /// Underlying type.
     type Label: ?Sized;
     /// Adding a single value to the summary.
-    fn add(&mut self, v: PointCloudResult<Option<&Self::Label>>);
+    fn add(&mut self, v: &Self::Label);
     /// Merging several summaries of your data source together. This results in a summary of underlying column over
     /// the union of the indexes used to create the input summaries.
     fn combine(&mut self, other: &Self);
     /// The number of elements this summary covers
     fn count(&self) -> usize;
-    /// The number of elements that were unlabeled that this summary covers
-    fn nones(&self) -> usize;
-    /// The number of errors this summary covers that the label could not be found
-    fn errors(&self) -> usize;
 }
 
 /// A trait for a container that just holds labels. Meant to be used in conjunction with `SimpleLabeledCloud` to be
@@ -277,7 +273,7 @@ pub trait LabelSet: Debug + Send + Sync + 'static {
     /// and partially labeled datasets with the option.
     fn label(&self, pn: PointIndex) -> PointCloudResult<Option<&Self::Label>>;
     /// Grabs a label summary of a set of indexes.
-    fn label_summary(&self, pns: &[PointIndex]) -> PointCloudResult<Self::LabelSummary>;
+    fn label_summary(&self, pns: &[PointIndex]) -> PointCloudResult<SummaryCounter<Self::LabelSummary>>;
 }
 
 /// A point cloud that is labeled
@@ -290,7 +286,60 @@ pub trait LabeledCloud: PointCloud {
     /// and partially labeled datasets with the option.
     fn label(&self, pn: PointIndex) -> PointCloudResult<Option<&Self::Label>>;
     /// Grabs a label summary of a set of indexes.
-    fn label_summary(&self, pns: &[PointIndex]) -> PointCloudResult<Self::LabelSummary>;
+    fn label_summary(&self, pns: &[PointIndex]) -> PointCloudResult<SummaryCounter<Self::LabelSummary>>;
+}
+
+/// Simply shoves together a point cloud and a label set, for a modular label system
+#[derive(Debug, Default)]
+pub struct SummaryCounter<S: Summary> {
+    /// The categorical summary
+    pub summary: S,
+    /// How many unlabeled elements this summary covers
+    pub nones: usize,
+    /// How many elements under this summary errored out
+    pub errors: usize,
+}
+
+impl<S:Summary> SummaryCounter<S> {
+    /// adds an element to the summary, handling errors
+    pub fn add(&mut self, v: PointCloudResult<Option<&S::Label>>) {
+        if let Ok(vv) = v {
+            if let Some(val) = vv {
+                self.summary.add(val);
+            } else {
+                self.nones += 1;
+            }
+        } else {
+            self.errors += 1;
+        }
+    }
+
+    /// Combines the underlying summaries, and the nones/errors
+    pub fn combine(&mut self, other: &SummaryCounter<S>) {
+        self.summary.combine(&other.summary);
+        self.nones += other.nones;
+        self.errors += other.errors;
+    }
+
+    /// a refernce to the underlying summary
+    pub fn summary(&self) -> &S {
+        &self.summary
+    }
+
+    /// the number of samples this summarieses
+    pub fn count(&self) -> usize { 
+        self.summary.count() + self.nones + self.errors
+    }
+
+    /// how many unlabeled samples snuck thru
+    pub fn nones(&self) -> usize {
+        self.nones
+    }
+
+    /// how many samples labels errored out
+    pub fn errors(&self) -> usize {
+        self.errors
+    }
 }
 
 /// Simply shoves together a point cloud and a label set, for a modular label system
@@ -339,23 +388,32 @@ impl<D: PointCloud, L: LabelSet> LabeledCloud for SimpleLabeledCloud<D, L> {
     fn label(&self, pn: PointIndex) -> PointCloudResult<Option<&Self::Label>> {
         self.labels.label(pn)
     }
-    fn label_summary(&self, pns: &[PointIndex]) -> PointCloudResult<Self::LabelSummary> {
+    fn label_summary(&self, pns: &[PointIndex]) -> PointCloudResult<SummaryCounter<Self::LabelSummary>> {
         self.labels.label_summary(pns)
     }
 }
 
-/*
+/// Enables the points in the underlying cloud to be named with strings. 
 pub trait NamedCloud: PointCloud {
-    fn name(&self, pi: PointIndex) -> Option<&PointName>;
-    fn index(&self, pn: PointName) -> Option<&PointIndex>;
+    /// Grabs the name of the point. 
+    /// Returns an error if the access errors out, and a None if the name is unknown
+    fn name(&self, pi: PointIndex) -> PointCloudResult<Option<&String>>;
+    /// Converts a name to an index you can use
+    fn index(&self, pn: &String) -> PointCloudResult<&PointIndex>;
+    /// Gather's all valid known names
     fn names(&self) -> Vec<PointName>;
 }
 
+/// Allows for expensive metadata, this is identical to the label trait, but enables slower update
 pub trait MetaCloud: PointCloud {
+    /// Underlying metadata
     type Metadata: ?Sized;
+    /// A summary of the underlying metadata
     type MetaSummary: Summary<Label = Self::Metadata>;
 
-    fn metadata(&self, pn: PointIndex) -> PointCloudResult<&Self::Metadata>;
-    fn metasummary(&self, pns: &[PointIndex]) -> PointCloudResult<Self::MetaSummary>;
+    /// Expensive metadata object for the sample
+    fn metadata(&self, pn: PointIndex) -> PointCloudResult<Option<&Self::Metadata>>;
+    /// Expensive metadata summary over the samples
+    fn metasummary(&self, pns: &[PointIndex]) -> PointCloudResult<SummaryCounter<Self::MetaSummary>>;
 }
-*/
+

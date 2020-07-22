@@ -164,14 +164,13 @@ impl PyNode {
         let gil = GILGuard::acquire();
         let py = gil.python();
         let dict = PyDict::new(py);
-        let py_result = self.tree.get_node_label_summary_and::<_,PyResult<()>>(self.address, |s| {
-            dict.set_item("errors", s.errors)?;
-            dict.set_item("nones", s.nones)?;
-            dict.set_item("items", s.items.to_vec())?;
-            Ok(())
-        });
-        match py_result {
-            Some(res) => {res?; Ok(Some(dict.into()))},
+        match self.tree.get_node_label_summary(self.address) {
+            Some(s) => {
+                dict.set_item("errors", s.errors)?;
+                dict.set_item("nones", s.nones)?;
+                dict.set_item("items", s.summary.items.to_vec())?;
+                Ok(Some(dict.into()))
+            }
             None => Ok(None),
         }
     }

@@ -92,8 +92,8 @@ impl<D: LabeledCloud> LabeledCloud for HashGluedCloud<D> {
         let (i, j) = self.get_address(pn)?;
         self.data_sources[i].label(j)
     }
-    fn label_summary(&self, pns: &[PointIndex]) -> PointCloudResult<Self::LabelSummary> {
-        let mut summary = Self::LabelSummary::default();
+    fn label_summary(&self, pns: &[PointIndex]) -> PointCloudResult<SummaryCounter<Self::LabelSummary>> {
+        let mut summary = SummaryCounter::<Self::LabelSummary>::default();
         for pn in pns {
             let (i, j) = self.get_address(*pn)?;
             summary.add(self.data_sources[i].label(j));
@@ -101,6 +101,45 @@ impl<D: LabeledCloud> LabeledCloud for HashGluedCloud<D> {
         Ok(summary)
     }
 }
+
+impl<D: NamedCloud> NamedCloud for HashGluedCloud<D> {
+    fn name(&self, pi: PointIndex) -> PointCloudResult<Option<&String>> {
+        let (i, j) = self.get_address(pi)?;
+        self.data_sources[i].name(j)
+    }
+    fn index(&self, pn: &String) -> PointCloudResult<&PointIndex> {
+        for data_source in &self.data_sources {
+            let name = data_source.index(pn);
+            if name.is_ok() {
+                return name;
+            }
+        }
+        Err(PointCloudError::NameNotInCloud(pn.clone()))
+    }
+    fn names(&self) -> Vec<String> {
+        self.addresses.values().filter_map(|(i,j)| self.data_sources[*i].name(*j).ok().flatten().map(|s| s.clone())).collect()
+    }
+}
+
+
+impl<D: MetaCloud> MetaCloud for HashGluedCloud<D> {
+    type Metadata = D::Metadata;
+    type MetaSummary = D::MetaSummary;
+
+    fn metadata(&self, pn: PointIndex) -> PointCloudResult<Option<&Self::Metadata>> {
+        let (i, j) = self.get_address(pn)?;
+        self.data_sources[i].metadata(j)
+    }
+    fn metasummary(&self, pns: &[PointIndex]) -> PointCloudResult<SummaryCounter<Self::MetaSummary>> {
+        let mut summary = SummaryCounter::<Self::MetaSummary>::default();
+        for pn in pns {
+            let (i, j) = self.get_address(*pn)?;
+            summary.add(self.data_sources[i].metadata(j));
+        }
+        Ok(summary)
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -209,7 +248,7 @@ mod tests {
         println!("{:?}", label_summary);
         assert_eq!(label_summary.nones, 0);
         assert_eq!(label_summary.errors, 0);
-        assert_eq!(label_summary.items[0], (1,5));
+        assert_eq!(label_summary.summary.items[0], (1,5));
     }
 
     #[test]
