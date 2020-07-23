@@ -304,6 +304,9 @@ impl CoverTreeBuilder {
         loop {
             if let Ok(res) = node_receiver.recv() {
                 let (scale_index, point_index, new_node) = res.unwrap();
+                for singleton in new_node.singletons() {
+                    cover_tree.final_addresses.insert(*singleton,(scale_index, point_index));
+                }
                 unsafe {
                     cover_tree.insert_raw(scale_index, point_index, new_node);
                 }
@@ -322,6 +325,8 @@ impl CoverTreeBuilder {
             println!("\nWriting layers...");
         }
         cover_tree.refresh();
+        cover_tree.final_addresses.refresh();
+        cover_tree.final_addresses.refresh();
         if parameters.verbosity > 1 {
             println!(
                 "Finished building, took {:?} with {} per second",

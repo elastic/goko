@@ -650,7 +650,8 @@ impl<D: PointCloud> CoverTreeWriter<D> {
         Ok(tree)
     }
 
-    fn refresh_final_indexes(&mut self) {
+    /// Completely redoes the final index map.
+    pub fn refresh_final_indexes(&mut self) {
         let reader = self.reader();
         let mut unvisited_nodes: Vec<NodeAddress> = vec![self.root_address];
         while !unvisited_nodes.is_empty() {
