@@ -663,6 +663,8 @@ impl<D: PointCloud> CoverTreeWriter<D> {
                 if let Some((nested_si,child_addresses)) = n.children() {
                     unvisited_nodes.extend(child_addresses);
                     unvisited_nodes.push((nested_si,cur_add.1));
+                } else {
+                    self.final_addresses.insert(cur_add.1,cur_add);
                 }
             }).unwrap();
         }
@@ -805,6 +807,32 @@ pub(crate) mod tests {
         println!("{:?}", trace);
         for i in 0..(trace.len() - 1) {
             assert!((trace[i].1).0 > (trace[i + 1].1).0);
+        }
+    }
+
+    #[test]
+    fn known_path_sanity() {
+        let writer = build_basic_tree();
+        let reader = writer.reader();
+        for i in 0..5 {
+            let trace = reader.known_path(i).unwrap();
+            println!("i {}, trace {:?}", i, trace);
+            println!("final address: {:?}", reader.final_addresses.get_and(&i,|i| *i));
+            let ad = trace.last().unwrap().1;
+            reader.get_node_and(ad,|n| {
+                if !n.is_leaf() {
+                    assert!(n.singletons().contains(&i));
+                } else {
+                    assert!((ad.1 != i && n.singletons().contains(&i)) || (ad.1 == i && !n.singletons().contains(&i)));
+
+                }
+            }).unwrap();
+        }
+        let known_trace = reader.known_path(4).unwrap();
+        let trace = reader.path(&[0.0f32][..]).unwrap();
+        println!("Testing known: {:?} matches unknown {:?}", known_trace, trace);
+        for (p,kp) in trace.iter().zip(known_trace) {
+            assert_eq!(*p, kp);
         }
     }
 

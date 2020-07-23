@@ -307,6 +307,9 @@ impl CoverTreeBuilder {
                 for singleton in new_node.singletons() {
                     cover_tree.final_addresses.insert(*singleton,(scale_index, point_index));
                 }
+                if new_node.is_leaf() {
+                    cover_tree.final_addresses.insert(point_index,(scale_index, point_index));
+                }
                 unsafe {
                     cover_tree.insert_raw(scale_index, point_index, new_node);
                 }
