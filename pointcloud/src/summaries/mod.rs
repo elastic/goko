@@ -63,7 +63,7 @@ impl Summary for CategorySummary {
 }
 
 /// Summary of vectors
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct VecSummary {
     /// First moment, see https://en.wikipedia.org/wiki/Moment_(mathematics)
     pub moment1: Vec<f32>,
@@ -112,7 +112,7 @@ impl Summary for VecSummary {
 }
 
 /// Summary of a bunch of underlying floats
-#[derive(Debug, Serialize, Deserialize, Default)]
+#[derive(Clone,Debug, Serialize, Deserialize, Default)]
 pub struct FloatSummary {
     /// First moment, see https://en.wikipedia.org/wiki/Moment_(mathematics)
     pub moment1: f64,
@@ -142,7 +142,7 @@ impl Summary for FloatSummary {
 }
 
 /// Summary of a bunch of underlying integers, more accurate for int than the float summary
-#[derive(Debug, Serialize, Deserialize, Default)]
+#[derive(Clone,Debug, Serialize, Deserialize, Default)]
 pub struct IntSummary {
     /// First moment, see https://en.wikipedia.org/wiki/Moment_(mathematics)
     pub moment1: i64,
@@ -173,7 +173,7 @@ impl Summary for IntSummary {
 
 
 /// A summary for a small number of categories.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone,Debug, Serialize, Deserialize)]
 pub struct StringSummary {
     /// Hashmap that counts how many of each instance of string there is
     pub items: HashMap<String, usize>,
