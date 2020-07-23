@@ -21,7 +21,7 @@
 //! This is the workhorse of the library. Each node
 //!
 use crate::errors::{GokoError, GokoResult};
-use crate::plugins::{NodePlugin, NodePluginSet, labels::NodeLabelSummary};
+use crate::plugins::{NodePlugin, NodePluginSet, labels::{NodeLabelSummary,NodeMetaSummary}};
 use super::query_tools::{RoutingQueryHeap, SingletonQueryHeap};
 use crate::tree_file_format::*;
 use crate::NodeAddress;
