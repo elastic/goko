@@ -114,7 +114,6 @@ impl CoverTree {
             }
         };
         
-        println!("{:?}", point_cloud);
         let builder = self.builder.take();
         self.writer = Some(builder.unwrap().build(point_cloud).unwrap());
         let writer = self.writer.as_mut().unwrap();

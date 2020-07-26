@@ -4,6 +4,7 @@ use rayon::prelude::*;
 use std::cmp::min;
 use std::fmt::Debug;
 
+use serde::{Deserialize, Serialize};
 use crate::distances::*;
 use crate::pc_errors::*;
 use crate::*;
@@ -290,7 +291,7 @@ pub trait LabeledCloud: PointCloud {
 }
 
 /// Simply shoves together a point cloud and a label set, for a modular label system
-#[derive(Debug, Default)]
+#[derive(Default,Debug, Serialize, Deserialize)]
 pub struct SummaryCounter<S: Summary> {
     /// The categorical summary
     pub summary: S,
