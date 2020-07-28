@@ -40,9 +40,15 @@ pub trait ContinousDistribution: Clone + 'static {
 
 ///
 pub trait DiscreteBayesianDistribution: DiscreteDistribution + Clone + 'static {
+    /// The distribution to which this is a conjugate prior
+    type Evidence: 'static;
     /// Adds an observation to the distribution.
     /// This currently shifts the underlying parameters of the distribution rather than be tracked.
     fn add_observation(&mut self, loc: Option<NodeAddress>);
+    /// Adds several observations
+    fn add_evidence(&mut self, evidence: &Self::Evidence);
+    /// Computes the KL divergence between the prior and the posterior, with the given evidence
+    fn posterior_kl_divergence(&self, other: &Self::Evidence) -> Option<f64>;
 }
 
 ///
@@ -57,10 +63,11 @@ pub trait DiscreteBayesianSequenceTracker<D: PointCloud>: Debug {
     /// The. underlying distribution that this is tracking.
     type Distribution: DiscreteBayesianDistribution + NodePlugin<D> + 'static;
 
+
     /// Adds a dry insert.
     fn add_path(&mut self, trace: Vec<(f32, NodeAddress)>);
     /// The current distributions that a dry insert touched.
-    fn running_distributions(&self) -> &HashMap<NodeAddress, Self::Distribution>;
+    fn running_evidence(&self) -> &HashMap<NodeAddress, <<Self as plugins::distributions::DiscreteBayesianSequenceTracker<D>>::Distribution as DiscreteBayesianDistribution>::Evidence>;
     /// Helper function, each sequence tracker should carry it's own reader.
     fn tree_reader(&self) -> &CoverTreeReader<D>;
     /// The length of the sequence
@@ -76,15 +83,24 @@ pub trait DiscreteBayesianSequenceTracker<D: PointCloud>: Debug {
         let mut layer_totals: Vec<u64> = vec![0; self.tree_reader().len()];
         let mut layer_node_counts = vec![Vec::<usize>::new(); self.tree_reader().len()];
         let parameters = self.tree_reader().parameters();
-        self.running_distributions()
+        self.running_evidence()
             .iter()
             .for_each(|(address, sequence_pdf)| {
                 let kl = self
                     .tree_reader()
                     .get_node_plugin_and::<Self::Distribution, _, _>(*address, |p| {
-                        p.kl_divergence(sequence_pdf).unwrap()
+                        let kl = p.posterior_kl_divergence(sequence_pdf).unwrap();
+                        /*
+                        if kl == f64::INFINITY {
+                            println!("Found an infinity at {:?}", address);
+                            println!("sequence pdf: {:#?}", sequence_pdf);
+                            println!("tree pdf: {:#?}", p);
+                        }
+                        */
+                        kl
                     })
                     .unwrap();
+
                 if kl > 1.0e-10 {
                     layer_totals[parameters.internal_index(address.0)] += 1;
                     layer_node_counts[parameters.internal_index(address.0)].push(
@@ -126,13 +142,13 @@ pub trait DiscreteBayesianSequenceTracker<D: PointCloud>: Debug {
 
     /// Gives the per-node KL divergence, with the node address
     fn all_node_kl(&self) -> Vec<(f64, NodeAddress)> {
-        self.running_distributions()
+        self.running_evidence()
             .iter()
             .map(|(address, sequence_pdf)| {
                 let kl = self
                     .tree_reader()
                     .get_node_plugin_and::<Self::Distribution, _, _>(*address, |p| {
-                        p.kl_divergence(sequence_pdf).unwrap()
+                        p.posterior_kl_divergence(sequence_pdf).unwrap()
                     })
                     .unwrap();
                 (kl, *address)

@@ -53,6 +53,17 @@ use std::slice::Iter;
 
 use plugins::labels::*;
 
+/// When 2 spheres overlap under a node, and there is a point in the overlap we have to decide
+/// to which sphere it belongs. As we create the nodes in a particular sequence, we can assign them
+/// to the first to be created or we can assign it to the nearest.
+#[derive(Debug, Copy, Clone)]
+pub enum PartitionType {
+    /// Conflicts assigning a point to several eligible nodes are assigned to the nearest node.
+    Nearest,
+    /// Conflicts assigning a point to several eligible nodes are assigned to the first node to be created.
+    First,
+}
+
 /// Container for the parameters governing the construction of the covertree
 #[derive(Debug)]
 pub struct CoverTreeParameters<D: PointCloud> {
@@ -67,6 +78,8 @@ pub struct CoverTreeParameters<D: PointCloud> {
     pub min_res_index: i32,
     /// If you don't want singletons messing with your tree and want everything to be a node or a element of leaf node, make this true.
     pub use_singletons: bool,
+    /// The partition type of the tree
+    pub partition_type: PartitionType,
     /// The point cloud this tree references
     pub point_cloud: Arc<D>,
     /// This should be replaced by a logging solution
@@ -383,14 +396,22 @@ impl<D: PointCloud> CoverTreeReader<D> {
         let mut current_distance = D::Metric::dist(&root_center, point)?;
         let mut current_address = self.root_address;
         let mut trace = vec![(current_distance, current_address)];
-        while let Some(nearest) = self.get_node_and(current_address, |n| {
-            n.covering_child(
-                self.parameters.scale_base,
-                current_distance,
-                point,
-                &self.parameters.point_cloud,
-            )
-        }) {
+        while let Some(nearest) =
+            self.get_node_and(current_address, |n| match self.parameters.partition_type {
+                PartitionType::Nearest => n.nearest_covering_child(
+                    self.parameters.scale_base,
+                    current_distance,
+                    point,
+                    &self.parameters.point_cloud,
+                ),
+                PartitionType::First => n.first_covering_child(
+                    self.parameters.scale_base,
+                    current_distance,
+                    point,
+                    &self.parameters.point_cloud,
+                ),
+            })
+        {
             if let Some(nearest) = nearest? {
                 trace.push(nearest);
                 current_distance = nearest.0;
@@ -616,6 +637,12 @@ impl<D: PointCloud> CoverTreeWriter<D> {
 
     /// Loads a tree from a protobuf. There's a `load_tree` in `utils` that handles loading from a path to a protobuf file.
     pub fn load(cover_proto: &CoreProto, point_cloud: Arc<D>) -> GokoResult<CoverTreeWriter<D>> {
+        let partition_type = if cover_proto.partition_type == "first" {
+            PartitionType::First
+        } else {
+            PartitionType::Nearest
+        };
+
         let parameters = Arc::new(CoverTreeParameters {
             total_nodes: atomic::AtomicUsize::new(0),
             use_singletons: cover_proto.use_singletons,
@@ -624,6 +651,7 @@ impl<D: PointCloud> CoverTreeWriter<D> {
             min_res_index: cover_proto.resolution as i32,
             point_cloud,
             verbosity: 2,
+            partition_type,
             plugins: RwLock::new(TreePluginSet::new()),
         });
         let root_address = (
@@ -678,6 +706,10 @@ impl<D: PointCloud> CoverTreeWriter<D> {
     /// Encodes the tree into a protobuf. See `utils::save_tree` for saving to a file on disk.
     pub fn save(&self) -> CoreProto {
         let mut cover_proto = CoreProto::new();
+        match self.parameters.partition_type {
+            PartitionType::First => cover_proto.set_partition_type("first".to_string()),
+            PartitionType::Nearest => cover_proto.set_partition_type("nearest".to_string()),
+        }
         cover_proto.set_scale_base(self.parameters.scale_base);
         cover_proto.set_cutoff(self.parameters.leaf_cutoff as u64);
         cover_proto.set_resolution(self.parameters.min_res_index);
@@ -724,6 +756,7 @@ pub(crate) mod tests {
             leaf_cutoff: 1,
             min_res_index: -9,
             use_singletons: true,
+            partition_type: PartitionType::Nearest,
             verbosity: 0,
         };
         builder.build(Arc::new(point_cloud)).unwrap()
@@ -769,6 +802,7 @@ pub(crate) mod tests {
             leaf_cutoff: 1,
             min_res_index: -9,
             use_singletons: false,
+            partition_type: PartitionType::Nearest,
             verbosity: 0,
         };
         let tree = builder.build(Arc::new(point_cloud)).unwrap();
@@ -882,6 +916,7 @@ pub(crate) mod tests {
             leaf_cutoff: 1,
             min_res_index: -9,
             use_singletons: false,
+            partition_type: PartitionType::Nearest,
             verbosity: 0,
         };
         let mut tree = builder.build(Arc::new(point_cloud)).unwrap();
@@ -911,6 +946,7 @@ pub(crate) mod tests {
             leaf_cutoff: 1,
             min_res_index: -9,
             use_singletons: false,
+            partition_type: PartitionType::Nearest,
             verbosity: 0,
         };
         let tree = builder.build(Arc::new(point_cloud)).unwrap();
@@ -934,6 +970,7 @@ pub(crate) mod tests {
             leaf_cutoff: 1,
             min_res_index: -9,
             use_singletons: false,
+            partition_type: PartitionType::Nearest,
             verbosity: 0,
         };
         let tree = builder.build(Arc::clone(&point_cloud)).unwrap();

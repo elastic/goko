@@ -12,14 +12,15 @@ use crate::plugins::*;
 /// Stored as a flat vector in the order of the node addresses.
 #[derive(Debug, Clone, Default)]
 pub struct Categorical {
-    child_counts: Vec<(NodeAddress, f64)>,
-    singleton_count: f64,
+    pub(crate) child_counts: Vec<(NodeAddress, f64)>,
+    pub(crate) singleton_count: f64,
 }
 
 impl DiscreteDistribution for Categorical {
     /// Pass none if you want to test for a singleton, returns 0 if
     fn ln_prob(&self, loc: Option<&NodeAddress>) -> Option<f64> {
-        if self.total() > 0.0 {
+        let total = self.total();
+        if total > 0.0 {
             let ax = match loc {
                 Some(ca) => self
                     .child_counts
@@ -28,7 +29,7 @@ impl DiscreteDistribution for Categorical {
                     .unwrap_or(0.0),
                 None => self.singleton_count,
             };
-            Some(ax.ln() - self.total().ln())
+            Some(ax.ln() - total.ln())
         } else {
             None
         }
@@ -79,7 +80,14 @@ impl Categorical {
                 .fold(0.0, |x, a| x + a)
     }
 
-    fn add_child_pop(&mut self, loc: Option<NodeAddress>, count: f64) {
+    pub(crate) fn merge(&mut self, other: &Categorical) {
+        for (na, c) in &other.child_counts {
+            self.add_child_pop(Some(*na), *c);
+        }
+        self.add_child_pop(None, other.singleton_count);
+    }
+
+    pub(crate) fn add_child_pop(&mut self, loc: Option<NodeAddress>, count: f64) {
         match loc {
             Some(ca) => match self.child_counts.binary_search_by_key(&ca, |&(a, _)| a) {
                 Ok(index) => self.child_counts[index].1 += count,
@@ -89,7 +97,7 @@ impl Categorical {
         }
     }
 
-    fn remove_child_pop(&mut self, loc: Option<NodeAddress>, count: f64) {
+    pub(crate) fn remove_child_pop(&mut self, loc: Option<NodeAddress>, count: f64) {
         match loc {
             Some(ca) => {
                 if let Ok(index) = self.child_counts.binary_search_by_key(&ca, |&(a, _)| a) {

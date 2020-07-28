@@ -301,7 +301,7 @@ impl<D: PointCloud> CoverNode<D> {
     /// Gives the child that the point would be inserted into if the
     /// point just happened to never be picked as a center. This is the first child node that covers
     /// the point.
-    pub fn covering_child<'a, P: Into<PointRef<'a>>>(
+    pub fn first_covering_child<'a, P: Into<PointRef<'a>>>(
         &self,
         scale_base: f32,
         dist_to_center: f32,

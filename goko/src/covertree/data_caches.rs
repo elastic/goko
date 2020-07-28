@@ -24,7 +24,7 @@ use rand::{thread_rng, Rng};
 use std::cmp::Ordering;
 use std::sync::Arc;
 
-#[derive(Clone,Debug)]
+#[derive(Clone, Debug)]
 pub(crate) enum CoveredData {
     FirstCoveredData(FirstCoveredData),
     NearestCoveredData(NearestCoveredData),
@@ -181,6 +181,7 @@ pub(crate) struct NearestCoveredData {
     centers: Vec<PointIndex>,
     dists: Vec<Vec<f32>>,
     point_indexes: Vec<PointIndex>,
+    center_dists: Vec<f32>,
     pub(crate) center_index: PointIndex,
 }
 
@@ -188,14 +189,15 @@ impl NearestCoveredData {
     pub(crate) fn new<D: PointCloud>(point_cloud: &Arc<D>) -> GokoResult<NearestCoveredData> {
         let mut point_indexes = point_cloud.reference_indexes();
         let center_index = point_indexes.pop().unwrap();
-        let new_dists = point_cloud.distances_to_point_index(center_index, &point_indexes)?;
-        let dists = vec![new_dists];
-        let centers = vec![center_index];
+        let center_dists = point_cloud.distances_to_point_index(center_index, &point_indexes)?;
+        let dists = vec![];
+        let centers = vec![];
         Ok(NearestCoveredData {
             centers,
             dists,
             point_indexes,
             center_index,
+            center_dists,
         })
     }
 
@@ -204,10 +206,10 @@ impl NearestCoveredData {
         radius: f32,
         point_cloud: &Arc<D>,
     ) -> GokoResult<()> {
-        let mut coverage: Vec<bool> = self.dists[0].iter().map(|d| d < &radius).collect();
+        let mut coverage: Vec<bool> = self.center_dists.iter().map(|d| d < &radius).collect();
         let mut rng = thread_rng();
-        let mut i = 5;
-        while coverage.iter().any(|b| !b) && i > 0 {
+
+        while coverage.iter().any(|b| !b) {
             let uncovered_indexes: Vec<PointIndex> = self
                 .point_indexes
                 .iter()
@@ -224,7 +226,6 @@ impl NearestCoveredData {
                 .for_each(|(a, d)| *a = *a || (d < &radius));
             self.dists.push(new_dists);
             self.centers.push(center_index);
-            i -= 1;
         }
 
         Ok(())
@@ -232,20 +233,28 @@ impl NearestCoveredData {
 
     fn add_point(&mut self, point_index: PointIndex, distance: f32) {
         if point_index != self.center_index {
-            self.dists[0].push(distance);
+            self.center_dists.push(distance);
             self.point_indexes.push(point_index);
         }
     }
 
-    fn assign_to_nearest(&self) -> Vec<NearestCoveredData> {
+    fn assign_to_nearest(&self) -> (NearestCoveredData, Vec<NearestCoveredData>) {
+        let mut new_center_coverage = NearestCoveredData {
+            centers: vec![],
+            dists: vec![],
+            point_indexes: Vec::new(),
+            center_index: self.center_index,
+            center_dists: Vec::new(),
+        };
         let mut new_coverage: Vec<NearestCoveredData> = self
             .centers
             .iter()
             .map(|center_index| NearestCoveredData {
-                centers: Vec::new(),
-                dists: vec![vec![]],
+                centers: vec![],
+                dists: vec![],
                 point_indexes: Vec::new(),
                 center_index: *center_index,
+                center_dists: Vec::new(),
             })
             .collect();
 
@@ -256,19 +265,23 @@ impl NearestCoveredData {
                 .enumerate()
                 .map(|(dist_index, dists)| (dist_index, dists[i]))
                 .min_by(|(_di, d), (_ci, c)| d.partial_cmp(c).unwrap_or(Ordering::Equal))
-                .unwrap();
-            new_coverage[index].add_point(*pi, d);
+                .unwrap_or((0, f32::MAX));
+            if self.center_dists[i] < d {
+                new_center_coverage.add_point(*pi, self.center_dists[i]);
+            } else {
+                new_coverage[index].add_point(*pi, d);
+            }
         }
 
-        new_coverage
+        (new_center_coverage, new_coverage)
     }
 
     pub(crate) fn split<D: PointCloud>(
         mut self,
         radius: f32,
         point_cloud: &Arc<D>,
-    ) -> GokoResult<Vec<NearestCoveredData>> {
-        self.cover_thyself(radius,point_cloud)?;
+    ) -> GokoResult<(NearestCoveredData, Vec<NearestCoveredData>)> {
+        self.cover_thyself(radius, point_cloud)?;
         Ok(self.assign_to_nearest())
     }
 
@@ -277,7 +290,7 @@ impl NearestCoveredData {
     }
 
     pub(crate) fn max_distance(&self) -> f32 {
-        self.dists[0]
+        self.center_dists
             .iter()
             .cloned()
             .fold(-1. / 0. /* -inf */, f32::max)
@@ -385,47 +398,47 @@ mod tests {
         let point_cloud = Arc::new(DefaultLabeledCloud::<L2>::new_simple(data, 1, labels));
 
         let mut cache = NearestCoveredData::new(&point_cloud).unwrap();
-        cache.cover_thyself(1.0,&point_cloud).unwrap();
+        cache.cover_thyself(1.0, &point_cloud).unwrap();
 
-        assert_eq!(2, cache.dists.len());
+        assert_eq!(1, cache.dists.len());
+        assert_eq!(4, cache.center_dists.len());
         assert_eq!(4, cache.dists[0].len());
-        assert_eq!(4, cache.dists[1].len());
 
         println!("{:#?}", cache);
-        let splits = cache.assign_to_nearest();
+        let (nested_split, splits) = cache.assign_to_nearest();
         println!("{:#?}", splits);
 
-        assert_eq!(splits.len(), 2);
-        assert_eq!(splits[0].len(), 1);
-        assert_eq!(splits[1].len(), 4);
+        assert_eq!(splits.len(), 1);
+        assert_eq!(nested_split.len(), 1);
+        assert_eq!(splits[0].len(), 4);
     }
 
     #[test]
     fn nearest_splits_nearest_1() {
         let cache = NearestCoveredData {
             center_index: 1,
-            dists: vec![
-                vec![2.0, 1.0, 2.0, 0.0, 1.0],
-                vec![0.0, 2.0, 0.0, 1.0, 2.0],
-                vec![1.0, 0.0, 1.0, 2.0, 0.0],
-            ],
+            dists: vec![vec![0.0, 2.0, 0.0, 1.0, 2.0], vec![1.0, 0.0, 1.0, 2.0, 0.0]],
             point_indexes: vec![0, 2, 3, 4, 5],
-            centers: vec![1, 0, 2],
+            centers: vec![0, 2],
+            center_dists: vec![2.0, 1.0, 2.0, 0.0, 1.0],
         };
 
-        let splits = cache.assign_to_nearest();
-        assert_eq!(splits.len(), 3);
-        assert_eq!(splits[0].center_index, 1);
-        assert_eq!(splits[1].center_index, 0);
-        assert_eq!(splits[2].center_index, 2);
+        let (nested_split, splits) = cache.assign_to_nearest();
 
-        assert_eq!(splits[0].point_indexes[0], 4);
-        assert_eq!(splits[1].point_indexes[0], 3);
-        assert_eq!(splits[2].point_indexes[0], 5);
+        println!("Nested Split: {:?}", nested_split);
+        println!("Splits: {:?}", splits);
+        assert_eq!(splits.len(), 2);
+        assert_eq!(nested_split.center_index, 1);
+        assert_eq!(splits[0].center_index, 0);
+        assert_eq!(splits[1].center_index, 2);
 
-        assert_eq!(splits[0].dists[0], vec![0.0]);
-        assert_eq!(splits[1].dists[0], vec![0.0]);
-        assert_eq!(splits[2].dists[0], vec![0.0]);
+        assert_eq!(nested_split.point_indexes[0], 4);
+        assert_eq!(splits[0].point_indexes[0], 3);
+        assert_eq!(splits[1].point_indexes[0], 5);
+
+        assert_eq!(nested_split.center_dists, vec![0.0]);
+        assert_eq!(splits[0].center_dists, vec![0.0]);
+        assert_eq!(splits[1].center_dists, vec![0.0]);
     }
 
     /*

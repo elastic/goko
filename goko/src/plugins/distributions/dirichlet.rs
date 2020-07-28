@@ -83,8 +83,48 @@ impl Dirichlet {
     }
 }
 impl DiscreteBayesianDistribution for Dirichlet {
+    type Evidence = Categorical;
+
     fn add_observation(&mut self, loc: Option<NodeAddress>) {
         self.add_child_pop(loc, 1.0);
+    }
+
+    fn add_evidence(&mut self, other: &Categorical) {
+        for (na, c) in &other.child_counts {
+            self.add_child_pop(Some(*na), *c);
+        }
+        self.add_child_pop(None, other.singleton_count);
+    }
+
+    fn posterior_kl_divergence(&self, other: &Categorical) -> Option<f64> {
+        let my_total = self.total();
+        let other_total = other.total() + my_total;
+        let mut my_total_lng = 0.0;
+        let mut other_total_lng = 0.0;
+        let mut digamma_portion = 0.0;
+        if self.singleton_count > 0.0 {
+            other_total_lng += ln_gamma(other.singleton_count + self.singleton_count);
+            my_total_lng += ln_gamma(self.singleton_count);
+            digamma_portion -= other.singleton_count
+                * (digamma(self.singleton_count) - digamma(my_total));
+        }
+        for (other_ca, other_ca_count) in other.child_counts.iter()
+        {
+            let ca_count = self.child_counts[self.child_counts.binary_search_by_key(other_ca, |&(a, _)| a).unwrap()].1;
+            my_total_lng += ln_gamma(ca_count);
+            other_total_lng += ln_gamma(*other_ca_count + ca_count);
+            digamma_portion -= *other_ca_count * (digamma(ca_count) - digamma(my_total));
+        }
+
+        let kld = ln_gamma(my_total) - my_total_lng - ln_gamma(other_total)
+            + other_total_lng
+            + digamma_portion;
+        // for floating point errors, sometimes this is -0.000000001
+        if kld < 0.0 {
+            Some(0.0)
+        } else {
+            Some(kld)
+        }
     }
 }
 impl DiscreteDistribution for Dirichlet {
@@ -186,7 +226,7 @@ impl<D: PointCloud> GokoPlugin<D> for GokoDirichlet {
 
 /// Computes a frequentist KL divergence calculation on each node the sequence touches.
 pub struct BayesCategoricalTracker<D: PointCloud> {
-    running_distributions: HashMap<NodeAddress, Dirichlet>,
+    running_evidence: HashMap<NodeAddress, Categorical>,
     sequence: VecDeque<Vec<(f32, NodeAddress)>>,
     window_size: usize,
     prior_weight: f64,
@@ -198,8 +238,8 @@ impl<D: PointCloud> fmt::Debug for BayesCategoricalTracker<D> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "PointCloud {{ sequence: {:?}, window_size: {} prior_weight: {}, observation_weight: {}, running_distributions: {:#?}}}",
-            self.sequence, self.window_size, self.prior_weight, self.observation_weight, self.running_distributions,
+            "PointCloud {{ sequence: {:?}, window_size: {} prior_weight: {}, observation_weight: {}, running_evidence: {:#?}}}",
+            self.sequence, self.window_size, self.prior_weight, self.observation_weight, self.running_evidence,
         )
     }
 }
@@ -213,7 +253,7 @@ impl<D: PointCloud> BayesCategoricalTracker<D> {
         reader: CoverTreeReader<D>,
     ) -> BayesCategoricalTracker<D> {
         BayesCategoricalTracker {
-            running_distributions: HashMap::new(),
+            running_evidence: HashMap::new(),
             sequence: VecDeque::new(),
             window_size,
             prior_weight,
@@ -222,9 +262,16 @@ impl<D: PointCloud> BayesCategoricalTracker<D> {
         }
     }
 
-    /// Accessor for the reader associated to this tracker
-    pub fn reader(&self) -> &CoverTreeReader<D> {
-        &self.reader
+    /// Appends a tracker to this one,
+    pub fn append(mut self, other: &Self) -> Self {
+        for (k, v) in other.running_evidence.iter() {
+            self.running_evidence
+                .entry(*k)
+                .and_modify(|e| e.merge(v))
+                .or_insert(v.clone());
+        }
+        self.sequence.extend(other.sequence.iter().cloned());
+        self
     }
 
     fn get_distro(&self, address: NodeAddress) -> Dirichlet {
@@ -245,23 +292,15 @@ impl<D: PointCloud> BayesCategoricalTracker<D> {
         let mut child_address_iter = trace.iter().map(|(_, ca)| ca);
         child_address_iter.next();
         for (parent, child) in parent_address_iter.zip(child_address_iter) {
-            if !self.running_distributions.contains_key(parent) {
-                self.running_distributions
-                    .insert(*parent, self.get_distro(*parent));
-            }
-            self.running_distributions
-                .get_mut(parent)
-                .unwrap()
+            self.running_evidence
+                .entry(*parent)
+                .or_default()
                 .add_child_pop(Some(*child), self.observation_weight);
         }
         let last = trace.last().unwrap().1;
-        if !self.running_distributions.contains_key(&last) {
-            self.running_distributions
-                .insert(last, self.get_distro(last));
-        }
-        self.running_distributions
-            .get_mut(&last)
-            .unwrap()
+        self.running_evidence
+            .entry(last)
+            .or_default()
             .add_child_pop(None, self.observation_weight);
     }
 
@@ -270,13 +309,13 @@ impl<D: PointCloud> BayesCategoricalTracker<D> {
         let mut child_address_iter = trace.iter().map(|(_, ca)| ca);
         child_address_iter.next();
         for (parent, child) in parent_address_iter.zip(child_address_iter) {
-            self.running_distributions
+            self.running_evidence
                 .get_mut(parent)
                 .unwrap()
                 .remove_child_pop(Some(*child), self.observation_weight);
         }
         let last = trace.last().unwrap().1;
-        self.running_distributions
+        self.running_evidence
             .get_mut(&last)
             .unwrap()
             .remove_child_pop(None, self.observation_weight);
@@ -293,8 +332,8 @@ impl<D: PointCloud> DiscreteBayesianSequenceTracker<D> for BayesCategoricalTrack
             self.remove_trace_from_pdfs(&oldest);
         }
     }
-    fn running_distributions(&self) -> &HashMap<NodeAddress, Dirichlet> {
-        &self.running_distributions
+    fn running_evidence(&self) -> &HashMap<NodeAddress, Categorical> {
+        &self.running_evidence
     }
     fn tree_reader(&self) -> &CoverTreeReader<D> {
         &self.reader
@@ -403,6 +442,26 @@ pub(crate) mod tests {
         assert_approx_eq!(buckets.ln_prob(None).unwrap(), 0.5f64.ln());
         assert_approx_eq!(buckets.ln_prob(Some(&(0, 0))).unwrap(), 0.5f64.ln());
         assert_approx_eq!(buckets.kl_divergence(&buckets).unwrap(), 0.0);
+    }
+
+    #[test]
+    fn dirichlet_posterior_sanity_test() {
+        let mut buckets = Dirichlet::new();
+        buckets.add_child_pop(None, 3.0);
+        buckets.add_child_pop(Some((0, 0)), 5.0);
+
+        let mut categorical = Categorical::new();
+        categorical.add_child_pop(None, 2.0);
+
+        let mut buckets_posterior = buckets.clone();
+        buckets_posterior.add_evidence(&categorical);
+
+        println!("Buckets: {:?}", buckets);
+        println!("Buckets Posterior: {:?}", buckets_posterior);
+        println!("Evidence: {:?}", categorical);
+        assert_approx_eq!(buckets_posterior.ln_prob(None).unwrap(), 0.5f64.ln());
+        assert_approx_eq!(buckets_posterior.ln_prob(Some(&(0, 0))).unwrap(), 0.5f64.ln());
+        assert_approx_eq!(buckets.kl_divergence(&buckets_posterior).unwrap(), buckets.posterior_kl_divergence(&categorical).unwrap());
     }
 
     #[test]

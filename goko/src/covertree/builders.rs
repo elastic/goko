@@ -47,12 +47,15 @@ type NodeSplitResult<D> = GokoResult<(i32, PointIndex, CoverNode<D>)>;
 impl BuilderNode {
     fn new<D: PointCloud>(
         parameters: &CoverTreeParameters<D>,
-        partition: &str,
+        partition_type: PartitionType,
     ) -> GokoResult<BuilderNode> {
-        let covered = if partition == "first" {
-            CoveredData::FirstCoveredData(FirstCoveredData::new::<D>(&parameters.point_cloud)?)
-        } else {
-            CoveredData::NearestCoveredData(NearestCoveredData::new::<D>(&parameters.point_cloud)?)
+        let covered = match partition_type {
+            PartitionType::Nearest => CoveredData::NearestCoveredData(
+                NearestCoveredData::new::<D>(&parameters.point_cloud)?,
+            ),
+            PartitionType::First => {
+                CoveredData::FirstCoveredData(FirstCoveredData::new::<D>(&parameters.point_cloud)?)
+            }
         };
         let scale_index = (covered.max_distance()).log(parameters.scale_base).ceil() as i32;
         Ok(BuilderNode {
@@ -100,36 +103,37 @@ impl BuilderNode {
         /* Occasionally there's a small cluster split off of at a low min_res_index.
         This brings the scale-index down/min_res_index up quickly, locally.
         */
-        let mut new_nodes =
-            if self.covered.len() <= parameters.leaf_cutoff || scale_index < parameters.min_res_index {
-                //println!("== This is getting cut down by parameters ==");
-                node.insert_singletons(self.covered.into_indexes());
-                vec![]
-            } else {
-                let next_scale_index = min(
-                    scale_index - 1,
-                    max(
-                        radius.log(parameters.scale_base).ceil() as i32,
-                        parameters.min_res_index,
-                    ),
-                );
-                match self.covered {
-                    CoveredData::FirstCoveredData(covered) => BuilderNode::split_first(
-                        &mut node,
-                        current_address,
-                        covered,
-                        next_scale_index,
-                        parameters,
-                    )?,
-                    CoveredData::NearestCoveredData(covered) => BuilderNode::split_nearest(
-                        &mut node,
-                        current_address,
-                        covered,
-                        next_scale_index,
-                        parameters,
-                    )?,
-                }
-            };
+        let mut new_nodes = if self.covered.len() <= parameters.leaf_cutoff
+            || scale_index < parameters.min_res_index
+        {
+            //println!("== This is getting cut down by parameters ==");
+            node.insert_singletons(self.covered.into_indexes());
+            vec![]
+        } else {
+            let next_scale_index = min(
+                scale_index - 1,
+                max(
+                    radius.log(parameters.scale_base).ceil() as i32,
+                    parameters.min_res_index,
+                ),
+            );
+            match self.covered {
+                CoveredData::FirstCoveredData(covered) => BuilderNode::split_first(
+                    &mut node,
+                    current_address,
+                    covered,
+                    next_scale_index,
+                    parameters,
+                )?,
+                CoveredData::NearestCoveredData(covered) => BuilderNode::split_nearest(
+                    &mut node,
+                    current_address,
+                    covered,
+                    next_scale_index,
+                    parameters,
+                )?,
+            }
+        };
 
         if new_nodes.len() == 1 && new_nodes[0].covered.len() == 1 {
             node.remove_children();
@@ -152,16 +156,17 @@ impl BuilderNode {
         parameters: &Arc<CoverTreeParameters<D>>,
     ) -> GokoResult<Vec<BuilderNode>> {
         let next_scale = parameters.scale_base.powi(split_scale_index);
-        let mut splits = covered.split(next_scale,&parameters.point_cloud)?;
+        let (nested_potential, mut splits) = covered.split(next_scale, &parameters.point_cloud)?;
         let mut new_nodes = Vec::new();
-        println!("Splits : {:#?}", splits);
+
+        let mut inserts = Vec::new();
 
         for potential in splits.drain(0..) {
-            if potential.len() > 1 && parameters.use_singletons {
+            if potential.len() == 1 && parameters.use_singletons {
                 parent_node.insert_singleton(potential.center_index);
             } else {
-                parent_node
-                    .insert_child((split_scale_index, potential.center_index), potential.len())?;
+                inserts.push(((split_scale_index, potential.center_index), potential.len()));
+
                 let new_node = BuilderNode {
                     parent_address: Some(parent_address),
                     scale_index: split_scale_index,
@@ -171,6 +176,24 @@ impl BuilderNode {
                 parameters
                     .total_nodes
                     .fetch_add(1, atomic::Ordering::SeqCst);
+            }
+        }
+        if inserts.len() > 0 || !(nested_potential.len() == 1 && parameters.use_singletons) {
+            parent_node.insert_nested_child(split_scale_index, nested_potential.len())?;
+
+            let new_node = BuilderNode {
+                parent_address: Some(parent_address),
+                scale_index: split_scale_index,
+                covered: CoveredData::NearestCoveredData(nested_potential),
+            };
+            new_nodes.push(new_node);
+            parameters
+                .total_nodes
+                .fetch_add(1, atomic::Ordering::SeqCst);
+
+            for ((split_scale_index, potential_center_index), potential_len) in inserts {
+                parent_node
+                    .insert_child((split_scale_index, potential_center_index), potential_len)?;
             }
         }
 
@@ -255,7 +278,7 @@ impl BuilderNode {
 }
 
 /// A construction object for a covertree.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct CoverTreeBuilder {
     /// See paper or main description, governs the number of children of each node. Higher is more.
     pub scale_base: f32,
@@ -265,9 +288,24 @@ pub struct CoverTreeBuilder {
     pub min_res_index: i32,
     /// If you don't want singletons messing with your tree and want everything to be a node or a element of leaf node, make this true.
     pub use_singletons: bool,
+    /// Partition type of the tree
+    pub partition_type: PartitionType,
     /// Printing verbosity. 2 is the default and gives a progress bar. Still not fully pulled thru the codebase.
     /// This should be replaced by a logging solution
     pub verbosity: u32,
+}
+
+impl Default for CoverTreeBuilder {
+    fn default() -> CoverTreeBuilder {
+        CoverTreeBuilder {
+            scale_base: 2.0,
+            leaf_cutoff: 1,
+            min_res_index: -10,
+            use_singletons: true,
+            partition_type: PartitionType::Nearest,
+            verbosity: 2,
+        }
+    }
 }
 
 impl CoverTreeBuilder {
@@ -278,6 +316,7 @@ impl CoverTreeBuilder {
             leaf_cutoff: 1,
             min_res_index: -10,
             use_singletons: true,
+            partition_type: PartitionType::Nearest,
             verbosity: 2,
         }
     }
@@ -287,11 +326,17 @@ impl CoverTreeBuilder {
         let config = read_to_string(&path).expect("Unable to read config file");
         let params_files = YamlLoader::load_from_str(&config).unwrap();
         let params = &params_files[0];
+        let partition_type = if "first" == params["partition_type"].as_str().unwrap_or("nearest") {
+            PartitionType::First
+        } else {
+            PartitionType::Nearest
+        };
         CoverTreeBuilder {
             scale_base: params["scale_base"].as_f64().unwrap_or(2.0) as f32,
             leaf_cutoff: params["leaf_cutoff"].as_i64().unwrap_or(1) as usize,
             min_res_index: params["min_res_index"].as_i64().unwrap_or(-10) as i32,
             use_singletons: params["use_singletons"].as_bool().unwrap_or(true),
+            partition_type,
             verbosity: params["verbosity"].as_i64().unwrap_or(2) as u32,
         }
     }
@@ -330,12 +375,13 @@ impl CoverTreeBuilder {
             leaf_cutoff: self.leaf_cutoff,
             min_res_index: self.min_res_index,
             use_singletons: self.use_singletons,
+            partition_type: self.partition_type,
             point_cloud,
             verbosity: self.verbosity,
             plugins: RwLock::new(TreePluginSet::new()),
         };
 
-        let root = BuilderNode::new(&parameters, "first")?;
+        let root = BuilderNode::new(&parameters, self.partition_type)?;
         let root_address = root.address();
         let scale_range = root_address.0 - parameters.min_res_index;
         let mut layers = Vec::with_capacity(scale_range as usize);
@@ -428,6 +474,7 @@ mod tests {
             leaf_cutoff: 0,
             min_res_index: -9,
             use_singletons: true,
+            partition_type: PartitionType::Nearest,
             point_cloud,
             verbosity: 0,
             plugins: RwLock::new(TreePluginSet::new()),
@@ -435,7 +482,7 @@ mod tests {
     }
 
     #[test]
-    fn splits_conditions() {
+    fn nearest_splits_conditions() {
         let mut data = Vec::with_capacity(20);
         for _i in 0..19 {
             data.push(rand::random::<f32>());
@@ -443,7 +490,45 @@ mod tests {
         data.push(0.0);
 
         let test_parameters = create_test_parameters(data, 1);
-        let build_node = BuilderNode::new(&test_parameters,"nearest").unwrap();
+        let build_node = BuilderNode::new(&test_parameters, PartitionType::Nearest).unwrap();
+        let (scale_index, center_index) = build_node.address();
+
+        println!("{:?}", build_node);
+        println!(
+            "The center_index for the covered data should be 19 but is {}",
+            build_node.covered.center_index()
+        );
+        assert!(center_index == 19);
+        println!("The scale_index should be 0, but is {}", scale_index);
+        assert!(scale_index == 0);
+
+        let (new_node, unfinished_nodes) = build_node.split(&test_parameters).unwrap();
+        println!("New Node: {:#?}", new_node);
+        let split_count = test_parameters.total_nodes.load(atomic::Ordering::SeqCst) - 1;
+        println!(
+            "We should have split count be equal to the work count: split {} , work {}",
+            split_count,
+            unfinished_nodes.len()
+        );
+        println!("We shouldn't be a leaf: {}", new_node.is_leaf());
+        assert!(!new_node.is_leaf());
+        println!(
+            "We should have children count be equal to the split count: {}",
+            new_node.children_len()
+        );
+        assert!(new_node.children_len() == split_count);
+    }
+
+    #[test]
+    fn first_splits_conditions() {
+        let mut data = Vec::with_capacity(20);
+        for _i in 0..19 {
+            data.push(rand::random::<f32>());
+        }
+        data.push(0.0);
+
+        let test_parameters = create_test_parameters(data, 1);
+        let build_node = BuilderNode::new(&test_parameters, PartitionType::First).unwrap();
         let (scale_index, center_index) = build_node.address();
 
         println!("{:?}", build_node);
@@ -472,11 +557,11 @@ mod tests {
     }
 
     #[test]
-    fn tree_structure_condition() {
+    fn tree_first_structure_condition() {
         let data = vec![0.49, 0.491, -0.49, 0.0];
         let test_parameters = create_test_parameters(data, 1);
 
-        let build_node = BuilderNode::new(&test_parameters, "nearest").unwrap();
+        let build_node = BuilderNode::new(&test_parameters, PartitionType::First).unwrap();
 
         let (node_sender, node_receiver): (
             Sender<GokoResult<(i32, PointIndex, CoverNode<DefaultCloud<L2>>)>>,
@@ -509,6 +594,44 @@ mod tests {
     }
 
     #[test]
+    fn tree_nearest_structure_condition() {
+        let data = vec![0.49, 0.491, -0.49, 0.0];
+        let test_parameters = create_test_parameters(data, 1);
+
+        let build_node = BuilderNode::new(&test_parameters, PartitionType::Nearest).unwrap();
+
+        let (node_sender, node_receiver): (
+            Sender<GokoResult<(i32, PointIndex, CoverNode<DefaultCloud<L2>>)>>,
+            Receiver<GokoResult<(i32, PointIndex, CoverNode<DefaultCloud<L2>>)>>,
+        ) = unbounded();
+        let node_sender = Arc::new(node_sender);
+
+        build_node.split_parallel(&test_parameters, &node_sender);
+        thread::sleep(time::Duration::from_millis(100));
+        let split_count = test_parameters.total_nodes.load(atomic::Ordering::SeqCst) - 1;
+        println!(
+            "Split count {}, node_receiver {}",
+            split_count,
+            node_receiver.len()
+        );
+        assert!(split_count + 1 == node_receiver.len());
+        assert!(split_count == 3);
+        while let Ok(pat) = node_receiver.try_recv() {
+            let (scale_index, center_index, node) = pat.unwrap();
+            println!("{:?}", node);
+
+            match (scale_index, center_index) {
+                (-1, 3) => assert!(!node.is_leaf()),
+                (-2, 3) => assert!(node.is_leaf()),
+                (-2, 2) => assert!(node.is_leaf()),
+                (-2, 0) => assert!(!node.is_leaf()),
+                (-2, 1) => assert!(!node.is_leaf()),
+                _ => {}
+            };
+        }
+    }
+
+    #[test]
     fn insertion_tree_structure_condition() {
         let data = vec![0.49, 0.491, -0.49, 0.0];
 
@@ -519,6 +642,7 @@ mod tests {
             min_res_index: -9,
             use_singletons: true,
             verbosity: 0,
+            partition_type: PartitionType::First,
         };
         let tree = builder.build(point_cloud).unwrap();
         let reader = tree.reader();
@@ -561,6 +685,7 @@ mod tests {
             min_res_index: -9,
             use_singletons: false,
             verbosity: 0,
+            partition_type: PartitionType::First,
         };
         let tree = builder.build(point_cloud).unwrap();
         let reader = tree.reader();

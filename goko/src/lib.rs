@@ -18,11 +18,12 @@
 */
 
 #![allow(dead_code)]
-#![deny(warnings)]
+//#![deny(warnings)]
 #![warn(missing_docs)]
 #![doc(test(attr(allow(unused_variables), deny(warnings))))]
 #![feature(binary_heap_into_iter_sorted)]
 #![feature(iterator_fold_self)]
+#![feature(associated_type_defaults)]
 
 //! # Goko
 //! This is an lock-free efficient implementation of a covertree for data science. The traditional
