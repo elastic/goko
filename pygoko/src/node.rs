@@ -103,17 +103,13 @@ impl PyNode {
         let mut ret_matrix = Vec::with_capacity(len * dim);
         self.tree.get_node_and(self.address, |n| {
             n.singletons().iter().for_each(|pi| {
-                if let Ok(p) = self.parameters
-                        .point_cloud
-                        .point(*pi) {
+                if let Ok(p) = self.parameters.point_cloud.point(*pi) {
                     ret_matrix.extend(p.dense_iter(dim));
                 }
             });
 
             if n.is_leaf() {
-                if let Ok(p) = self.parameters
-                        .point_cloud
-                        .point(*n.center_index()) {
+                if let Ok(p) = self.parameters.point_cloud.point(*n.center_index()) {
                     ret_matrix.extend(p.dense_iter(dim));
                 }
             }

@@ -2,7 +2,7 @@ import numpy as np
 import pygoko
 
 tree = pygoko.CoverTree()
-tree.load_yaml_config("../../data/ember_complex.yml")
+tree.load_yaml_config("../data/ember_complex.yml")
 tree.fit()
 
 

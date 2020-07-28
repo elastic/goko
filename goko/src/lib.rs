@@ -73,7 +73,6 @@ pub mod utils;
 
 pub mod plugins;
 
-
 /// The data structure explicitly seperates the covertree by layer, and the addressing schema for nodes
 /// is a pair for the layer index and the center point index of that node.
 pub type NodeAddress = (i32, usize);

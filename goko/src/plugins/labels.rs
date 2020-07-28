@@ -1,16 +1,16 @@
 //! Plugin for labels and metadata
 
+use super::*;
 use crate::covertree::node::CoverNode;
 use crate::covertree::CoverTreeReader;
-use pointcloud::*;
-use super::*;
+//use pointcloud::*;
 use std::sync::Arc;
 
 /// Wrapper around the summary found in the point cloud
 #[derive(Debug, Default)]
 pub struct NodeLabelSummary<T: Summary> {
     /// The summary object, refenced counted to eliminate duplicates
-    pub summary: Arc<SummaryCounter<T>>
+    pub summary: Arc<SummaryCounter<T>>,
 }
 
 impl<T: Summary> Clone for NodeLabelSummary<T> {
@@ -25,7 +25,7 @@ impl<D: PointCloud + LabeledCloud> NodePlugin<D> for NodeLabelSummary<D::LabelSu
     fn update(&mut self, _my_node: &CoverNode<D>, _my_tree: &CoverTreeReader<D>) {}
 }
 
-/// 
+///
 #[derive(Debug, Clone, Default)]
 pub struct TreeLabelSummary {}
 
@@ -33,7 +33,7 @@ impl<D: PointCloud + LabeledCloud> TreePlugin<D> for TreeLabelSummary {
     fn update(&mut self, _my_tree: &CoverTreeReader<D>) {}
 }
 
-/// Plug in that allows for summaries of labels to be attached to 
+/// Plug in that allows for summaries of labels to be attached to
 #[derive(Debug, Clone, Default)]
 pub struct LabelSummaryPlugin {}
 
@@ -45,7 +45,11 @@ impl<D: PointCloud + LabeledCloud> GokoPlugin<D> for LabelSummaryPlugin {
         my_node: &CoverNode<D>,
         my_tree: &CoverTreeReader<D>,
     ) -> Self::NodeComponent {
-        let mut bucket = my_tree.parameters().point_cloud.label_summary(my_node.singletons()).unwrap();
+        let mut bucket = my_tree
+            .parameters()
+            .point_cloud
+            .label_summary(my_node.singletons())
+            .unwrap();
         // If we're a routing node then grab the childen's values
         if let Some((nested_scale, child_addresses)) = my_node.children() {
             my_tree.get_node_plugin_and::<Self::NodeComponent, _, _>(
@@ -54,14 +58,17 @@ impl<D: PointCloud + LabeledCloud> GokoPlugin<D> for LabelSummaryPlugin {
             );
 
             for ca in child_addresses {
-                my_tree.get_node_plugin_and::<Self::NodeComponent, _, _>(
-                    *ca,
-                    |p| bucket.combine(p.summary.as_ref()),
-                );
+                my_tree.get_node_plugin_and::<Self::NodeComponent, _, _>(*ca, |p| {
+                    bucket.combine(p.summary.as_ref())
+                });
             }
-
         } else {
-            bucket.add(my_tree.parameters().point_cloud.label(*my_node.center_index()));
+            bucket.add(
+                my_tree
+                    .parameters()
+                    .point_cloud
+                    .label(*my_node.center_index()),
+            );
         }
         NodeLabelSummary {
             summary: Arc::new(bucket),
@@ -73,7 +80,7 @@ impl<D: PointCloud + LabeledCloud> GokoPlugin<D> for LabelSummaryPlugin {
 #[derive(Debug, Default)]
 pub struct NodeMetaSummary<T: Summary> {
     /// The summary object, refenced counted to eliminate duplicates
-    pub summary: Arc<SummaryCounter<T>>
+    pub summary: Arc<SummaryCounter<T>>,
 }
 
 impl<T: Summary> Clone for NodeMetaSummary<T> {
@@ -88,7 +95,7 @@ impl<D: PointCloud + MetaCloud> NodePlugin<D> for NodeMetaSummary<D::MetaSummary
     fn update(&mut self, _my_node: &CoverNode<D>, _my_tree: &CoverTreeReader<D>) {}
 }
 
-/// 
+///
 #[derive(Debug, Clone, Default)]
 pub struct TreeMetaSummary {}
 
@@ -96,7 +103,7 @@ impl<D: PointCloud + MetaCloud> TreePlugin<D> for TreeMetaSummary {
     fn update(&mut self, _my_tree: &CoverTreeReader<D>) {}
 }
 
-/// Plug in that allows for summaries of Metas to be attached to 
+/// Plug in that allows for summaries of Metas to be attached to
 #[derive(Debug, Clone, Default)]
 pub struct MetaSummaryPlugin {}
 
@@ -108,7 +115,11 @@ impl<D: PointCloud + MetaCloud> GokoPlugin<D> for MetaSummaryPlugin {
         my_node: &CoverNode<D>,
         my_tree: &CoverTreeReader<D>,
     ) -> Self::NodeComponent {
-        let mut bucket = my_tree.parameters().point_cloud.metasummary(my_node.singletons()).unwrap();
+        let mut bucket = my_tree
+            .parameters()
+            .point_cloud
+            .metasummary(my_node.singletons())
+            .unwrap();
         // If we're a routing node then grab the childen's values
         if let Some((nested_scale, child_addresses)) = my_node.children() {
             my_tree.get_node_plugin_and::<Self::NodeComponent, _, _>(
@@ -117,14 +128,17 @@ impl<D: PointCloud + MetaCloud> GokoPlugin<D> for MetaSummaryPlugin {
             );
 
             for ca in child_addresses {
-                my_tree.get_node_plugin_and::<Self::NodeComponent, _, _>(
-                    *ca,
-                    |p| bucket.combine(p.summary.as_ref()),
-                );
+                my_tree.get_node_plugin_and::<Self::NodeComponent, _, _>(*ca, |p| {
+                    bucket.combine(p.summary.as_ref())
+                });
             }
-
         } else {
-            bucket.add(my_tree.parameters().point_cloud.metadata(*my_node.center_index()));
+            bucket.add(
+                my_tree
+                    .parameters()
+                    .point_cloud
+                    .metadata(*my_node.center_index()),
+            );
         }
         NodeMetaSummary {
             summary: Arc::new(bucket),

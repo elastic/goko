@@ -1,11 +1,11 @@
 use glob::{glob_with, MatchOptions};
+use std::cmp::Ordering;
 use std::fs;
 use yaml_rust::YamlLoader;
-use std::cmp::Ordering;
 
-use crate::{DefaultCloud, DefaultLabeledCloud};
-use crate::distances::L2;
 use super::*;
+use crate::distances::L2;
+use crate::{DefaultCloud, DefaultLabeledCloud};
 
 /// Given a yaml file on disk, it builds a point cloud. Minimal example below.
 /// ```yaml
@@ -22,10 +22,7 @@ pub fn labeled_ram_from_yaml<P: AsRef<Path>, M: Metric>(
     let label_set = labels_from_yaml(&path)?;
     let data_set = ram_from_yaml(&path)?;
 
-    Ok(SimpleLabeledCloud::new(
-        data_set,
-        label_set,
-    ))
+    Ok(SimpleLabeledCloud::new(data_set, label_set))
 }
 
 /// Given a yaml file on disk, it builds a point cloud. Minimal example below.
@@ -128,26 +125,33 @@ pub fn labels_from_yaml<P: AsRef<Path>>(path: P) -> PointCloudResult<SmallIntLab
 
     let mut label_set: Vec<SmallIntLabels> = labels_path
         .iter()
-        .map(
-            |path| match (path.extension().unwrap().to_str().unwrap(), labels_index, labels_dim) {
+        .map(|path| {
+            match (
+                path.extension().unwrap().to_str().unwrap(),
+                labels_index,
+                labels_dim,
+            ) {
                 ("csv", Some(index), _) | ("gz", Some(index), _) => open_int_csv(&path, index),
                 ("dat", _, Some(dim)) => {
                     let labels: VecLabels = DataMemmap::<L2>::new(dim, &path)?.convert_to_labels();
 
                     match dim.cmp(&1) {
                         Ordering::Greater => Ok(labels.one_hot_to_int()),
-                         Ordering::Less => {
+                        Ordering::Less => {
                             panic!(
                                 "Could not determine if labels are one hot or binary. {:?}, {:?}",
                                 path, dim
                             );
-                         },
-                         Ordering::Equal => Ok(labels.binary_to_int())
+                        }
+                        Ordering::Equal => Ok(labels.binary_to_int()),
                     }
                 }
-                _ => panic!("Unable to detemine label source. {:?}, index: {:?}, dim: {:?}", path, labels_index, labels_dim),
-            },
-        )
+                _ => panic!(
+                    "Unable to detemine label source. {:?}, index: {:?}, dim: {:?}",
+                    path, labels_index, labels_dim
+                ),
+            }
+        })
         .collect::<PointCloudResult<Vec<SmallIntLabels>>>()?;
 
     Ok(label_set

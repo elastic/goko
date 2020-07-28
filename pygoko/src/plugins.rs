@@ -32,7 +32,10 @@ pub struct PyBayesCategoricalTracker {
 #[pymethods]
 impl PyBayesCategoricalTracker {
     pub fn push(&mut self, point: &PyArray1<f32>) {
-        let results = self.tree.path(point.readonly().as_slice().unwrap()).unwrap();
+        let results = self
+            .tree
+            .path(point.readonly().as_slice().unwrap())
+            .unwrap();
         self.hkl.add_path(results);
     }
 

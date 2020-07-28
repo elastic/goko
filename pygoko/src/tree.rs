@@ -26,8 +26,8 @@ use std::sync::Arc;
 
 use goko::plugins::distributions::*;
 use goko::*;
-use pointcloud::*;
 use pointcloud::loaders::labeled_ram_from_yaml;
+use pointcloud::*;
 
 use crate::layer::*;
 use crate::node::*;
@@ -78,7 +78,7 @@ impl CoverTree {
     }
     pub fn load_yaml_config(&mut self, file_name: String) -> PyResult<()> {
         let path = Path::new(&file_name);
-        let point_cloud = Arc::new(labeled_ram_from_yaml::<_,L2>(&path).unwrap());
+        let point_cloud = Arc::new(labeled_ram_from_yaml::<_, L2>(&path).unwrap());
         let builder = CoverTreeBuilder::from_yaml(&path);
         self.builder = Some(builder);
         self.temp_point_cloud = Some(point_cloud);
@@ -89,17 +89,17 @@ impl CoverTree {
         self.metric = metric_name;
     }
 
-    pub fn fit(&mut self, data: Option<&PyArray2<f32>>, labels: Option<&PyArray1<i64>>) -> PyResult<()> {
+    pub fn fit(
+        &mut self,
+        data: Option<&PyArray2<f32>>,
+        labels: Option<&PyArray1<i64>>,
+    ) -> PyResult<()> {
         let point_cloud = if let Some(data) = data {
             let len = data.shape()[0];
             let data_dim = data.shape()[1];
             let my_labels: Vec<i64> = match labels {
-                Some(labels) => {
-                    Vec::from(labels.readonly().as_slice().unwrap())
-                }
-                None => {
-                    vec![0; len]
-                }
+                Some(labels) => Vec::from(labels.readonly().as_slice().unwrap()),
+                None => vec![0; len],
             };
             Arc::new(DefaultLabeledCloud::<L2>::new_simple(
                 Vec::from(data.readonly().as_slice().unwrap()),
@@ -113,7 +113,7 @@ impl CoverTree {
                 panic!("No known point_cloud");
             }
         };
-        
+
         let builder = self.builder.take();
         self.writer = Some(builder.unwrap().build(point_cloud).unwrap());
         let writer = self.writer.as_mut().unwrap();
@@ -140,7 +140,9 @@ impl CoverTree {
 
     //pub fn layers(&self) ->
     pub fn top_scale(&self) -> Option<i32> {
-        self.writer.as_ref().map(|w| w.reader().scale_range().end - 1)
+        self.writer
+            .as_ref()
+            .map(|w| w.reader().scale_range().end - 1)
     }
 
     pub fn bottom_scale(&self) -> Option<i32> {
@@ -185,22 +187,17 @@ impl CoverTree {
 
     pub fn knn(&self, point: &PyArray1<f32>, k: usize) -> Vec<(f32, usize)> {
         let reader = self.writer.as_ref().unwrap().reader();
-        reader
-            .knn(point.readonly().as_slice().unwrap(), k)
-            .unwrap()
+        reader.knn(point.readonly().as_slice().unwrap(), k).unwrap()
     }
 
     pub fn known_path(&self, point_index: usize) -> Vec<(f32, (i32, usize))> {
         let reader = self.writer.as_ref().unwrap().reader();
-        reader
-            .known_path(point_index).unwrap()    
+        reader.known_path(point_index).unwrap()
     }
 
     pub fn path(&self, point: &PyArray1<f32>) -> Vec<(f32, (i32, usize))> {
         let reader = self.writer.as_ref().unwrap().reader();
-        reader
-            .path(point.readonly().as_slice().unwrap())
-            .unwrap()
+        reader.path(point.readonly().as_slice().unwrap()).unwrap()
     }
 
     pub fn kl_div_dirichlet(

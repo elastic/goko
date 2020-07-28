@@ -52,7 +52,6 @@ pub trait ContinousBayesianDistribution: ContinousDistribution + Clone + 'static
     fn add_observation(&mut self, point: &PointRef);
 }
 
-
 /// Tracks the KL divergence for a given distribution.
 pub trait DiscreteBayesianSequenceTracker<D: PointCloud>: Debug {
     /// The. underlying distribution that this is tracking.
@@ -106,10 +105,13 @@ pub trait DiscreteBayesianSequenceTracker<D: PointCloud>: Debug {
                     nz_count += 1;
                 }
             });
-        let weighted_layer_totals: Vec<f32> = layer_node_counts.iter().map(|counts| {
-            let max: f32 = *counts.iter().max().unwrap_or(&1) as f32;
-            counts.iter().fold(0.0, |a,c| a + (*c as f32)/max)
-        }).collect();
+        let weighted_layer_totals: Vec<f32> = layer_node_counts
+            .iter()
+            .map(|counts| {
+                let max: f32 = *counts.iter().max().unwrap_or(&1) as f32;
+                counts.iter().fold(0.0, |a, c| a + (*c as f32) / max)
+            })
+            .collect();
         KLDivergenceStats {
             max,
             min,

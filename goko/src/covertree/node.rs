@@ -20,9 +20,12 @@
 //! # The Node
 //! This is the workhorse of the library. Each node
 //!
-use crate::errors::{GokoError, GokoResult};
-use crate::plugins::{NodePlugin, NodePluginSet, labels::{NodeLabelSummary,NodeMetaSummary}};
 use super::query_tools::{RoutingQueryHeap, SingletonQueryHeap};
+use crate::errors::{GokoError, GokoResult};
+use crate::plugins::{
+    labels::{NodeLabelSummary, NodeMetaSummary},
+    NodePlugin, NodePluginSet,
+};
 use crate::tree_file_format::*;
 use crate::NodeAddress;
 
@@ -77,20 +80,24 @@ impl<D: PointCloud> Clone for CoverNode<D> {
 impl<D: PointCloud + LabeledCloud> CoverNode<D> {
     /// If the node has a summary attached, this returns the summary.
     pub fn label_summary(&self) -> Option<Arc<SummaryCounter<D::LabelSummary>>> {
-        self.plugins.get::<NodeLabelSummary<D::LabelSummary>>().map(|c| Arc::clone(&c.summary))
+        self.plugins
+            .get::<NodeLabelSummary<D::LabelSummary>>()
+            .map(|c| Arc::clone(&c.summary))
     }
 }
 
 impl<D: PointCloud + MetaCloud> CoverNode<D> {
     /// If the node has a summary attached, this returns the summary.
     pub fn metasummary(&self) -> Option<Arc<SummaryCounter<D::MetaSummary>>> {
-        self.plugins.get::<NodeMetaSummary<D::MetaSummary>>().map(|c| Arc::clone(&c.summary))
+        self.plugins
+            .get::<NodeMetaSummary<D::MetaSummary>>()
+            .map(|c| Arc::clone(&c.summary))
     }
 }
 
 impl<D: PointCloud> CoverNode<D> {
     /// Creates a new blank node
-    pub fn new(parent_address: Option<NodeAddress>,address: NodeAddress) -> CoverNode<D> {
+    pub fn new(parent_address: Option<NodeAddress>, address: NodeAddress) -> CoverNode<D> {
         CoverNode {
             parent_address,
             address,
@@ -113,7 +120,7 @@ impl<D: PointCloud> CoverNode<D> {
         self.radius
     }
 
-    /// Number of decendents of this node 
+    /// Number of decendents of this node
     pub fn cover_count(&self) -> usize {
         self.cover_count
     }
@@ -322,11 +329,7 @@ impl<D: PointCloud> CoverNode<D> {
     }
 
     /// Inserts a routing child into the node. Make sure the child node is also in the tree or you get a dangling reference
-    pub(crate) fn insert_child(
-        &mut self,
-        address: NodeAddress,
-        coverage: usize,
-    ) -> GokoResult<()> {
+    pub(crate) fn insert_child(&mut self, address: NodeAddress, coverage: usize) -> GokoResult<()> {
         self.cover_count += coverage;
         if let Some(children) = &mut self.children {
             children.addresses.push(address);
@@ -364,14 +367,18 @@ impl<D: PointCloud> CoverNode<D> {
             .map(|i| *i as PointIndex)
             .collect();
         let radius = node_proto.get_radius();
-        let address = (node_proto.get_scale_index(), node_proto.get_center_index() as usize);
+        let address = (
+            node_proto.get_scale_index(),
+            node_proto.get_center_index() as usize,
+        );
         let parent_scale_index = node_proto.get_parent_scale_index();
         let parent_center_index = node_proto.get_parent_center_index();
-        let parent_address = if parent_scale_index == std::i32::MIN && parent_center_index == std::u64::MAX {
-            None
-        } else {
-            Some((parent_scale_index, parent_center_index as usize))
-        };
+        let parent_address =
+            if parent_scale_index == std::i32::MIN && parent_center_index == std::u64::MAX {
+                None
+            } else {
+                Some((parent_scale_index, parent_center_index as usize))
+            };
         let cover_count = node_proto.get_cover_count() as usize;
         let children = if node_proto.get_is_leaf() {
             None
@@ -410,11 +417,11 @@ impl<D: PointCloud> CoverNode<D> {
             Some(parent_address) => {
                 proto.set_parent_scale_index(parent_address.0);
                 proto.set_parent_center_index(parent_address.1 as u64);
-            },
+            }
             None => {
                 proto.set_parent_scale_index(std::i32::MIN);
                 proto.set_parent_center_index(std::u64::MAX);
-            },
+            }
         }
 
         proto.set_radius(self.radius);
@@ -458,10 +465,10 @@ mod tests {
     use super::*;
     use std::env;
 
+    use crate::covertree::tests::build_mnist_tree;
     use crate::query_tools::knn_query_heap::tests::clone_unvisited_nodes;
     use crate::query_tools::query_items::QueryAddress;
     use crate::query_tools::KnnQueryHeap;
-    use crate::covertree::tests::build_mnist_tree;
 
     fn create_test_node<D: PointCloud>() -> CoverNode<D> {
         let children = Some(NodeChildren {
@@ -714,8 +721,11 @@ mod tests {
         assert_eq!(&reconstructed_node.singles_indexes[..], &[4, 5, 6]);
 
         let reconstructed_children = reconstructed_node.children.unwrap();
-        assert_eq!(reconstructed_children.nested_scale,0);
-        assert_eq!(&reconstructed_children.addresses[..], &[(-4, 1), (-4, 2), (-4, 3)]);
+        assert_eq!(reconstructed_children.nested_scale, 0);
+        assert_eq!(
+            &reconstructed_children.addresses[..],
+            &[(-4, 1), (-4, 2), (-4, 3)]
+        );
     }
 
     #[test]
@@ -724,7 +734,7 @@ mod tests {
         let proto = node.save();
         let reconstructed_node = CoverNode::<DefaultLabeledCloud<L2>>::load(&proto);
 
-        assert_eq!(reconstructed_node.parent_address, Some((1,0)));
+        assert_eq!(reconstructed_node.parent_address, Some((1, 0)));
         assert_eq!(reconstructed_node.address, (0, 0));
         assert_eq!(reconstructed_node.radius, 1.0);
         assert_eq!(reconstructed_node.cover_count, 8);

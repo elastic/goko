@@ -1,9 +1,9 @@
 use std::hash::{BuildHasher, Hash};
 
-#[cfg(feature = "indexed")]
-use indexmap::IndexMap as MapImpl;
 #[cfg(not(feature = "indexed"))]
 use hashbrown::HashMap as MapImpl;
+#[cfg(feature = "indexed")]
+use indexmap::IndexMap as MapImpl;
 
 pub(crate) struct Inner<K, T, M, S>
 where

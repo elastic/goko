@@ -4,10 +4,10 @@ use rayon::prelude::*;
 use std::cmp::min;
 use std::fmt::Debug;
 
-use serde::{Deserialize, Serialize};
 use crate::distances::*;
 use crate::pc_errors::*;
 use crate::*;
+use serde::{Deserialize, Serialize};
 
 #[inline]
 fn chunk(data_dim: usize) -> usize {
@@ -274,7 +274,10 @@ pub trait LabelSet: Debug + Send + Sync + 'static {
     /// and partially labeled datasets with the option.
     fn label(&self, pn: PointIndex) -> PointCloudResult<Option<&Self::Label>>;
     /// Grabs a label summary of a set of indexes.
-    fn label_summary(&self, pns: &[PointIndex]) -> PointCloudResult<SummaryCounter<Self::LabelSummary>>;
+    fn label_summary(
+        &self,
+        pns: &[PointIndex],
+    ) -> PointCloudResult<SummaryCounter<Self::LabelSummary>>;
 }
 
 /// A point cloud that is labeled
@@ -287,11 +290,14 @@ pub trait LabeledCloud: PointCloud {
     /// and partially labeled datasets with the option.
     fn label(&self, pn: PointIndex) -> PointCloudResult<Option<&Self::Label>>;
     /// Grabs a label summary of a set of indexes.
-    fn label_summary(&self, pns: &[PointIndex]) -> PointCloudResult<SummaryCounter<Self::LabelSummary>>;
+    fn label_summary(
+        &self,
+        pns: &[PointIndex],
+    ) -> PointCloudResult<SummaryCounter<Self::LabelSummary>>;
 }
 
 /// Simply shoves together a point cloud and a label set, for a modular label system
-#[derive(Default,Debug, Serialize, Deserialize)]
+#[derive(Default, Debug, Serialize, Deserialize)]
 pub struct SummaryCounter<S: Summary> {
     /// The categorical summary
     pub summary: S,
@@ -301,7 +307,7 @@ pub struct SummaryCounter<S: Summary> {
     pub errors: usize,
 }
 
-impl<S:Summary> SummaryCounter<S> {
+impl<S: Summary> SummaryCounter<S> {
     /// adds an element to the summary, handling errors
     pub fn add(&mut self, v: PointCloudResult<Option<&S::Label>>) {
         if let Ok(vv) = v {
@@ -328,7 +334,7 @@ impl<S:Summary> SummaryCounter<S> {
     }
 
     /// the number of samples this summarieses
-    pub fn count(&self) -> usize { 
+    pub fn count(&self) -> usize {
         self.summary.count() + self.nones + self.errors
     }
 
@@ -389,14 +395,17 @@ impl<D: PointCloud, L: LabelSet> LabeledCloud for SimpleLabeledCloud<D, L> {
     fn label(&self, pn: PointIndex) -> PointCloudResult<Option<&Self::Label>> {
         self.labels.label(pn)
     }
-    fn label_summary(&self, pns: &[PointIndex]) -> PointCloudResult<SummaryCounter<Self::LabelSummary>> {
+    fn label_summary(
+        &self,
+        pns: &[PointIndex],
+    ) -> PointCloudResult<SummaryCounter<Self::LabelSummary>> {
         self.labels.label_summary(pns)
     }
 }
 
-/// Enables the points in the underlying cloud to be named with strings. 
+/// Enables the points in the underlying cloud to be named with strings.
 pub trait NamedCloud: PointCloud {
-    /// Grabs the name of the point. 
+    /// Grabs the name of the point.
     /// Returns an error if the access errors out, and a None if the name is unknown
     fn name(&self, pi: PointIndex) -> PointCloudResult<Option<&String>>;
     /// Converts a name to an index you can use
@@ -415,6 +424,8 @@ pub trait MetaCloud: PointCloud {
     /// Expensive metadata object for the sample
     fn metadata(&self, pn: PointIndex) -> PointCloudResult<Option<&Self::Metadata>>;
     /// Expensive metadata summary over the samples
-    fn metasummary(&self, pns: &[PointIndex]) -> PointCloudResult<SummaryCounter<Self::MetaSummary>>;
+    fn metasummary(
+        &self,
+        pns: &[PointIndex],
+    ) -> PointCloudResult<SummaryCounter<Self::MetaSummary>>;
 }
-

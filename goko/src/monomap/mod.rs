@@ -32,10 +32,10 @@ mod inner;
 pub(crate) type Epochs = Arc<Mutex<Vec<Arc<atomic::AtomicUsize>>>>;
 
 //use std::collections::hash_map::RandomState;
-use std::fmt;
-use std::hash::{BuildHasher, Hash};
 use fxhash::FxBuildHasher;
 use inner::Inner;
+use std::fmt;
+use std::hash::{BuildHasher, Hash};
 
 /// Merge object for reducing the entries of a entry to a single one.
 pub struct Updater<V>(pub(crate) Box<dyn Fn(&mut V) + Send + Sync>);

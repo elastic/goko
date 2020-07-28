@@ -35,10 +35,10 @@ use crate::monomap::{MonoReadHandle, MonoWriteHandle};
 use pointcloud::*;
 
 //use rayon;
-use crate::*;
 use super::node::*;
-use std::iter::FromIterator;
 use crate::tree_file_format::*;
+use crate::*;
+use std::iter::FromIterator;
 
 /// Actual reader, primarily contains a read head to the hash-map.
 /// This also contains a reference to the scale_index so that it is easy to save and load. It is largely redundant,
