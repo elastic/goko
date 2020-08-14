@@ -80,6 +80,18 @@ impl Categorical {
                 .fold(0.0, |x, a| x + a)
     }
 
+    /// Gives the probability vector for this
+    pub fn prob_vector(&self) -> Option<(Vec<(NodeAddress,f64)>,f64)> {
+
+        let total = self.total();
+        if total > 0.0 {
+            let v: Vec<(NodeAddress,f64)> = self.child_counts.iter().map(|(na,f)| (*na,f/total)).collect();
+            Some((v,self.singleton_count/total))
+        } else {
+            None
+        }
+    }
+
     pub(crate) fn merge(&mut self, other: &Categorical) {
         for (na, c) in &other.child_counts {
             self.add_child_pop(Some(*na), *c);

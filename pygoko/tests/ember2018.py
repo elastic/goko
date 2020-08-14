@@ -21,29 +21,34 @@ for distance,address in trace:
 print("============= KL Divergence =============")
 prior_weight = 1.0
 observation_weight = 1.3
-sequence_cap = 10
-sequence_len = 20
+window_size = 5000
+sequence_len = 800000
+sample_rate = 5000
 sequence_count = 10
-normal_stats = tree.kl_div_dirichlet_basestats(prior_weight,
+baseline = tree.kl_div_dirichlet_baseline(prior_weight,
     observation_weight,
     sequence_len,
     sequence_count,
-    sequence_cap)
-for i,stats in enumerate(normal_stats[0]):
-    print(stats)
+    window_size,
+    sample_rate)
+for i in range(0,800000,1000):
+    print(baseline.stats(i))
+"""
 print("============= KL Divergence Normal Use =============")
-kl_tracker = tree.kl_div_dirichlet(prior_weight,observation_weight,sequence_cap)
+kl_tracker = tree.kl_div_dirichlet(prior_weight,observation_weight,window_size)
 for i in range(200):
     kl_tracker.push(tree.data_point(i))
-    print(kl_tracker.stats())
+    mean, var = baseline.stats(i)
+    print((kl_tracker.stats() - mean)/var.sqrt())
 
 
 print("============= KL Divergence Attack =============")
 
-kl_attack_tracker = tree.kl_div_dirichlet(prior_weight,observation_weight,sequence_cap)
+kl_attack_tracker = tree.kl_div_dirichlet(prior_weight,observation_weight,window_size)
 for i in range(10):
     kl_attack_tracker.push(tree.data_point(i))
     print(kl_attack_tracker.stats())
 for i in range(10):
     kl_attack_tracker.push(tree.data_point(0))
     print(kl_attack_tracker.stats())
+"""

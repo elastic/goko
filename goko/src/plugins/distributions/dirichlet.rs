@@ -17,7 +17,8 @@ use crate::plugins::*;
 use super::*;
 use std::fmt;
 
-use rand::{thread_rng, Rng};
+use rand::prelude::*;
+use rayon::iter::repeatn;
 use statrs::function::gamma::{digamma, ln_gamma};
 use std::collections::{HashMap, VecDeque};
 
@@ -51,6 +52,19 @@ impl Dirichlet {
                 .map(|(_, c)| c)
                 .fold(0.0, |x, a| x + a)
     }
+
+    /// Gives the probability vector for this
+    pub fn prob_vector(&self) -> Option<(Vec<(NodeAddress,f64)>,f64)> {
+
+        let total = self.total();
+        if total > 0.0 {
+            let v: Vec<(NodeAddress,f64)> = self.child_counts.iter().map(|(na,f)| (*na,f/total)).collect();
+            Some((v,self.singleton_count/total))
+        } else {
+            None
+        }
+    }
+
     fn add_child_pop(&mut self, loc: Option<NodeAddress>, count: f64) {
         match loc {
             Some(ca) => match self.child_counts.binary_search_by_key(&ca, |&(a, _)| a) {
@@ -110,7 +124,11 @@ impl DiscreteBayesianDistribution for Dirichlet {
         }
         for (other_ca, other_ca_count) in other.child_counts.iter()
         {
-            let ca_count = self.child_counts[self.child_counts.binary_search_by_key(other_ca, |&(a, _)| a).unwrap()].1;
+            let ca_count = match self.child_counts.binary_search_by_key(other_ca, |&(a, _)| a) {
+                Ok(ind) => self.child_counts[ind].1,
+                Err(_) => return None,
+            };
+
             my_total_lng += ln_gamma(ca_count);
             other_total_lng += ln_gamma(*other_ca_count + ca_count);
             digamma_portion -= *other_ca_count * (digamma(ca_count) - digamma(my_total));
@@ -227,7 +245,8 @@ impl<D: PointCloud> GokoPlugin<D> for GokoDirichlet {
 /// Computes a frequentist KL divergence calculation on each node the sequence touches.
 pub struct BayesCategoricalTracker<D: PointCloud> {
     running_evidence: HashMap<NodeAddress, Categorical>,
-    sequence: VecDeque<Vec<(f32, NodeAddress)>>,
+    sequence_queue: VecDeque<Vec<(f32, NodeAddress)>>,
+    sequence_count: usize,
     window_size: usize,
     prior_weight: f64,
     observation_weight: f64,
@@ -238,8 +257,8 @@ impl<D: PointCloud> fmt::Debug for BayesCategoricalTracker<D> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "PointCloud {{ sequence: {:?}, window_size: {} prior_weight: {}, observation_weight: {}, running_evidence: {:#?}}}",
-            self.sequence, self.window_size, self.prior_weight, self.observation_weight, self.running_evidence,
+            "PointCloud {{ sequence_queue: {:?}, window_size: {} prior_weight: {}, observation_weight: {}, running_evidence: {:?}}}",
+            self.sequence_queue, self.window_size, self.prior_weight, self.observation_weight, self.running_evidence,
         )
     }
 }
@@ -254,7 +273,8 @@ impl<D: PointCloud> BayesCategoricalTracker<D> {
     ) -> BayesCategoricalTracker<D> {
         BayesCategoricalTracker {
             running_evidence: HashMap::new(),
-            sequence: VecDeque::new(),
+            sequence_queue: VecDeque::new(),
+            sequence_count: 0,
             window_size,
             prior_weight,
             observation_weight,
@@ -270,7 +290,7 @@ impl<D: PointCloud> BayesCategoricalTracker<D> {
                 .and_modify(|e| e.merge(v))
                 .or_insert(v.clone());
         }
-        self.sequence.extend(other.sequence.iter().cloned());
+        self.sequence_queue.extend(other.sequence_queue.iter().cloned());
         self
     }
 
@@ -309,10 +329,10 @@ impl<D: PointCloud> BayesCategoricalTracker<D> {
         let mut child_address_iter = trace.iter().map(|(_, ca)| ca);
         child_address_iter.next();
         for (parent, child) in parent_address_iter.zip(child_address_iter) {
-            self.running_evidence
+            let mut parent_evidence = self.running_evidence
                 .get_mut(parent)
-                .unwrap()
-                .remove_child_pop(Some(*child), self.observation_weight);
+                .unwrap();
+            parent_evidence.remove_child_pop(Some(*child), self.observation_weight);
         }
         let last = trace.last().unwrap().1;
         self.running_evidence
@@ -320,16 +340,37 @@ impl<D: PointCloud> BayesCategoricalTracker<D> {
             .unwrap()
             .remove_child_pop(None, self.observation_weight);
     }
+
+    /// Gives the probability vector for this
+    pub fn prob_vector(&self,na:NodeAddress) -> Option<(Vec<(NodeAddress,f64)>,f64)> {
+        self.reader
+            .get_node_plugin_and::<Dirichlet, _, _>(na, |p| {
+                let mut dir = p.clone();
+                if let Some(e) = self.running_evidence.get(&na) {
+                    dir.add_evidence(e)
+                }
+                dir.prob_vector()
+            }).flatten()
+    }
+
+    /// Gives the probability vector for this
+    pub fn evidence_prob_vector(&self,na:NodeAddress) -> Option<(Vec<(NodeAddress,f64)>,f64)> {
+        self.running_evidence.get(&na).map(|e| e.prob_vector()).flatten()
+    }
 }
 impl<D: PointCloud> DiscreteBayesianSequenceTracker<D> for BayesCategoricalTracker<D> {
     type Distribution = Dirichlet;
     /// Adds an element to the trace
     fn add_path(&mut self, trace: Vec<(f32, NodeAddress)>) {
         self.add_trace_to_pdfs(&trace);
-        self.sequence.push_back(trace);
-        if self.sequence.len() > self.window_size && self.window_size != 0 {
-            let oldest = self.sequence.pop_front().unwrap();
-            self.remove_trace_from_pdfs(&oldest);
+        self.sequence_count += 1;
+        if self.window_size != 0 {
+            self.sequence_queue.push_back(trace);
+
+            if self.sequence_queue.len() > self.window_size {
+                let oldest = self.sequence_queue.pop_front().unwrap();
+                self.remove_trace_from_pdfs(&oldest);
+            }
         }
     }
     fn running_evidence(&self) -> &HashMap<NodeAddress, Categorical> {
@@ -339,31 +380,31 @@ impl<D: PointCloud> DiscreteBayesianSequenceTracker<D> for BayesCategoricalTrack
         &self.reader
     }
     fn sequence_len(&self) -> usize {
-        self.sequence.len()
+        self.sequence_count
     }
 }
 
 /// Trains a baseline by sampling randomly from the training set (used to create the tree)
 /// This baseline is _not_ realistic.
-pub struct DirichletBaseline<D: PointCloud> {
+pub struct DirichletBaseline {
+    sample_rate: usize,
     sequence_len: usize,
     num_sequences: usize,
     window_size: usize,
     prior_weight: f64,
     observation_weight: f64,
-    reader: CoverTreeReader<D>,
 }
 
-impl<D: PointCloud> DirichletBaseline<D> {
+impl DirichletBaseline {
     /// New with sensible defaults
-    pub fn new(reader: CoverTreeReader<D>) -> DirichletBaseline<D> {
+    pub fn new() -> DirichletBaseline {
         DirichletBaseline {
-            sequence_len: 200,
-            num_sequences: 100,
+            sample_rate: 100,
+            sequence_len: 0,
+            num_sequences: 8,
             window_size: 50,
             prior_weight: 1.0,
             observation_weight: 1.0,
-            reader,
         }
     }
     /// Sets a new training sequence window_size, default 200. Stats for each total lenght of sequence are returned
@@ -386,9 +427,13 @@ impl<D: PointCloud> DirichletBaseline<D> {
     pub fn set_observation_weight(&mut self, observation_weight: f64) {
         self.observation_weight = observation_weight;
     }
+    /// Samples at the following rate, then interpolates for sequence lengths between the following. 
+    pub fn set_sample_rate(&mut self, sample_rate: usize) {
+        self.sample_rate = sample_rate;
+    }
 
     /// Trains the sequences up.
-    pub fn train(&self) -> GokoResult<Vec<Vec<KLDivergenceStats>>> {
+    pub fn train<D: PointCloud>(&self,reader: CoverTreeReader<D>) -> GokoResult<KLDivergenceBaseline> {
         /*
         let chunk_size = 10;
         let (results_sender, results_receiver): (
@@ -396,26 +441,44 @@ impl<D: PointCloud> DirichletBaseline<D> {
             Receiver<KLDivergenceStats>,
         ) = unbounded();
         */
-        let mut results: Vec<Vec<KLDivergenceStats>> = (0..self.num_sequences)
-            .map(|_| Vec::with_capacity(self.sequence_len))
-            .collect();
-        let point_cloud = self.reader.point_cloud();
-        for seq_results in results.iter_mut() {
+        let point_indexes = reader.point_cloud().reference_indexes();
+        let sequence_len = if self.sequence_len == 0 {
+            point_indexes.len()
+        } else {
+            self.sequence_len
+        };
+
+        let results: Vec<Vec<KLDivergenceStats>> = repeatn(reader.clone(), self.num_sequences).map(|reader| {
             let mut tracker = BayesCategoricalTracker::new(
                 self.prior_weight,
                 self.observation_weight,
                 self.window_size,
-                self.reader.clone(),
+                reader,
             );
-            for _ in 0..self.sequence_len {
-                let mut rng = thread_rng();
-                let query_point = point_cloud.point(rng.gen_range(0, point_cloud.len()))?;
-                tracker.add_path(self.reader.path(&query_point)?);
-                seq_results.push(tracker.current_stats());
-            }
-        }
+            (&point_indexes[..]).choose_multiple(&mut thread_rng(),sequence_len).enumerate().filter_map(|(i,pi)| {
+                tracker.add_path(tracker.reader.known_path(*pi).unwrap());
+                if i % self.sample_rate == 0 {
+                    Some(tracker.kl_div_stats())
+                } else {
+                    None
+                }
+            }).collect()
+        }).collect();
+        let len = results[0].len();
+        let mut sequence_len = Vec::with_capacity(len);
+        let mut stats: Vec<KLDivergenceBaselineStats> = std::iter::repeat_with(|| KLDivergenceBaselineStats::default()).take(len).collect();
 
-        Ok(results)
+        for i in 0..len {
+            for result_vec in &results {
+                stats[i].add(&result_vec[i]);
+            }
+            sequence_len.push(results[0][i].sequence_len);
+        }
+        Ok(KLDivergenceBaseline {
+            num_sequences: results.len(),
+            stats,
+            sequence_len,
+        })
     }
 }
 
@@ -462,6 +525,44 @@ pub(crate) mod tests {
         assert_approx_eq!(buckets_posterior.ln_prob(None).unwrap(), 0.5f64.ln());
         assert_approx_eq!(buckets_posterior.ln_prob(Some(&(0, 0))).unwrap(), 0.5f64.ln());
         assert_approx_eq!(buckets.kl_divergence(&buckets_posterior).unwrap(), buckets.posterior_kl_divergence(&categorical).unwrap());
+    }
+
+    #[test]
+    fn dirichlet_posterior_sanity_test_2() {
+        let mut buckets = Dirichlet::new();
+        buckets.add_child_pop(None, 3.0);
+        buckets.add_child_pop(Some((0, 0)), 2.0);
+
+        let mut categorical = Categorical::new();
+        categorical.add_child_pop(None,3.0);
+        categorical.add_child_pop(Some((0, 0)), 2.0);
+
+        let mut buckets_posterior = buckets.clone();
+        buckets_posterior.add_evidence(&categorical);
+
+        println!("Buckets: {:?}", buckets);
+        println!("Buckets Posterior: {:?}", buckets_posterior);
+        println!("Evidence: {:?}", categorical);
+        assert_approx_eq!(buckets.kl_divergence(&buckets_posterior).unwrap(), buckets.posterior_kl_divergence(&categorical).unwrap());
+        assert_approx_eq!(buckets.kl_divergence(&buckets_posterior).unwrap(), 0.0);
+    }
+
+    #[test]
+    fn dirichlet_posterior_sanity_test_3() {
+        let mut buckets = Dirichlet::new();
+        buckets.add_child_pop(None, 3.0);
+
+        let mut categorical = Categorical::new();
+        categorical.add_child_pop(None,3.0);
+
+        let mut buckets_posterior = buckets.clone();
+        buckets_posterior.add_evidence(&categorical);
+
+        println!("Buckets: {:?}", buckets);
+        println!("Buckets Posterior: {:?}", buckets_posterior);
+        println!("Evidence: {:?}", categorical);
+        assert_approx_eq!(buckets.kl_divergence(&buckets_posterior).unwrap(), buckets.posterior_kl_divergence(&categorical).unwrap());
+        assert_approx_eq!(buckets.kl_divergence(&buckets_posterior).unwrap(), 0.0);
     }
 
     #[test]

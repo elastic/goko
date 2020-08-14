@@ -60,6 +60,24 @@ fn main() {
     let prior_weight = 1.0;
     let observation_weight = 1.3;
     let window_size = 0;
+    let num_sequence = 8;
+
+    let mut baseline = DirichletBaseline::new();
+    baseline.set_window_size(window_size);
+    baseline.set_observation_weight(observation_weight);
+    baseline.set_prior_weight(prior_weight);
+    baseline.set_sequence_len(test_set.len());
+    baseline.set_num_sequences(num_sequence);
+    println!("Gathering baseline with prior_weight: {}, observation_weight: {}, and window_size: {}", prior_weight, observation_weight, window_size);
+    let baseline_start = time::Instant::now();
+    let baseline_data = baseline.train(ct.reader());
+    let baseline_elapse = baseline_start.elapsed().as_millis();
+
+    println!(
+        "BASELINE: Time elapsed {:?} milliseconds, time per sequence {} milliseconds",
+        baseline_elapse,
+        (baseline_elapse as f64) / ((test_set.len()*num_sequence) as f64)
+    );
 
     let mut tracker =
         BayesCategoricalTracker::new(prior_weight, observation_weight, window_size, ct.reader());
@@ -80,5 +98,5 @@ fn main() {
         elapse,
         (elapse as f64) / (test_set.len() as f64)
     );
-    println!("stats: {:?}", tracker.current_stats());
+    println!("stats: {:?}", tracker.kl_div_stats());
 }

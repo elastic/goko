@@ -149,6 +149,10 @@ impl CoverTree {
         self.writer.as_ref().map(|w| w.reader().scale_range().start)
     }
 
+    pub fn scale_base(&self) -> Option<f32> {
+        self.writer.as_ref().map(|w| w.reader().parameters().scale_base)
+    }
+
     pub fn layers(&self) -> PyResult<IterLayers> {
         let reader = self.writer.as_ref().unwrap().reader();
         let scale_indexes = reader.layers().map(|(si, _)| si).collect();
@@ -218,31 +222,24 @@ impl CoverTree {
         }
     }
 
-    pub fn kl_div_dirichlet_basestats(
+    pub fn kl_div_dirichlet_baseline(
         &self,
         prior_weight: f64,
         observation_weight: f64,
-        sequence_len: u64,
-        num_sequences: u64,
-        window_size: u64,
-    ) -> Vec<Vec<PyKLDivergenceStats>> {
+        sequence_len: usize,
+        num_sequences: usize,
+        window_size: usize,
+        sample_rate: usize,
+    ) -> PyKLDivergenceBaseline {
         let reader = self.writer.as_ref().unwrap().reader();
-        let mut trainer = DirichletBaseline::new(reader);
+        let mut trainer = DirichletBaseline::new();
         trainer.set_prior_weight(prior_weight);
         trainer.set_observation_weight(observation_weight);
-        trainer.set_sequence_len(sequence_len as usize);
-        trainer.set_num_sequences(num_sequences as usize);
-        trainer.set_window_size(window_size as usize);
-        trainer
-            .train()
-            .unwrap()
-            .drain(0..)
-            .map(|mut vstats| {
-                vstats
-                    .drain(0..)
-                    .map(|stats| PyKLDivergenceStats { stats })
-                    .collect()
-            })
-            .collect()
+        trainer.set_sequence_len(sequence_len);
+        trainer.set_num_sequences(num_sequences);
+        trainer.set_window_size(window_size);
+        trainer.set_sample_rate(sample_rate);
+        let baseline = trainer.train(reader).unwrap();
+        PyKLDivergenceBaseline { baseline }
     }
 }

@@ -59,6 +59,12 @@ impl PyNode {
         self.address
     }
 
+    pub fn is_leaf(&self) -> bool {
+        self.tree
+            .get_node_and(self.address, |n| n.is_leaf())
+            .unwrap()
+    }
+
     pub fn coverage_count(&self) -> usize {
         self.tree
             .get_node_and(self.address, |n| n.cover_count())
@@ -74,6 +80,12 @@ impl PyNode {
                 tree: self.tree.clone(),
             })
             .collect()
+    }
+
+    pub fn children_probs(&self) -> Option<(Vec<((i32, usize),f64)>,f64)> {
+        self.tree.get_node_plugin_and(self.address, |p: &Dirichlet| {
+            p.prob_vector()
+        }).flatten()
     }
 
     pub fn children_addresses(&self) -> Vec<(i32, usize)> {
