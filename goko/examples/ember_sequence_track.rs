@@ -63,7 +63,6 @@ fn main() {
     let num_sequence = 8;
 
     let mut baseline = DirichletBaseline::new();
-    baseline.set_window_size(window_size);
     baseline.set_observation_weight(observation_weight);
     baseline.set_prior_weight(prior_weight);
     baseline.set_sequence_len(test_set.len());

@@ -329,7 +329,7 @@ impl<D: PointCloud> BayesCategoricalTracker<D> {
         let mut child_address_iter = trace.iter().map(|(_, ca)| ca);
         child_address_iter.next();
         for (parent, child) in parent_address_iter.zip(child_address_iter) {
-            let mut parent_evidence = self.running_evidence
+            let parent_evidence = self.running_evidence
                 .get_mut(parent)
                 .unwrap();
             parent_evidence.remove_child_pop(Some(*child), self.observation_weight);
@@ -380,7 +380,11 @@ impl<D: PointCloud> DiscreteBayesianSequenceTracker<D> for BayesCategoricalTrack
         &self.reader
     }
     fn sequence_len(&self) -> usize {
-        self.sequence_count
+        if self.sequence_queue.len() > 0 {
+            self.sequence_queue.len()
+        } else {
+            self.sequence_count
+        }
     }
 }
 
@@ -390,7 +394,6 @@ pub struct DirichletBaseline {
     sample_rate: usize,
     sequence_len: usize,
     num_sequences: usize,
-    window_size: usize,
     prior_weight: f64,
     observation_weight: f64,
 }
@@ -402,22 +405,21 @@ impl DirichletBaseline {
             sample_rate: 100,
             sequence_len: 0,
             num_sequences: 8,
-            window_size: 50,
             prior_weight: 1.0,
             observation_weight: 1.0,
         }
     }
-    /// Sets a new training sequence window_size, default 200. Stats for each total lenght of sequence are returned
+    /// Sets a new maxium sequence length. Set this to be the window size if you're using windows, the lenght of the test set you've got,
+    /// or leave it alone as the default limit is the number of points in the training set. 
+    ///
+    /// We sample up to this cap, linearly interpolating above this. So, the baseline produced is fairly accurate for indexes below this 
+    /// and unreliable above this.
     pub fn set_sequence_len(&mut self, sequence_len: usize) {
         self.sequence_len = sequence_len;
     }
     /// Sets a new count of sequences to train over, default 100. Stats for each sequence are returned.
     pub fn set_num_sequences(&mut self, num_sequences: usize) {
         self.num_sequences = num_sequences;
-    }
-    /// Sets a new maximum lenght of sequence, before it starts forgetting data, default 50
-    pub fn set_window_size(&mut self, window_size: usize) {
-        self.window_size = window_size;
     }
     /// Sets a new prior weight, default 1.0. The prior is multiplied by this to increase or decrease it's importance
     pub fn set_prior_weight(&mut self, prior_weight: f64) {
@@ -434,13 +436,6 @@ impl DirichletBaseline {
 
     /// Trains the sequences up.
     pub fn train<D: PointCloud>(&self,reader: CoverTreeReader<D>) -> GokoResult<KLDivergenceBaseline> {
-        /*
-        let chunk_size = 10;
-        let (results_sender, results_receiver): (
-            Sender<KLDivergenceStats>,
-            Receiver<KLDivergenceStats>,
-        ) = unbounded();
-        */
         let point_indexes = reader.point_cloud().reference_indexes();
         let sequence_len = if self.sequence_len == 0 {
             point_indexes.len()
@@ -452,7 +447,7 @@ impl DirichletBaseline {
             let mut tracker = BayesCategoricalTracker::new(
                 self.prior_weight,
                 self.observation_weight,
-                self.window_size,
+                0,
                 reader,
             );
             (&point_indexes[..]).choose_multiple(&mut thread_rng(),sequence_len).enumerate().filter_map(|(i,pi)| {
@@ -544,7 +539,7 @@ pub(crate) mod tests {
         println!("Buckets Posterior: {:?}", buckets_posterior);
         println!("Evidence: {:?}", categorical);
         assert_approx_eq!(buckets.kl_divergence(&buckets_posterior).unwrap(), buckets.posterior_kl_divergence(&categorical).unwrap());
-        assert_approx_eq!(buckets.kl_divergence(&buckets_posterior).unwrap(), 0.0);
+        assert_approx_eq!(buckets.kl_divergence(&buckets_posterior).unwrap(), 0.1789970483832892);
     }
 
     #[test]

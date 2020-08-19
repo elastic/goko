@@ -228,7 +228,6 @@ impl CoverTree {
         observation_weight: f64,
         sequence_len: usize,
         num_sequences: usize,
-        window_size: usize,
         sample_rate: usize,
     ) -> PyKLDivergenceBaseline {
         let reader = self.writer.as_ref().unwrap().reader();
@@ -237,7 +236,6 @@ impl CoverTree {
         trainer.set_observation_weight(observation_weight);
         trainer.set_sequence_len(sequence_len);
         trainer.set_num_sequences(num_sequences);
-        trainer.set_window_size(window_size);
         trainer.set_sample_rate(sample_rate);
         let baseline = trainer.train(reader).unwrap();
         PyKLDivergenceBaseline { baseline }

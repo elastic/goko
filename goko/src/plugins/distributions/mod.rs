@@ -67,6 +67,23 @@ pub trait DiscreteBayesianSequenceTracker<D: PointCloud>: Debug {
     fn add_path(&mut self, trace: Vec<(f32, NodeAddress)>);
     /// The current distributions that a dry insert touched.
     fn running_evidence(&self) -> &HashMap<NodeAddress, <<Self as plugins::distributions::DiscreteBayesianSequenceTracker<D>>::Distribution as DiscreteBayesianDistribution>::Evidence>;
+    
+    /// Gives the per-node KL divergence, with the node address
+    fn all_node_kl(&self) -> Vec<(f64, NodeAddress)> {
+        self.running_evidence()
+            .iter()
+            .map(|(address, sequence_pdf)| {
+                let kl = self
+                    .tree_reader()
+                    .get_node_plugin_and::<Self::Distribution, _, _>(*address, |p| {
+                        p.posterior_kl_divergence(sequence_pdf).unwrap()
+                    })
+                    .unwrap();
+                (kl, *address)
+            })
+            .collect()
+    }
+
     /// Helper function, each sequence tracker should carry it's own reader.
     fn tree_reader(&self) -> &CoverTreeReader<D>;
     /// The length of the sequence
@@ -79,24 +96,17 @@ pub trait DiscreteBayesianSequenceTracker<D: PointCloud>: Debug {
         let mut nz_count = 0;
         let mut moment1_nz = 0.0;
         let mut moment2_nz = 0.0;
-        self.running_evidence()
+        self.all_node_kl()
             .iter()
-            .for_each(|(address, sequence_pdf)| {
-                let kl = self
-                    .tree_reader()
-                    .get_node_plugin_and::<Self::Distribution, _, _>(*address, |p| {
-                        p.posterior_kl_divergence(sequence_pdf).unwrap()
-                    })
-                    .unwrap();
-
-                if kl > 1.0e-10 {
+            .for_each(|(kl, _address)| {
+                if *kl > 1.0e-10 {
                     moment1_nz += kl;
                     moment2_nz += kl * kl;
-                    if max < kl {
-                        max = kl;
+                    if max < *kl {
+                        max = *kl;
                     }
-                    if kl < min {
-                        min = kl;
+                    if *kl < min {
+                        min = *kl;
                     }
 
                     nz_count += 1;
@@ -117,9 +127,9 @@ pub trait DiscreteBayesianSequenceTracker<D: PointCloud>: Debug {
         let mut layer_totals: Vec<u64> = vec![0; self.tree_reader().len()];
         let mut layer_node_counts = vec![Vec::<usize>::new(); self.tree_reader().len()];
         let parameters = self.tree_reader().parameters();
-        self.running_evidence()
+        self.all_node_kl()
             .iter()
-            .for_each(|(address, _sequence_pdf)| {
+            .for_each(|(_kl, address)| {
                 layer_totals[parameters.internal_index(address.0)] += 1;
                 layer_node_counts[parameters.internal_index(address.0)].push(
                     self.tree_reader()
@@ -139,24 +149,7 @@ pub trait DiscreteBayesianSequenceTracker<D: PointCloud>: Debug {
             layer_totals,
             weighted_layer_totals,
         }
-    }
-
-
-    /// Gives the per-node KL divergence, with the node address
-    fn all_node_kl(&self) -> Vec<(f64, NodeAddress)> {
-        self.running_evidence()
-            .iter()
-            .map(|(address, sequence_pdf)| {
-                let kl = self
-                    .tree_reader()
-                    .get_node_plugin_and::<Self::Distribution, _, _>(*address, |p| {
-                        p.posterior_kl_divergence(sequence_pdf).unwrap()
-                    })
-                    .unwrap();
-                (kl, *address)
-            })
-            .collect()
-    }
+    }    
 }
 
 /// Tracks the non-zero KL div (all KL divergences above 1e-10)
@@ -259,13 +252,18 @@ impl KLDivergenceBaselineStats {
     }
 }
 
+/// Computing the KL div of each node's prior and posterior is expensive. 
 pub struct KLDivergenceBaseline {
+    /// The number of sequences we're have the stats from
     pub num_sequences: usize,
+    /// The lenght of the sequences we have stats for. All other values are linearly interpolated between these.
     pub sequence_len: Vec<usize>,
+    /// The actual stats objects. These are stored by the moments, but are returned by (mean,var)
     pub stats: Vec<KLDivergenceBaselineStats>,
 }
 
 impl KLDivergenceBaseline {
+    /// Gets the stats object that stores an approcimate mean and variance of the 
     pub fn stats(&self,i:usize) -> KLDivergenceBaselineStats {
         match self.sequence_len.binary_search(&i) {
             Ok(index) => {

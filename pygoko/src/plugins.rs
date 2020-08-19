@@ -1,6 +1,5 @@
 use numpy::PyArray1;
 use pyo3::prelude::*;
-use pyo3::PyObjectProtocol;
 
 use goko::plugins::distributions::*;
 use goko::*;
