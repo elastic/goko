@@ -1,5 +1,9 @@
 #!/usr/bin/env python
 
+"""
+This is an example that tracks chronological drift in the ember dataset. We train on the ember dataset on data before 2018-07, 
+"""
+
 import os
 import pandas as pd
 import ember

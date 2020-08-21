@@ -194,6 +194,11 @@ impl CoverTree {
         reader.knn(point.readonly().as_slice().unwrap(), k).unwrap()
     }
 
+    pub fn routing_knn(&self, point: &PyArray1<f32>, k: usize) -> Vec<(f32, usize)> {
+        let reader = self.writer.as_ref().unwrap().reader();
+        reader.routing_knn(point.readonly().as_slice().unwrap(), k).unwrap()
+    }
+
     pub fn known_path(&self, point_index: usize) -> Vec<(f32, (i32, usize))> {
         let reader = self.writer.as_ref().unwrap().reader();
         reader.known_path(point_index).unwrap()
