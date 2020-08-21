@@ -76,6 +76,15 @@ impl CoverTree {
             None => panic!("Set too late"),
         };
     }
+
+    pub fn set_verbosity(&mut self, x: u32) {
+        match &mut self.builder {
+            Some(builder) => builder.set_verbosity(x),
+            None => panic!("Set too late"),
+        };
+    }
+
+    set_verbosity
     pub fn load_yaml_config(&mut self, file_name: String) -> PyResult<()> {
         let path = Path::new(&file_name);
         let point_cloud = Arc::new(labeled_ram_from_yaml::<_, L2>(&path).unwrap());

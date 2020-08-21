@@ -303,7 +303,7 @@ impl Default for CoverTreeBuilder {
             min_res_index: -10,
             use_singletons: true,
             partition_type: PartitionType::Nearest,
-            verbosity: 2,
+            verbosity: 0,
         }
     }
 }
@@ -317,7 +317,7 @@ impl CoverTreeBuilder {
             min_res_index: -10,
             use_singletons: true,
             partition_type: PartitionType::Nearest,
-            verbosity: 2,
+            verbosity: 0,
         }
     }
 
