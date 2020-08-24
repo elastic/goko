@@ -1,7 +1,9 @@
 #!/usr/bin/env python
 
 """
-This is an example that tracks chronological drift in the ember dataset. We train on the ember dataset on data before 2018-07, 
+This is an example that tracks chronological drift in the ember dataset. We train on the ember dataset on data before 2018-07,
+and then run everything through it. There's a massive increase in the total KL-div after the cutoff, so this does detect a 
+shift in the dataset.
 """
 
 import os

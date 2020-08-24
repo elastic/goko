@@ -263,7 +263,7 @@ pub struct KLDivergenceBaseline {
 }
 
 impl KLDivergenceBaseline {
-    /// Gets the stats object that stores an approcimate mean and variance of the 
+    /// Gets the stats object that stores an approximate mean and variance of the samples. 
     pub fn stats(&self,i:usize) -> KLDivergenceBaselineStats {
         match self.sequence_len.binary_search(&i) {
             Ok(index) => {
