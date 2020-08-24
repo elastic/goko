@@ -13,38 +13,49 @@ cmap= plt.get_cmap("jet")
 norm = mpl.colors.Normalize(vmin=0.0, vmax=1.0)
             
 def show2D(tree,data):
-    patches = []
-    lines = []
-    centers = []
+    
     top = tree.top_scale()
     bottom = tree.bottom_scale()
     print(top,bottom)
-    for i in range(top,bottom,-1):
-        layer = tree.layer(i)
-        width = layer.radius()
-        point_indexes, center_points = layer.centers()
-        for pi, c in zip(point_indexes,center_points):
+    for j in range(top,bottom,-1):
+        patches = []
+        lines = []
+        centers = []
+        layer = tree.layer(j)
+        width = layer.radius()/2
+        _, centers = layer.centers()
+        for c in centers:
             patches.append(mpatches.Circle(c,2*width,color="Blue"))
-            centers.append(c)
-            if not layer.is_leaf(pi):
-                for child in layer.child_points(pi):
-                    lines.append(mlines.Line2D([c[0],child[0]], [c[1],child[1]],color="blue"))
-                
-            for singleton in layer.singleton_points(pi):
-                lines.append(mlines.Line2D([c[0],singleton[0]], [c[1],singleton[1]],color="orange"))
+        for i in range(j,top):
+            parent_layer = tree.layer(i+1)
+            point_indexes, center_points = parent_layer.centers()
+            for pi, c in zip(point_indexes,center_points):
+                if not parent_layer.is_leaf(pi):
+                    for child in parent_layer.child_points(pi):
+                        lines.append(mlines.Line2D([c[0],child[0]], [c[1],child[1]],color="blue"))
+                    
+                for singleton in parent_layer.singleton_points(pi):
+                    lines.append(mlines.Line2D([c[0],singleton[0]], [c[1],singleton[1]],color="orange"))
 
-    centers = np.array(centers)
-    fig, ax = plt.subplots()
-    ax.set_xlim((-1.1,1.1))
-    ax.set_ylim((-1.1,1.1))
+        fig, ax = plt.subplots()
+        centers = np.array(centers)
+        
 
-    cmap= plt.get_cmap("jet")
-    collection = PatchCollection(patches,match_original=True,alpha= 0.05)
-    for l in lines:
-        ax.add_line(l)
-    ax.scatter(centers[:,0],centers[:,1])
-    ax.add_collection(collection)
-    plt.show()
+        ax.set_xlim((-1.6,1.6))
+        ax.set_ylim((-1.6,1.6))
+
+        cmap= plt.get_cmap("jet")
+        collection = PatchCollection(patches,match_original=True,alpha= 0.05)
+        for l in lines:
+            ax.add_line(l)
+        ax.add_collection(collection)
+        ax.scatter(data[:,0],data[:,1],color="orange")
+        ax.scatter(centers[:,0],centers[:,1], color="red")
+
+        ax.axis('off')
+        fig.set_size_inches(10.00, 10.00)
+        fig.savefig(f"2d_vis_{j:2d}.png", bbox_inches='tight')
+        plt.close()
 
 if __name__ == '__main__':
     numPoints = 120
@@ -52,8 +63,9 @@ if __name__ == '__main__':
     data = [np.cos(data).reshape(-1,1),np.cos(data)*np.sin(data).reshape(-1,1)]
     data = np.concatenate(data,axis=1).astype(np.float32)
 
-    tree = pygoko.Covertree()
+    tree = pygoko.CoverTree()
     tree.set_leaf_cutoff(0)
+    tree.set_scale_base(2.0)
     tree.fit(data)
 
     show2D(tree,data)

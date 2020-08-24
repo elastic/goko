@@ -86,13 +86,16 @@ impl Summary for VecSummary {
                     .for_each(|(m, x)| *m += x * x);
                 self.count += 1;
             } else {
-                panic!("Combining a vec of len {:?} and of len {:?}", self.moment1.len(), val.len());
+                panic!(
+                    "Combining a vec of len {:?} and of len {:?}",
+                    self.moment1.len(),
+                    val.len()
+                );
             }
         } else {
             self.moment1.extend(val);
             self.moment2.extend(val.iter().map(|x| x * x))
         }
-
     }
     fn combine(&mut self, other: &VecSummary) {
         self.moment1
@@ -112,7 +115,7 @@ impl Summary for VecSummary {
 }
 
 /// Summary of a bunch of underlying floats
-#[derive(Clone,Debug, Serialize, Deserialize, Default)]
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct FloatSummary {
     /// First moment, see https://en.wikipedia.org/wiki/Moment_(mathematics)
     pub moment1: f64,
@@ -127,7 +130,7 @@ impl Summary for FloatSummary {
 
     fn add(&mut self, val: &f64) {
         self.moment1 += val;
-        self.moment2 += val*val;
+        self.moment2 += val * val;
         self.count += 1;
     }
     fn combine(&mut self, other: &FloatSummary) {
@@ -142,7 +145,7 @@ impl Summary for FloatSummary {
 }
 
 /// Summary of a bunch of underlying integers, more accurate for int than the float summary
-#[derive(Clone,Debug, Serialize, Deserialize, Default)]
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct IntSummary {
     /// First moment, see https://en.wikipedia.org/wiki/Moment_(mathematics)
     pub moment1: i64,
@@ -157,7 +160,7 @@ impl Summary for IntSummary {
 
     fn add(&mut self, val: &i64) {
         self.moment1 += val;
-        self.moment2 += val*val;
+        self.moment2 += val * val;
         self.count += 1;
     }
     fn combine(&mut self, other: &IntSummary) {
@@ -171,9 +174,8 @@ impl Summary for IntSummary {
     }
 }
 
-
 /// A summary for a small number of categories.
-#[derive(Clone,Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct StringSummary {
     /// Hashmap that counts how many of each instance of string there is
     pub items: HashMap<String, usize>,

@@ -191,4 +191,3 @@ impl<'a> From<&'a Point> for PointRef<'a> {
         }
     }
 }
-

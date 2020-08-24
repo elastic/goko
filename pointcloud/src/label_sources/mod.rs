@@ -33,7 +33,10 @@ impl LabelSet for SmallIntLabels {
             Ok(self.labels.get(pn))
         }
     }
-    fn label_summary(&self, pns: &[PointIndex]) -> PointCloudResult<SummaryCounter<Self::LabelSummary>> {
+    fn label_summary(
+        &self,
+        pns: &[PointIndex],
+    ) -> PointCloudResult<SummaryCounter<Self::LabelSummary>> {
         let mut summary = CategorySummary::default();
         let mut nones = 0;
         if let Some(mask) = &self.mask {
@@ -124,7 +127,7 @@ impl VecLabels {
                     .iter()
                     .enumerate()
                     .filter(|(_i, x)| *x > &0.5)
-                    .map(|(i,_x)| i as i64)
+                    .map(|(i, _x)| i as i64)
                     .next()
                     .unwrap_or(self.label_dim as i64);
                 if label == self.label_dim as i64 {
@@ -134,9 +137,9 @@ impl VecLabels {
             })
             .collect();
         SmallIntLabels {
-                    labels,
-                    mask: Some(mask),
-                }
+            labels,
+            mask: Some(mask),
+        }
     }
 
     /// coverts a binary encoding to a integer label set
@@ -156,9 +159,9 @@ impl VecLabels {
             })
             .collect();
         SmallIntLabels {
-                    labels,
-                    mask: Some(mask),
-                }
+            labels,
+            mask: Some(mask),
+        }
     }
 }
 
@@ -187,25 +190,31 @@ impl LabelSet for VecLabels {
                 .get(self.label_dim * (pn as usize)..self.label_dim * (pn as usize + 1)))
         }
     }
-    fn label_summary(&self, pns: &[PointIndex]) -> PointCloudResult<SummaryCounter<Self::LabelSummary>> {
+    fn label_summary(
+        &self,
+        pns: &[PointIndex],
+    ) -> PointCloudResult<SummaryCounter<Self::LabelSummary>> {
         let mut summary = Self::LabelSummary::default();
         let mut nones = 0;
         if let Some(mask) = &self.mask {
             for i in pns {
                 if mask[*i] {
                     summary.add(
-                        self
-                        .labels
-                        .get(self.label_dim * (*i as usize)..self.label_dim * (*i as usize + 1)).unwrap());
+                        self.labels
+                            .get(self.label_dim * (*i as usize)..self.label_dim * (*i as usize + 1))
+                            .unwrap(),
+                    );
                 } else {
                     nones += 1;
                 }
             }
         } else {
             for i in pns {
-                summary.add(self
-                    .labels
-                    .get(self.label_dim * (*i as usize)..self.label_dim * (*i as usize + 1)).unwrap());
+                summary.add(
+                    self.labels
+                        .get(self.label_dim * (*i as usize)..self.label_dim * (*i as usize + 1))
+                        .unwrap(),
+                );
             }
         }
         Ok(SummaryCounter {

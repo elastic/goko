@@ -33,18 +33,18 @@
 //!
 //! The hashmap pair idea is in `layer` and originally comes from Jon Gjengset.
 
-use crate::*;
 use super::layer::*;
 use super::node::*;
+use crate::*;
 //use pointcloud::*;
 
-use std::sync::{atomic, Arc, RwLock};
-use crate::tree_file_format::*;
 use crate::monomap::{MonoReadHandle, MonoWriteHandle};
+use crate::tree_file_format::*;
+use std::sync::{atomic, Arc, RwLock};
 
-use crate::plugins::{GokoPlugin, TreePluginSet};
 use super::query_tools::{KnnQueryHeap, MultiscaleQueryHeap, RoutingQueryHeap};
-use errors::{GokoResult,GokoError};
+use crate::plugins::{GokoPlugin, TreePluginSet};
+use errors::{GokoError, GokoResult};
 use std::collections::HashMap;
 use std::iter::Iterator;
 use std::iter::Rev;
@@ -52,6 +52,17 @@ use std::ops::Range;
 use std::slice::Iter;
 
 use plugins::labels::*;
+
+/// When 2 spheres overlap under a node, and there is a point in the overlap we have to decide
+/// to which sphere it belongs. As we create the nodes in a particular sequence, we can assign them
+/// to the first to be created or we can assign it to the nearest.
+#[derive(Debug, Copy, Clone)]
+pub enum PartitionType {
+    /// Conflicts assigning a point to several eligible nodes are assigned to the nearest node.
+    Nearest,
+    /// Conflicts assigning a point to several eligible nodes are assigned to the first node to be created.
+    First,
+}
 
 /// Container for the parameters governing the construction of the covertree
 #[derive(Debug)]
@@ -67,6 +78,8 @@ pub struct CoverTreeParameters<D: PointCloud> {
     pub min_res_index: i32,
     /// If you don't want singletons messing with your tree and want everything to be a node or a element of leaf node, make this true.
     pub use_singletons: bool,
+    /// The partition type of the tree
+    pub partition_type: PartitionType,
     /// The point cloud this tree references
     pub point_cloud: Arc<D>,
     /// This should be replaced by a logging solution
@@ -103,9 +116,8 @@ pub struct CoverTreeReader<D: PointCloud> {
     parameters: Arc<CoverTreeParameters<D>>,
     layers: Vec<CoverLayerReader<D>>,
     root_address: NodeAddress,
-    final_addresses: MonoReadHandle<PointIndex,NodeAddress>,
+    final_addresses: MonoReadHandle<PointIndex, NodeAddress>,
 }
-
 
 impl<D: PointCloud> Clone for CoverTreeReader<D> {
     fn clone(&self) -> CoverTreeReader<D> {
@@ -124,8 +136,7 @@ impl<D: PointCloud + LabeledCloud> CoverTreeReader<D> {
     pub fn get_node_label_summary(
         &self,
         node_address: (i32, PointIndex),
-    ) -> Option<Arc<SummaryCounter<D::LabelSummary>>>
-    {
+    ) -> Option<Arc<SummaryCounter<D::LabelSummary>>> {
         self.layers[self.parameters.internal_index(node_address.0)]
             .get_node_and(node_address.1, |n| n.label_summary())
             .flatten()
@@ -138,8 +149,7 @@ impl<D: PointCloud + MetaCloud> CoverTreeReader<D> {
     pub fn get_node_metasummary(
         &self,
         node_address: (i32, PointIndex),
-    ) -> Option<Arc<SummaryCounter<D::MetaSummary>>>
-    {
+    ) -> Option<Arc<SummaryCounter<D::MetaSummary>>> {
         self.layers[self.parameters.internal_index(node_address.0)]
             .get_node_and(node_address.1, |n| n.metasummary())
             .flatten()
@@ -380,23 +390,28 @@ impl<D: PointCloud> CoverTreeReader<D> {
     }
 
     /// # Dry Insert Query
-    pub fn path<'a, T: Into<PointRef<'a>>>(
-        &self,
-        point: T,
-    ) -> GokoResult<Vec<(f32, NodeAddress)>> {
+    pub fn path<'a, T: Into<PointRef<'a>>>(&self, point: T) -> GokoResult<Vec<(f32, NodeAddress)>> {
         let point: PointRef<'a> = point.into();
         let root_center = self.parameters.point_cloud.point(self.root_address.1)?;
         let mut current_distance = D::Metric::dist(&root_center, point)?;
         let mut current_address = self.root_address;
         let mut trace = vec![(current_distance, current_address)];
-        while let Some(nearest) = self.get_node_and(current_address, |n| {
-            n.covering_child(
-                self.parameters.scale_base,
-                current_distance,
-                point,
-                &self.parameters.point_cloud,
-            )
-        }) {
+        while let Some(nearest) =
+            self.get_node_and(current_address, |n| match self.parameters.partition_type {
+                PartitionType::Nearest => n.nearest_covering_child(
+                    self.parameters.scale_base,
+                    current_distance,
+                    point,
+                    &self.parameters.point_cloud,
+                ),
+                PartitionType::First => n.first_covering_child(
+                    self.parameters.scale_base,
+                    current_distance,
+                    point,
+                    &self.parameters.point_cloud,
+                ),
+            })
+        {
             if let Some(nearest) = nearest? {
                 trace.push(nearest);
                 current_distance = nearest.0;
@@ -408,20 +423,26 @@ impl<D: PointCloud> CoverTreeReader<D> {
         Ok(trace)
     }
 
-    /// 
-    pub fn known_path(&self, point_index: PointIndex) -> GokoResult<Vec<(f32,NodeAddress)>> {
-        self.final_addresses.get_and(&point_index,|addr| {
-            let mut path = Vec::with_capacity((self.root_address().0 - addr.0) as usize);
-            let mut parent = Some(*addr);
-            while let Some(addr) = parent {
-                path.push(addr);
-                parent = self.get_node_and(addr,|n| n.parent_address()).flatten();
-            }
-            (&mut path[..]).reverse();
-            let point_indexes: Vec<PointIndex> = path.iter().map(|na| na.1).collect();
-            let dists = self.parameters.point_cloud.distances_to_point_index(point_index,&point_indexes[..]).unwrap();
-            dists.iter().zip(path).map(|(d,a)|(*d,a)).collect()
-        }).ok_or(GokoError::IndexNotInTree(point_index))
+    ///
+    pub fn known_path(&self, point_index: PointIndex) -> GokoResult<Vec<(f32, NodeAddress)>> {
+        self.final_addresses
+            .get_and(&point_index, |addr| {
+                let mut path = Vec::with_capacity((self.root_address().0 - addr.0) as usize);
+                let mut parent = Some(*addr);
+                while let Some(addr) = parent {
+                    path.push(addr);
+                    parent = self.get_node_and(addr, |n| n.parent_address()).flatten();
+                }
+                (&mut path[..]).reverse();
+                let point_indexes: Vec<PointIndex> = path.iter().map(|na| na.1).collect();
+                let dists = self
+                    .parameters
+                    .point_cloud
+                    .distances_to_point_index(point_index, &point_indexes[..])
+                    .unwrap();
+                dists.iter().zip(path).map(|(d, a)| (*d, a)).collect()
+            })
+            .ok_or(GokoError::IndexNotInTree(point_index))
     }
 
     ///Computes the fractal dimension of a node
@@ -546,19 +567,19 @@ pub struct CoverTreeWriter<D: PointCloud> {
     pub(crate) parameters: Arc<CoverTreeParameters<D>>,
     pub(crate) layers: Vec<CoverLayerWriter<D>>,
     pub(crate) root_address: NodeAddress,
-    pub(crate) final_addresses: MonoWriteHandle<PointIndex,NodeAddress>,
+    pub(crate) final_addresses: MonoWriteHandle<PointIndex, NodeAddress>,
 }
 
 impl<D: PointCloud + LabeledCloud> CoverTreeWriter<D> {
-    /// 
-    pub fn generate_summaries(&mut self){
+    ///
+    pub fn generate_summaries(&mut self) {
         self.add_plugin::<LabelSummaryPlugin>(TreeLabelSummary::default())
     }
 }
 
 impl<D: PointCloud + MetaCloud> CoverTreeWriter<D> {
-    /// 
-    pub fn generate_meta_summaries(&mut self){
+    ///
+    pub fn generate_meta_summaries(&mut self) {
         self.add_plugin::<MetaSummaryPlugin>(TreeMetaSummary::default())
     }
 }
@@ -616,6 +637,12 @@ impl<D: PointCloud> CoverTreeWriter<D> {
 
     /// Loads a tree from a protobuf. There's a `load_tree` in `utils` that handles loading from a path to a protobuf file.
     pub fn load(cover_proto: &CoreProto, point_cloud: Arc<D>) -> GokoResult<CoverTreeWriter<D>> {
+        let partition_type = if cover_proto.partition_type == "first" {
+            PartitionType::First
+        } else {
+            PartitionType::Nearest
+        };
+
         let parameters = Arc::new(CoverTreeParameters {
             total_nodes: atomic::AtomicUsize::new(0),
             use_singletons: cover_proto.use_singletons,
@@ -624,6 +651,7 @@ impl<D: PointCloud> CoverTreeWriter<D> {
             min_res_index: cover_proto.resolution as i32,
             point_cloud,
             verbosity: 2,
+            partition_type,
             plugins: RwLock::new(TreePluginSet::new()),
         });
         let root_address = (
@@ -656,17 +684,19 @@ impl<D: PointCloud> CoverTreeWriter<D> {
         let mut unvisited_nodes: Vec<NodeAddress> = vec![self.root_address];
         while !unvisited_nodes.is_empty() {
             let cur_add = unvisited_nodes.pop().unwrap();
-            reader.get_node_and(cur_add, |n| {
-                for singleton in n.singletons() {
-                    self.final_addresses.insert(*singleton,cur_add);
-                }
-                if let Some((nested_si,child_addresses)) = n.children() {
-                    unvisited_nodes.extend(child_addresses);
-                    unvisited_nodes.push((nested_si,cur_add.1));
-                } else {
-                    self.final_addresses.insert(cur_add.1,cur_add);
-                }
-            }).unwrap();
+            reader
+                .get_node_and(cur_add, |n| {
+                    for singleton in n.singletons() {
+                        self.final_addresses.insert(*singleton, cur_add);
+                    }
+                    if let Some((nested_si, child_addresses)) = n.children() {
+                        unvisited_nodes.extend(child_addresses);
+                        unvisited_nodes.push((nested_si, cur_add.1));
+                    } else {
+                        self.final_addresses.insert(cur_add.1, cur_add);
+                    }
+                })
+                .unwrap();
         }
 
         self.final_addresses.refresh();
@@ -676,6 +706,10 @@ impl<D: PointCloud> CoverTreeWriter<D> {
     /// Encodes the tree into a protobuf. See `utils::save_tree` for saving to a file on disk.
     pub fn save(&self) -> CoreProto {
         let mut cover_proto = CoreProto::new();
+        match self.parameters.partition_type {
+            PartitionType::First => cover_proto.set_partition_type("first".to_string()),
+            PartitionType::Nearest => cover_proto.set_partition_type("nearest".to_string()),
+        }
         cover_proto.set_scale_base(self.parameters.scale_base);
         cover_proto.set_cutoff(self.parameters.leaf_cutoff as u64);
         cover_proto.set_resolution(self.parameters.min_res_index);
@@ -722,6 +756,7 @@ pub(crate) mod tests {
             leaf_cutoff: 1,
             min_res_index: -9,
             use_singletons: true,
+            partition_type: PartitionType::Nearest,
             verbosity: 0,
         };
         builder.build(Arc::new(point_cloud)).unwrap()
@@ -767,6 +802,7 @@ pub(crate) mod tests {
             leaf_cutoff: 1,
             min_res_index: -9,
             use_singletons: false,
+            partition_type: PartitionType::Nearest,
             verbosity: 0,
         };
         let tree = builder.build(Arc::new(point_cloud)).unwrap();
@@ -817,21 +853,31 @@ pub(crate) mod tests {
         for i in 0..5 {
             let trace = reader.known_path(i).unwrap();
             println!("i {}, trace {:?}", i, trace);
-            println!("final address: {:?}", reader.final_addresses.get_and(&i,|i| *i));
+            println!(
+                "final address: {:?}",
+                reader.final_addresses.get_and(&i, |i| *i)
+            );
             let ad = trace.last().unwrap().1;
-            reader.get_node_and(ad,|n| {
-                if !n.is_leaf() {
-                    assert!(n.singletons().contains(&i));
-                } else {
-                    assert!((ad.1 != i && n.singletons().contains(&i)) || (ad.1 == i && !n.singletons().contains(&i)));
-
-                }
-            }).unwrap();
+            reader
+                .get_node_and(ad, |n| {
+                    if !n.is_leaf() {
+                        assert!(n.singletons().contains(&i));
+                    } else {
+                        assert!(
+                            (ad.1 != i && n.singletons().contains(&i))
+                                || (ad.1 == i && !n.singletons().contains(&i))
+                        );
+                    }
+                })
+                .unwrap();
         }
         let known_trace = reader.known_path(4).unwrap();
         let trace = reader.path(&[0.0f32][..]).unwrap();
-        println!("Testing known: {:?} matches unknown {:?}", known_trace, trace);
-        for (p,kp) in trace.iter().zip(known_trace) {
+        println!(
+            "Testing known: {:?} matches unknown {:?}",
+            known_trace, trace
+        );
+        for (p, kp) in trace.iter().zip(known_trace) {
             assert_eq!(*p, kp);
         }
     }
@@ -870,20 +916,23 @@ pub(crate) mod tests {
             leaf_cutoff: 1,
             min_res_index: -9,
             use_singletons: false,
+            partition_type: PartitionType::Nearest,
             verbosity: 0,
         };
         let mut tree = builder.build(Arc::new(point_cloud)).unwrap();
         tree.generate_summaries();
         let reader = tree.reader();
 
-        for (_,layer) in reader.layers() {
-            layer.for_each_node(|_,n| println!("{:?}", n.label_summary()));
+        for (_, layer) in reader.layers() {
+            layer.for_each_node(|_, n| println!("{:?}", n.label_summary()));
         }
 
-        let l = reader.get_node_label_summary(reader.root_address()).unwrap();
-        assert_eq!(l.summary.items.len(),2);
-        assert_eq!(l.nones,0);
-        assert_eq!(l.errors,0);
+        let l = reader
+            .get_node_label_summary(reader.root_address())
+            .unwrap();
+        assert_eq!(l.summary.items.len(), 2);
+        assert_eq!(l.nones, 0);
+        assert_eq!(l.errors, 0);
     }
 
     #[test]
@@ -897,6 +946,7 @@ pub(crate) mod tests {
             leaf_cutoff: 1,
             min_res_index: -9,
             use_singletons: false,
+            partition_type: PartitionType::Nearest,
             verbosity: 0,
         };
         let tree = builder.build(Arc::new(point_cloud)).unwrap();
@@ -920,6 +970,7 @@ pub(crate) mod tests {
             leaf_cutoff: 1,
             min_res_index: -9,
             use_singletons: false,
+            partition_type: PartitionType::Nearest,
             verbosity: 0,
         };
         let tree = builder.build(Arc::clone(&point_cloud)).unwrap();
@@ -928,26 +979,27 @@ pub(crate) mod tests {
 
         assert_eq!(reader.layers.len(), proto.get_layers().len());
 
-        for (layer,proto_layer) in reader.layers.iter().zip(proto.get_layers()) {
+        for (layer, proto_layer) in reader.layers.iter().zip(proto.get_layers()) {
             assert_eq!(layer.len(), proto_layer.get_nodes().len());
         }
 
-        let reconstructed_tree_writer = CoverTreeWriter::load(&proto,Arc::clone(&point_cloud)).unwrap();
+        let reconstructed_tree_writer =
+            CoverTreeWriter::load(&proto, Arc::clone(&point_cloud)).unwrap();
         let reconstructed_tree = reconstructed_tree_writer.reader();
 
-
         assert_eq!(reader.layers.len(), reconstructed_tree.layers.len());
-        for (layer,reconstructed_layer) in reader.layers.iter().zip(reconstructed_tree.layers) {
+        for (layer, reconstructed_layer) in reader.layers.iter().zip(reconstructed_tree.layers) {
             assert_eq!(layer.len(), reconstructed_layer.len());
 
-            layer.for_each_node(|pi,n| {
-                reconstructed_layer.get_node_and(*pi,|rn| {
-                    assert_eq!(n.address(), rn.address());
-                    assert_eq!(n.parent_address(), rn.parent_address());
-                    assert_eq!(n.singletons(), rn.singletons());
-                }).unwrap();
+            layer.for_each_node(|pi, n| {
+                reconstructed_layer
+                    .get_node_and(*pi, |rn| {
+                        assert_eq!(n.address(), rn.address());
+                        assert_eq!(n.parent_address(), rn.parent_address());
+                        assert_eq!(n.singletons(), rn.singletons());
+                    })
+                    .unwrap();
             })
         }
-
     }
 }

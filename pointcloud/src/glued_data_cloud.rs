@@ -92,7 +92,10 @@ impl<D: LabeledCloud> LabeledCloud for HashGluedCloud<D> {
         let (i, j) = self.get_address(pn)?;
         self.data_sources[i].label(j)
     }
-    fn label_summary(&self, pns: &[PointIndex]) -> PointCloudResult<SummaryCounter<Self::LabelSummary>> {
+    fn label_summary(
+        &self,
+        pns: &[PointIndex],
+    ) -> PointCloudResult<SummaryCounter<Self::LabelSummary>> {
         let mut summary = SummaryCounter::<Self::LabelSummary>::default();
         for pn in pns {
             let (i, j) = self.get_address(*pn)?;
@@ -117,10 +120,18 @@ impl<D: NamedCloud> NamedCloud for HashGluedCloud<D> {
         Err(PointCloudError::NameNotInCloud(pn.clone()))
     }
     fn names(&self) -> Vec<String> {
-        self.addresses.values().filter_map(|(i,j)| self.data_sources[*i].name(*j).ok().flatten().map(|s| s.clone())).collect()
+        self.addresses
+            .values()
+            .filter_map(|(i, j)| {
+                self.data_sources[*i]
+                    .name(*j)
+                    .ok()
+                    .flatten()
+                    .map(|s| s.clone())
+            })
+            .collect()
     }
 }
-
 
 impl<D: MetaCloud> MetaCloud for HashGluedCloud<D> {
     type Metadata = D::Metadata;
@@ -130,7 +141,10 @@ impl<D: MetaCloud> MetaCloud for HashGluedCloud<D> {
         let (i, j) = self.get_address(pn)?;
         self.data_sources[i].metadata(j)
     }
-    fn metasummary(&self, pns: &[PointIndex]) -> PointCloudResult<SummaryCounter<Self::MetaSummary>> {
+    fn metasummary(
+        &self,
+        pns: &[PointIndex],
+    ) -> PointCloudResult<SummaryCounter<Self::MetaSummary>> {
         let mut summary = SummaryCounter::<Self::MetaSummary>::default();
         for pn in pns {
             let (i, j) = self.get_address(*pn)?;
@@ -139,7 +153,6 @@ impl<D: MetaCloud> MetaCloud for HashGluedCloud<D> {
         Ok(summary)
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -248,7 +261,7 @@ mod tests {
         println!("{:?}", label_summary);
         assert_eq!(label_summary.nones, 0);
         assert_eq!(label_summary.errors, 0);
-        assert_eq!(label_summary.summary.items[0], (1,5));
+        assert_eq!(label_summary.summary.items[0], (1, 5));
     }
 
     #[test]
@@ -268,6 +281,4 @@ mod tests {
             assert_approx_eq!(3.0f32.sqrt(), d);
         }
     }
-
-
 }

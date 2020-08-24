@@ -26,8 +26,8 @@ use std::sync::Arc;
 
 use goko::plugins::distributions::*;
 use goko::*;
-use pointcloud::*;
 use pointcloud::loaders::labeled_ram_from_yaml;
+use pointcloud::*;
 
 use crate::layer::*;
 use crate::node::*;
@@ -76,9 +76,18 @@ impl CoverTree {
             None => panic!("Set too late"),
         };
     }
+
+    pub fn set_verbosity(&mut self, x: u32) {
+        match &mut self.builder {
+            Some(builder) => builder.set_verbosity(x),
+            None => panic!("Set too late"),
+        };
+    }
+
+    set_verbosity
     pub fn load_yaml_config(&mut self, file_name: String) -> PyResult<()> {
         let path = Path::new(&file_name);
-        let point_cloud = Arc::new(labeled_ram_from_yaml::<_,L2>(&path).unwrap());
+        let point_cloud = Arc::new(labeled_ram_from_yaml::<_, L2>(&path).unwrap());
         let builder = CoverTreeBuilder::from_yaml(&path);
         self.builder = Some(builder);
         self.temp_point_cloud = Some(point_cloud);
@@ -89,17 +98,17 @@ impl CoverTree {
         self.metric = metric_name;
     }
 
-    pub fn fit(&mut self, data: Option<&PyArray2<f32>>, labels: Option<&PyArray1<i64>>) -> PyResult<()> {
+    pub fn fit(
+        &mut self,
+        data: Option<&PyArray2<f32>>,
+        labels: Option<&PyArray1<i64>>,
+    ) -> PyResult<()> {
         let point_cloud = if let Some(data) = data {
             let len = data.shape()[0];
             let data_dim = data.shape()[1];
             let my_labels: Vec<i64> = match labels {
-                Some(labels) => {
-                    Vec::from(labels.readonly().as_slice().unwrap())
-                }
-                None => {
-                    vec![0; len]
-                }
+                Some(labels) => Vec::from(labels.readonly().as_slice().unwrap()),
+                None => vec![0; len],
             };
             Arc::new(DefaultLabeledCloud::<L2>::new_simple(
                 Vec::from(data.readonly().as_slice().unwrap()),
@@ -113,7 +122,7 @@ impl CoverTree {
                 panic!("No known point_cloud");
             }
         };
-        
+
         let builder = self.builder.take();
         self.writer = Some(builder.unwrap().build(point_cloud).unwrap());
         let writer = self.writer.as_mut().unwrap();
@@ -140,11 +149,17 @@ impl CoverTree {
 
     //pub fn layers(&self) ->
     pub fn top_scale(&self) -> Option<i32> {
-        self.writer.as_ref().map(|w| w.reader().scale_range().end - 1)
+        self.writer
+            .as_ref()
+            .map(|w| w.reader().scale_range().end - 1)
     }
 
     pub fn bottom_scale(&self) -> Option<i32> {
         self.writer.as_ref().map(|w| w.reader().scale_range().start)
+    }
+
+    pub fn scale_base(&self) -> Option<f32> {
+        self.writer.as_ref().map(|w| w.reader().parameters().scale_base)
     }
 
     pub fn layers(&self) -> PyResult<IterLayers> {
@@ -185,22 +200,22 @@ impl CoverTree {
 
     pub fn knn(&self, point: &PyArray1<f32>, k: usize) -> Vec<(f32, usize)> {
         let reader = self.writer.as_ref().unwrap().reader();
-        reader
-            .knn(point.readonly().as_slice().unwrap(), k)
-            .unwrap()
+        reader.knn(point.readonly().as_slice().unwrap(), k).unwrap()
+    }
+
+    pub fn routing_knn(&self, point: &PyArray1<f32>, k: usize) -> Vec<(f32, usize)> {
+        let reader = self.writer.as_ref().unwrap().reader();
+        reader.routing_knn(point.readonly().as_slice().unwrap(), k).unwrap()
     }
 
     pub fn known_path(&self, point_index: usize) -> Vec<(f32, (i32, usize))> {
         let reader = self.writer.as_ref().unwrap().reader();
-        reader
-            .known_path(point_index).unwrap()    
+        reader.known_path(point_index).unwrap()
     }
 
     pub fn path(&self, point: &PyArray1<f32>) -> Vec<(f32, (i32, usize))> {
         let reader = self.writer.as_ref().unwrap().reader();
-        reader
-            .path(point.readonly().as_slice().unwrap())
-            .unwrap()
+        reader.path(point.readonly().as_slice().unwrap()).unwrap()
     }
 
     pub fn kl_div_dirichlet(
@@ -221,31 +236,22 @@ impl CoverTree {
         }
     }
 
-    pub fn kl_div_dirichlet_basestats(
+    pub fn kl_div_dirichlet_baseline(
         &self,
         prior_weight: f64,
         observation_weight: f64,
-        sequence_len: u64,
-        num_sequences: u64,
-        window_size: u64,
-    ) -> Vec<Vec<PyKLDivergenceStats>> {
+        sequence_len: usize,
+        num_sequences: usize,
+        sample_rate: usize,
+    ) -> PyKLDivergenceBaseline {
         let reader = self.writer.as_ref().unwrap().reader();
-        let mut trainer = DirichletBaseline::new(reader);
+        let mut trainer = DirichletBaseline::new();
         trainer.set_prior_weight(prior_weight);
         trainer.set_observation_weight(observation_weight);
-        trainer.set_sequence_len(sequence_len as usize);
-        trainer.set_num_sequences(num_sequences as usize);
-        trainer.set_window_size(window_size as usize);
-        trainer
-            .train()
-            .unwrap()
-            .drain(0..)
-            .map(|mut vstats| {
-                vstats
-                    .drain(0..)
-                    .map(|stats| PyKLDivergenceStats { stats })
-                    .collect()
-            })
-            .collect()
+        trainer.set_sequence_len(sequence_len);
+        trainer.set_num_sequences(num_sequences);
+        trainer.set_sample_rate(sample_rate);
+        let baseline = trainer.train(reader).unwrap();
+        PyKLDivergenceBaseline { baseline }
     }
 }

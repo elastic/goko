@@ -32,42 +32,21 @@ use std::sync::Arc;
 use std::time;
 
 use goko::plugins::distributions::*;
-use rand::prelude::*;
-
-use rayon::prelude::*;
+use goko::query_interface::BulkInterface;
 
 fn build_tree() -> CoverTreeWriter<SimpleLabeledCloud<DataRam<L2>, VecLabels>> {
-    let file_name = "../data/ember_complex.yml";
+    let file_name = "data/ember_complex.yml";
     let path = Path::new(file_name);
     if !path.exists() {
         panic!(file_name.to_owned() + &" does not exist".to_string());
     }
     let builder = CoverTreeBuilder::from_yaml(&path);
-    let point_cloud = vec_labeled_ram_from_yaml("../data/ember_complex_test.yml").unwrap();
+    let point_cloud = vec_labeled_ram_from_yaml("data/ember_complex.yml").unwrap();
     builder.build(Arc::new(point_cloud)).unwrap()
 }
 
 fn build_test_set() -> SimpleLabeledCloud<DataRam<L2>, VecLabels> {
-    vec_labeled_ram_from_yaml("../data/ember_complex_test.yml").unwrap()
-}
-
-fn test_run(
-    mut tracker: BayesCategoricalTracker<SimpleLabeledCloud<DataRam<L2>, VecLabels>>,
-    test_set: &SimpleLabeledCloud<DataRam<L2>, VecLabels>,
-    count: usize,
-) -> Vec<KLDivergenceStats> {
-    let mut rng = thread_rng();
-    let mut stats = Vec::new();
-    for i in 0..count {
-        let point_index: usize = rng.gen_range(0, test_set.len());
-        let point = test_set.point(point_index).unwrap();
-        let trace = tracker.tree_reader().path(point).unwrap();
-        tracker.add_path(trace);
-        if i % 5 == 0 {
-            stats.push(tracker.current_stats());
-        }
-    }
-    stats
+    vec_labeled_ram_from_yaml("data/ember_complex_test.yml").unwrap()
 }
 
 fn main() {
@@ -80,25 +59,43 @@ fn main() {
     println!("Tree has {} nodes", ct_reader.node_count());
     let prior_weight = 1.0;
     let observation_weight = 1.3;
-    let window_size = 40;
-    let sequence_len = 1000;
+    let window_size = 0;
+    let num_sequence = 8;
 
-    let trackers: Vec<BayesCategoricalTracker<SimpleLabeledCloud<DataRam<L2>, VecLabels>>> = (0
-        ..1000)
-        .map(|_| {
-            BayesCategoricalTracker::new(prior_weight, observation_weight, window_size, ct.reader())
-        })
-        .collect();
+    let mut baseline = DirichletBaseline::new();
+    baseline.set_observation_weight(observation_weight);
+    baseline.set_prior_weight(prior_weight);
+    baseline.set_sequence_len(test_set.len());
+    baseline.set_num_sequences(num_sequence);
+    println!("Gathering baseline with prior_weight: {}, observation_weight: {}, and window_size: {}", prior_weight, observation_weight, window_size);
+    let baseline_start = time::Instant::now();
+    let baseline_data = baseline.train(ct.reader());
+    let baseline_elapse = baseline_start.elapsed().as_millis();
 
-    let start = time::Instant::now();
-    let _stats: Vec<Vec<KLDivergenceStats>> = trackers
-        .into_par_iter()
-        .map(|tracker| test_run(tracker, &test_set, sequence_len))
-        .collect();
-    let elapse = start.elapsed().as_secs();
     println!(
-        "Time elapsed {:?}, time per sequence {}",
-        elapse,
-        (elapse as f64) / 1000.0
+        "BASELINE: Time elapsed {:?} milliseconds, time per sequence {} milliseconds",
+        baseline_elapse,
+        (baseline_elapse as f64) / ((test_set.len()*num_sequence) as f64)
     );
+
+    let mut tracker =
+        BayesCategoricalTracker::new(prior_weight, observation_weight, window_size, ct.reader());
+    let start = time::Instant::now();
+
+    let points: Vec<PointRef<'_>> = (0..test_set.len())
+        .map(|i| test_set.point(i).unwrap())
+        .collect();
+    let bulk = BulkInterface::new(tracker.tree_reader().clone());
+    let mut paths = bulk.path(&points);
+    for path in paths.drain(0..) {
+        tracker.add_path(path.unwrap());
+    }
+
+    let elapse = start.elapsed().as_millis();
+    println!(
+        "Time elapsed {:?} milliseconds, time per sequence {} milliseconds",
+        elapse,
+        (elapse as f64) / (test_set.len() as f64)
+    );
+    println!("stats: {:?}", tracker.kl_div_stats());
 }

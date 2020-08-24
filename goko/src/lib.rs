@@ -23,6 +23,7 @@
 #![doc(test(attr(allow(unused_variables), deny(warnings))))]
 #![feature(binary_heap_into_iter_sorted)]
 #![feature(iterator_fold_self)]
+#![feature(associated_type_defaults)]
 
 //! # Goko
 //! This is an lock-free efficient implementation of a covertree for data science. The traditional
@@ -72,7 +73,6 @@ mod tree_file_format;
 pub mod utils;
 
 pub mod plugins;
-
 
 /// The data structure explicitly seperates the covertree by layer, and the addressing schema for nodes
 /// is a pair for the layer index and the center point index of that node.

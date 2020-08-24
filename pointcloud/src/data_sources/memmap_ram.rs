@@ -157,8 +157,8 @@ make_point_cloud!(DataMemmap);
 pub mod tests {
     use super::*;
     use crate::distances::*;
-    use crate::{Point, PointRef};
     use crate::label_sources::SmallIntLabels;
+    use crate::{Point, PointRef};
     use rand;
     use std::iter;
 
@@ -207,12 +207,7 @@ pub mod tests {
             data_dim,
         )
         .unwrap();
-        let labels = SmallIntLabels::new(
-            (0..count)
-                .map(|i| i as i64)
-                .collect(),
-            None,
-        );
+        let labels = SmallIntLabels::new((0..count).map(|i| i as i64).collect(), None);
 
         SimpleLabeledCloud::new(data, labels)
     }

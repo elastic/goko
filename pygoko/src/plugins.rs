@@ -1,10 +1,10 @@
 use numpy::PyArray1;
 use pyo3::prelude::*;
-use pyo3::PyObjectProtocol;
 
 use goko::plugins::distributions::*;
 use goko::*;
 use pointcloud::*;
+use pyo3::types::PyDict;
 
 /*
 pub #[derive(Debug)]
@@ -32,7 +32,10 @@ pub struct PyBayesCategoricalTracker {
 #[pymethods]
 impl PyBayesCategoricalTracker {
     pub fn push(&mut self, point: &PyArray1<f32>) {
-        let results = self.tree.path(point.readonly().as_slice().unwrap()).unwrap();
+        let results = self
+            .tree
+            .path(point.readonly().as_slice().unwrap())
+            .unwrap();
         self.hkl.add_path(results);
     }
 
@@ -40,63 +43,69 @@ impl PyBayesCategoricalTracker {
         println!("{:#?}", self.hkl);
     }
 
+    pub fn probs(&self,node_address:(i32, usize)) -> Option<(Vec<((i32, usize),f64)>,f64)> {
+        self.hkl.prob_vector(node_address)
+    }
+
+    pub fn evidence(&self,node_address:(i32, usize)) -> Option<(Vec<((i32, usize),f64)>,f64)> {
+        self.hkl.evidence_prob_vector(node_address)
+    }
+
     pub fn all_kl(&self) -> Vec<(f64, (i32, usize))> {
         self.hkl.all_node_kl()
     }
-    pub fn stats(&self) -> PyKLDivergenceStats {
-        PyKLDivergenceStats {
-            stats: self.hkl.current_stats(),
-        }
+    pub fn stats(&self) -> PyResult<PyObject> {
+        let stats = self.hkl.kl_div_stats();
+        let gil = GILGuard::acquire();
+        let py = gil.python();
+        let dict = PyDict::new(py);
+        dict.set_item("max", stats.max)?;
+        dict.set_item("min", stats.min)?;
+        dict.set_item("nz_count", stats.nz_count)?;
+        dict.set_item("moment1_nz", stats.moment1_nz)?;
+        dict.set_item("moment2_nz", stats.moment2_nz)?;
+        dict.set_item("sequence_len", stats.sequence_len)?;
+        Ok(dict.into())
     }
 }
 
+
+
 #[pyclass(unsendable)]
-pub struct PyKLDivergenceStats {
-    pub stats: KLDivergenceStats,
+pub struct PyKLDivergenceBaseline {
+    pub baseline: KLDivergenceBaseline,
 }
 
 #[pymethods]
-impl PyKLDivergenceStats {
-    #[getter]
-    pub fn max(&self) -> f64 {
-        self.stats.max
-    }
-    #[getter]
-    pub fn min(&self) -> f64 {
-        self.stats.min
-    }
-    #[getter]
-    pub fn nz_count(&self) -> u64 {
-        self.stats.nz_count
-    }
-    #[getter]
-    pub fn moment1_nz(&self) -> f64 {
-        self.stats.moment1_nz
-    }
-    #[getter]
-    pub fn moment2_nz(&self) -> f64 {
-        self.stats.moment2_nz
-    }
-    #[getter]
-    pub fn sequence_len(&self) -> u64 {
-        self.stats.sequence_len
-    }
-    #[getter]
-    pub fn layer_totals(&self) -> Vec<u64> {
-        self.stats.layer_totals.clone()
-    }
-    #[getter]
-    pub fn weighed_layer_totals(&self) -> Vec<f32> {
-        self.stats.weighted_layer_totals.clone()
-    }
-}
+impl PyKLDivergenceBaseline {
+    pub fn stats(&self,i:usize) -> PyResult<PyObject> {
+        let stats = self.baseline.stats(i);
+        let gil = GILGuard::acquire();
+        let dict = PyDict::new(gil.python());
+        let max_dict = PyDict::new(gil.python());
+        max_dict.set_item("mean", stats.max.0)?;
+        max_dict.set_item("var", stats.max.1)?;
+        dict.set_item("max", max_dict)?;
+        
+        let min_dict = PyDict::new(gil.python());
+        min_dict.set_item("mean", stats.min.0)?;
+        min_dict.set_item("var", stats.min.1)?;
+        dict.set_item("min", min_dict)?;
 
-#[pyproto]
-impl PyObjectProtocol for PyKLDivergenceStats {
-    fn __repr__(&self) -> PyResult<String> {
-        Ok(format!("{:?}", self.stats))
-    }
-    fn __str__(&self) -> PyResult<String> {
-        Ok(format!("{:?}", self.stats))
+        let nz_count_dict = PyDict::new(gil.python());
+        nz_count_dict.set_item("mean", stats.nz_count.0)?;
+        nz_count_dict.set_item("var", stats.nz_count.1)?;
+        dict.set_item("nz_count", nz_count_dict)?;
+
+        let moment1_nz_dict = PyDict::new(gil.python());
+        moment1_nz_dict.set_item("mean", stats.moment1_nz.0)?;
+        moment1_nz_dict.set_item("var", stats.moment1_nz.1)?;
+        dict.set_item("moment1_nz", moment1_nz_dict)?;
+
+        let moment2_nz_dict = PyDict::new(gil.python());
+        moment2_nz_dict.set_item("mean", stats.moment2_nz.0)?;
+        moment2_nz_dict.set_item("var", stats.moment2_nz.1)?;
+        dict.set_item("moment2_nz", moment2_nz_dict)?;
+        Ok(dict.into())
     }
 }

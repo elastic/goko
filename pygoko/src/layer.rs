@@ -104,7 +104,13 @@ impl PyLayer {
         let mut centers_indexes = Vec::with_capacity(self.layer().len());
         self.layer().for_each_node(|pi, _n| {
             centers_indexes.push(*pi);
-            centers.extend(self.parameters.point_cloud.point(*pi).unwrap().dense_iter(dim));
+            centers.extend(
+                self.parameters
+                    .point_cloud
+                    .point(*pi)
+                    .unwrap()
+                    .dense_iter(dim),
+            );
         });
         let py_center_indexes = Array::from(centers_indexes);
         let py_centers = Array2::from_shape_vec(
@@ -135,7 +141,13 @@ impl PyLayer {
                         .dense_iter(dim),
                 );
                 for na in child_addresses {
-                    centers.extend(self.parameters.point_cloud.point(na.1).unwrap().dense_iter(dim));
+                    centers.extend(
+                        self.parameters
+                            .point_cloud
+                            .point(na.1)
+                            .unwrap()
+                            .dense_iter(dim),
+                    );
                 }
                 let py_centers = Array2::from_shape_vec((count, dim), centers).unwrap();
                 let gil = GILGuard::acquire();
@@ -149,7 +161,13 @@ impl PyLayer {
             let singletons = node.singletons();
             let mut centers: Vec<f32> = Vec::with_capacity(singletons.len() * dim);
             for pi in singletons {
-                centers.extend(self.parameters.point_cloud.point(*pi).unwrap().dense_iter(dim));
+                centers.extend(
+                    self.parameters
+                        .point_cloud
+                        .point(*pi)
+                        .unwrap()
+                        .dense_iter(dim),
+                );
             }
             let py_centers = Array2::from_shape_vec((singletons.len(), dim), centers).unwrap();
             let gil = GILGuard::acquire();
