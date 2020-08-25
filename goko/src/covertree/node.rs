@@ -42,7 +42,7 @@ pub(crate) struct NodeChildren {
 }
 
 /// The actual cover node. The fields can be separated into three piles. The first two consist of node `address` for testing and reference
-/// when working and the `radius`, `cover_count`, and `singles_summary` for a query various properties of the node.
+/// when working and the `radius`, `coverage_count`, and `singles_summary` for a query various properties of the node.
 /// Finally we have the children and singleton pile. The singletons are saved in a `SmallVec` directly attached to the node. This saves a
 /// memory redirect for the first 20 singleton children. The children are saved in a separate struct also consisting of a `SmallVec`
 /// (though, this is only 10 wide before we allocate on the heap), and the scale index of the nested child.
@@ -54,7 +54,7 @@ pub struct CoverNode<D: PointCloud> {
     address: NodeAddress,
     /// Query caches
     radius: f32,
-    cover_count: usize,
+    coverage_count: usize,
     /// Children
     children: Option<NodeChildren>,
     singles_indexes: SmallVec<[PointIndex; 20]>,
@@ -68,7 +68,7 @@ impl<D: PointCloud> Clone for CoverNode<D> {
             parent_address: self.parent_address,
             address: self.address,
             radius: self.radius,
-            cover_count: self.cover_count,
+            coverage_count: self.coverage_count,
             children: self.children.clone(),
             singles_indexes: self.singles_indexes.clone(),
             plugins: NodePluginSet::new(),
@@ -102,7 +102,7 @@ impl<D: PointCloud> CoverNode<D> {
             parent_address,
             address,
             radius: 0.0,
-            cover_count: 0,
+            coverage_count: 1,
             children: None,
             singles_indexes: SmallVec::new(),
             plugins: NodePluginSet::new(),
@@ -121,23 +121,8 @@ impl<D: PointCloud> CoverNode<D> {
     }
 
     /// Number of decendents of this node
-    pub fn cover_count(&self) -> usize {
-        self.cover_count
-    }
-
-    /// Add a nested child and converts the node from a leaf to a routing node.
-    /// Throws an error if the node is already a routing node with a nested node.
-    pub fn insert_nested_child(&mut self, scale_index: i32, coverage: usize) -> GokoResult<()> {
-        self.cover_count += coverage;
-        if self.children.is_some() {
-            Err(GokoError::DoubleNest)
-        } else {
-            self.children = Some(NodeChildren {
-                nested_scale: scale_index,
-                addresses: SmallVec::new(),
-            });
-            Ok(())
-        }
+    pub fn coverage_count(&self) -> usize {
+        self.coverage_count
     }
 
     /// Reads the contents of a plugin, due to the nature of the plugin map we have to access it with a
@@ -328,9 +313,28 @@ impl<D: PointCloud> CoverNode<D> {
         Ok(None)
     }
 
+    /// Add a nested child and converts the node from a leaf to a routing node.
+    /// Throws an error if the node is already a routing node with a nested node.
+    pub fn insert_nested_child(&mut self, scale_index: i32, coverage: usize) -> GokoResult<()> {
+        assert!(
+            coverage > 0,
+            "Panic: attempting to add an empty nested child."
+        );
+        self.coverage_count += coverage - 1;
+        if self.children.is_some() {
+            Err(GokoError::DoubleNest)
+        } else {
+            self.children = Some(NodeChildren {
+                nested_scale: scale_index,
+                addresses: SmallVec::new(),
+            });
+            Ok(())
+        }
+    }
+
     /// Inserts a routing child into the node. Make sure the child node is also in the tree or you get a dangling reference
     pub(crate) fn insert_child(&mut self, address: NodeAddress, coverage: usize) -> GokoResult<()> {
-        self.cover_count += coverage;
+        self.coverage_count += coverage;
         if let Some(children) = &mut self.children {
             children.addresses.push(address);
             Ok(())
@@ -341,12 +345,12 @@ impl<D: PointCloud> CoverNode<D> {
 
     /// Inserts a `vec` of singleton children into the node.
     pub(crate) fn insert_singletons(&mut self, addresses: Vec<PointIndex>) {
-        self.cover_count += addresses.len();
+        self.coverage_count += addresses.len();
         self.singles_indexes.extend(addresses);
     }
     /// Inserts a single singleton child into the node.
     pub(crate) fn insert_singleton(&mut self, pi: PointIndex) {
-        self.cover_count += 1;
+        self.coverage_count += 1;
         self.singles_indexes.push(pi);
     }
 
@@ -379,7 +383,7 @@ impl<D: PointCloud> CoverNode<D> {
             } else {
                 Some((parent_scale_index, parent_center_index as usize))
             };
-        let cover_count = node_proto.get_cover_count() as usize;
+        let coverage_count = node_proto.get_coverage_count() as usize;
         let children = if node_proto.get_is_leaf() {
             None
         } else {
@@ -399,7 +403,7 @@ impl<D: PointCloud> CoverNode<D> {
             parent_address,
             address,
             radius,
-            cover_count,
+            coverage_count,
             children,
             singles_indexes,
             plugins: NodePluginSet::new(),
@@ -409,7 +413,7 @@ impl<D: PointCloud> CoverNode<D> {
 
     pub(crate) fn save(&self) -> NodeProto {
         let mut proto = NodeProto::new();
-        proto.set_cover_count(self.cover_count as u64);
+        proto.set_coverage_count(self.coverage_count as u64);
         proto.set_scale_index(self.address.0);
         proto.set_center_index(self.address.1 as u64);
 
@@ -480,7 +484,7 @@ mod tests {
             parent_address: None,
             address: (0, 0),
             radius: 1.0,
-            cover_count: 8,
+            coverage_count: 8,
             children,
             singles_indexes: smallvec![4, 5, 6],
             plugins: NodePluginSet::new(),
@@ -493,7 +497,7 @@ mod tests {
             parent_address: Some((1, 0)),
             address: (0, 0),
             radius: 1.0,
-            cover_count: 8,
+            coverage_count: 8,
             children: None,
             singles_indexes: smallvec![1, 2, 3, 4, 5, 6],
             plugins: NodePluginSet::new(),
@@ -717,7 +721,7 @@ mod tests {
         assert_eq!(reconstructed_node.parent_address, None);
         assert_eq!(reconstructed_node.address, (0, 0));
         assert_eq!(reconstructed_node.radius, 1.0);
-        assert_eq!(reconstructed_node.cover_count, 8);
+        assert_eq!(reconstructed_node.coverage_count, 8);
         assert_eq!(&reconstructed_node.singles_indexes[..], &[4, 5, 6]);
 
         let reconstructed_children = reconstructed_node.children.unwrap();
@@ -737,7 +741,7 @@ mod tests {
         assert_eq!(reconstructed_node.parent_address, Some((1, 0)));
         assert_eq!(reconstructed_node.address, (0, 0));
         assert_eq!(reconstructed_node.radius, 1.0);
-        assert_eq!(reconstructed_node.cover_count, 8);
+        assert_eq!(reconstructed_node.coverage_count, 8);
         assert_eq!(&reconstructed_node.singles_indexes[..], &[1, 2, 3, 4, 5, 6]);
         assert!(reconstructed_node.children.is_none());
     }

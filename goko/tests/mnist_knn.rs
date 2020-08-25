@@ -43,6 +43,7 @@ use std::path::Path;
 #[allow(dead_code)]
 extern crate goko;
 extern crate pointcloud;
+use goko::plugins::distributions::*;
 use goko::utils::*;
 use goko::{CoverTreeReader, CoverTreeWriter};
 use pointcloud::*;
@@ -105,17 +106,47 @@ fn run_knn_query() {
         let query = ct_reader.knn(&zeros[..], 5).unwrap();
         println!("{:#?}", query);
         println!("Expected: (array([3.56982747, 3.65066243, 3.83593169, 3.84857365, 3.86859321]), array([17664, 21618, 51468,  8080, 37920]))");
-        assert!(query[0].1 == 17664);
-        assert!(query[1].1 == 21618);
-        assert!(query[2].1 == 51468);
-        assert!(query[3].1 == 8080);
-        assert!(query[4].1 == 37920);
-        assert!(query.len() == 5);
+        assert_eq!(query[0].1, 17664);
+        assert_eq!(query[1].1, 21618);
+        assert_eq!(query[2].1, 51468);
+        assert_eq!(query[3].1, 8080);
+        assert_eq!(query[4].1, 37920);
+        assert_eq!(query.len(), 5);
 
         println!("Testing root address 59999");
         test_path(&ct_reader, 59999);
         println!("Testing other address 0");
         test_path(&ct_reader, 0);
+    }
+}
+
+//Cover tree on MNIST builds and is queryable
+#[test]
+fn gaussian_is_not_nan() {
+    if env::var("TRAVIS_RUST_VERSION").is_err() {
+        let mut ct = build_tree();
+        ct.add_plugin::<GokoDiagGaussian>(GokoDiagGaussian::recursive());
+        let ct_reader = ct.reader();
+        let mut untested_addresses = vec![ct_reader.root_address()];
+        while let Some(addr) = untested_addresses.pop() {
+            let count = ct_reader
+                .get_node_plugin_and::<DiagGaussian, _, _>(addr, |p| {
+                    p.mean()
+                        .iter()
+                        .for_each(|f| assert!(f.is_finite(), "Mean: {}, at address {:?}", f, addr));
+                    p.var().iter().for_each(|f| {
+                        assert!(f.is_finite(), "Variance: {}, at address {:?}", f, addr)
+                    });
+                    p.count
+                })
+                .unwrap();
+            ct_reader.get_node_and(addr, |n| assert_eq!(n.coverage_count(), count));
+
+            ct_reader.get_node_children_and(addr, |covered, children| {
+                untested_addresses.push(covered);
+                untested_addresses.extend(children);
+            });
+        }
     }
 }
 

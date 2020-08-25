@@ -62,20 +62,23 @@ fn main() {
     let window_size = 0;
     let num_sequence = 8;
 
-    let mut baseline = DirichletBaseline::new();
+    let mut baseline = DirichletBaseline::default();
     baseline.set_observation_weight(observation_weight);
     baseline.set_prior_weight(prior_weight);
     baseline.set_sequence_len(test_set.len());
     baseline.set_num_sequences(num_sequence);
-    println!("Gathering baseline with prior_weight: {}, observation_weight: {}, and window_size: {}", prior_weight, observation_weight, window_size);
+    println!(
+        "Gathering baseline with prior_weight: {}, observation_weight: {}, and window_size: {}",
+        prior_weight, observation_weight, window_size
+    );
     let baseline_start = time::Instant::now();
-    let baseline_data = baseline.train(ct.reader());
+    let _baseline_data = baseline.train(ct.reader());
     let baseline_elapse = baseline_start.elapsed().as_millis();
 
     println!(
         "BASELINE: Time elapsed {:?} milliseconds, time per sequence {} milliseconds",
         baseline_elapse,
-        (baseline_elapse as f64) / ((test_set.len()*num_sequence) as f64)
+        (baseline_elapse as f64) / ((test_set.len() * num_sequence) as f64)
     );
 
     let mut tracker =

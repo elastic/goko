@@ -407,9 +407,9 @@ impl<D: PointCloud, L: LabelSet> LabeledCloud for SimpleLabeledCloud<D, L> {
 pub trait NamedCloud: PointCloud {
     /// Grabs the name of the point.
     /// Returns an error if the access errors out, and a None if the name is unknown
-    fn name(&self, pi: PointIndex) -> PointCloudResult<Option<&String>>;
+    fn name(&self, pi: PointIndex) -> PointCloudResult<Option<&str>>;
     /// Converts a name to an index you can use
-    fn index(&self, pn: &String) -> PointCloudResult<&PointIndex>;
+    fn index(&self, pn: &str) -> PointCloudResult<&PointIndex>;
     /// Gather's all valid known names
     fn names(&self) -> Vec<PointName>;
 }

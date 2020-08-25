@@ -84,7 +84,6 @@ impl CoverTree {
         };
     }
 
-    set_verbosity
     pub fn load_yaml_config(&mut self, file_name: String) -> PyResult<()> {
         let path = Path::new(&file_name);
         let point_cloud = Arc::new(labeled_ram_from_yaml::<_, L2>(&path).unwrap());
@@ -159,7 +158,9 @@ impl CoverTree {
     }
 
     pub fn scale_base(&self) -> Option<f32> {
-        self.writer.as_ref().map(|w| w.reader().parameters().scale_base)
+        self.writer
+            .as_ref()
+            .map(|w| w.reader().parameters().scale_base)
     }
 
     pub fn layers(&self) -> PyResult<IterLayers> {
@@ -205,7 +206,9 @@ impl CoverTree {
 
     pub fn routing_knn(&self, point: &PyArray1<f32>, k: usize) -> Vec<(f32, usize)> {
         let reader = self.writer.as_ref().unwrap().reader();
-        reader.routing_knn(point.readonly().as_slice().unwrap(), k).unwrap()
+        reader
+            .routing_knn(point.readonly().as_slice().unwrap(), k)
+            .unwrap()
     }
 
     pub fn known_path(&self, point_index: usize) -> Vec<(f32, (i32, usize))> {

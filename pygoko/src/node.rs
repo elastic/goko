@@ -82,10 +82,10 @@ impl PyNode {
             .collect()
     }
 
-    pub fn children_probs(&self) -> Option<(Vec<((i32, usize),f64)>,f64)> {
-        self.tree.get_node_plugin_and(self.address, |p: &Dirichlet| {
-            p.prob_vector()
-        }).flatten()
+    pub fn children_probs(&self) -> Option<(Vec<((i32, usize), f64)>, f64)> {
+        self.tree
+            .get_node_plugin_and(self.address, |p: &Dirichlet| p.prob_vector())
+            .flatten()
     }
 
     pub fn children_addresses(&self) -> Vec<(i32, usize)> {

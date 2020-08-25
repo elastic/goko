@@ -81,12 +81,15 @@ impl Categorical {
     }
 
     /// Gives the probability vector for this
-    pub fn prob_vector(&self) -> Option<(Vec<(NodeAddress,f64)>,f64)> {
-
+    pub fn prob_vector(&self) -> Option<(Vec<(NodeAddress, f64)>, f64)> {
         let total = self.total();
         if total > 0.0 {
-            let v: Vec<(NodeAddress,f64)> = self.child_counts.iter().map(|(na,f)| (*na,f/total)).collect();
-            Some((v,self.singleton_count/total))
+            let v: Vec<(NodeAddress, f64)> = self
+                .child_counts
+                .iter()
+                .map(|(na, f)| (*na, f / total))
+                .collect();
+            Some((v, self.singleton_count / total))
         } else {
             None
         }

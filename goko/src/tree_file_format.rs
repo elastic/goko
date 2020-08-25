@@ -26,7 +26,7 @@
 #[derive(PartialEq,Clone,Default)]
 pub struct NodeProto {
     // message fields
-    pub cover_count: u64,
+    pub coverage_count: u64,
     pub center_index: u64,
     pub scale_index: i32,
     pub parent_center_index: u64,
@@ -54,19 +54,19 @@ impl NodeProto {
         ::std::default::Default::default()
     }
 
-    // uint64 cover_count = 1;
+    // uint64 coverage_count = 1;
 
 
-    pub fn get_cover_count(&self) -> u64 {
-        self.cover_count
+    pub fn get_coverage_count(&self) -> u64 {
+        self.coverage_count
     }
-    pub fn clear_cover_count(&mut self) {
-        self.cover_count = 0;
+    pub fn clear_coverage_count(&mut self) {
+        self.coverage_count = 0;
     }
 
     // Param is passed by value, moved
-    pub fn set_cover_count(&mut self, v: u64) {
-        self.cover_count = v;
+    pub fn set_coverage_count(&mut self, v: u64) {
+        self.coverage_count = v;
     }
 
     // uint64 center_index = 2;
@@ -290,7 +290,7 @@ impl ::protobuf::Message for NodeProto {
                         return ::std::result::Result::Err(::protobuf::rt::unexpected_wire_type(wire_type));
                     }
                     let tmp = is.read_uint64()?;
-                    self.cover_count = tmp;
+                    self.coverage_count = tmp;
                 },
                 2 => {
                     if wire_type != ::protobuf::wire_format::WireTypeVarint {
@@ -365,8 +365,8 @@ impl ::protobuf::Message for NodeProto {
     #[allow(unused_variables)]
     fn compute_size(&self) -> u32 {
         let mut my_size = 0;
-        if self.cover_count != 0 {
-            my_size += ::protobuf::rt::value_size(1, self.cover_count, ::protobuf::wire_format::WireTypeVarint);
+        if self.coverage_count != 0 {
+            my_size += ::protobuf::rt::value_size(1, self.coverage_count, ::protobuf::wire_format::WireTypeVarint);
         }
         if self.center_index != 0 {
             my_size += ::protobuf::rt::value_size(2, self.center_index, ::protobuf::wire_format::WireTypeVarint);
@@ -407,8 +407,8 @@ impl ::protobuf::Message for NodeProto {
     }
 
     fn write_to_with_cached_sizes(&self, os: &mut ::protobuf::CodedOutputStream<'_>) -> ::protobuf::ProtobufResult<()> {
-        if self.cover_count != 0 {
-            os.write_uint64(1, self.cover_count)?;
+        if self.coverage_count != 0 {
+            os.write_uint64(1, self.coverage_count)?;
         }
         if self.center_index != 0 {
             os.write_uint64(2, self.center_index)?;
@@ -482,9 +482,9 @@ impl ::protobuf::Message for NodeProto {
         descriptor.get(|| {
             let mut fields = ::std::vec::Vec::new();
             fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeUint64>(
-                "cover_count",
-                |m: &NodeProto| { &m.cover_count },
-                |m: &mut NodeProto| { &mut m.cover_count },
+                "coverage_count",
+                |m: &NodeProto| { &m.coverage_count },
+                |m: &mut NodeProto| { &mut m.coverage_count },
             ));
             fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeUint64>(
                 "center_index",
@@ -557,7 +557,7 @@ impl ::protobuf::Message for NodeProto {
 
 impl ::protobuf::Clear for NodeProto {
     fn clear(&mut self) {
-        self.cover_count = 0;
+        self.coverage_count = 0;
         self.center_index = 0;
         self.scale_index = 0;
         self.parent_center_index = 0;
@@ -1275,29 +1275,29 @@ impl ::protobuf::reflect::ProtobufValue for CoreProto {
 }
 
 static file_descriptor_proto_data: &'static [u8] = b"\
-    \n\x16tree_file_format.proto\x12\tCoverTree\"\xff\x03\n\tNodeProto\x12\
-    \x1f\n\x0bcover_count\x18\x01\x20\x01(\x04R\ncoverCount\x12!\n\x0ccenter\
-    _index\x18\x02\x20\x01(\x04R\x0bcenterIndex\x12\x1f\n\x0bscale_index\x18\
-    \x03\x20\x01(\x05R\nscaleIndex\x12.\n\x13parent_center_index\x18\x04\x20\
-    \x01(\x04R\x11parentCenterIndex\x12,\n\x12parent_scale_index\x18\x05\x20\
-    \x01(\x05R\x10parentScaleIndex\x12\x17\n\x07is_leaf\x18\x06\x20\x01(\x08\
-    R\x06isLeaf\x124\n\x16children_point_indexes\x18\x07\x20\x03(\x04R\x14ch\
-    ildrenPointIndexes\x124\n\x16children_scale_indexes\x18\x08\x20\x03(\x05\
-    R\x14childrenScaleIndexes\x12,\n\x12nested_scale_index\x18\t\x20\x01(\
-    \x05R\x10nestedScaleIndex\x122\n\x15outlier_point_indexes\x18\n\x20\x03(\
-    \x04R\x13outlierPointIndexes\x120\n\x14outlier_summary_json\x18\x0b\x20\
-    \x01(\tR\x12outlierSummaryJson\x12\x16\n\x06radius\x18\x0c\x20\x01(\x02R\
-    \x06radius\"Y\n\nLayerProto\x12\x1f\n\x0bscale_index\x18\x01\x20\x01(\
-    \x05R\nscaleIndex\x12*\n\x05nodes\x18\x02\x20\x03(\x0b2\x14.CoverTree.No\
-    deProtoR\x05nodes\"\xc5\x02\n\tCoreProto\x12%\n\x0euse_singletons\x18\
-    \x01\x20\x01(\x08R\ruseSingletons\x12\x1d\n\nscale_base\x18\x02\x20\x01(\
-    \x02R\tscaleBase\x12\x16\n\x06cutoff\x18\x03\x20\x01(\x04R\x06cutoff\x12\
-    \x1e\n\nresolution\x18\x04\x20\x01(\x11R\nresolution\x12%\n\x0epartition\
-    _type\x18\x05\x20\x01(\tR\rpartitionType\x12\x10\n\x03dim\x18\x07\x20\
-    \x01(\x04R\x03dim\x12\x14\n\x05count\x18\x08\x20\x01(\x04R\x05count\x12\
-    \x1d\n\nroot_scale\x18\t\x20\x01(\x05R\trootScale\x12\x1d\n\nroot_index\
-    \x18\n\x20\x01(\x04R\trootIndex\x12-\n\x06layers\x18\x0b\x20\x03(\x0b2\
-    \x15.CoverTree.LayerProtoR\x06layersb\x06proto3\
+    \n\x16tree_file_format.proto\x12\tCoverTree\"\x85\x04\n\tNodeProto\x12%\
+    \n\x0ecoverage_count\x18\x01\x20\x01(\x04R\rcoverageCount\x12!\n\x0ccent\
+    er_index\x18\x02\x20\x01(\x04R\x0bcenterIndex\x12\x1f\n\x0bscale_index\
+    \x18\x03\x20\x01(\x05R\nscaleIndex\x12.\n\x13parent_center_index\x18\x04\
+    \x20\x01(\x04R\x11parentCenterIndex\x12,\n\x12parent_scale_index\x18\x05\
+    \x20\x01(\x05R\x10parentScaleIndex\x12\x17\n\x07is_leaf\x18\x06\x20\x01(\
+    \x08R\x06isLeaf\x124\n\x16children_point_indexes\x18\x07\x20\x03(\x04R\
+    \x14childrenPointIndexes\x124\n\x16children_scale_indexes\x18\x08\x20\
+    \x03(\x05R\x14childrenScaleIndexes\x12,\n\x12nested_scale_index\x18\t\
+    \x20\x01(\x05R\x10nestedScaleIndex\x122\n\x15outlier_point_indexes\x18\n\
+    \x20\x03(\x04R\x13outlierPointIndexes\x120\n\x14outlier_summary_json\x18\
+    \x0b\x20\x01(\tR\x12outlierSummaryJson\x12\x16\n\x06radius\x18\x0c\x20\
+    \x01(\x02R\x06radius\"Y\n\nLayerProto\x12\x1f\n\x0bscale_index\x18\x01\
+    \x20\x01(\x05R\nscaleIndex\x12*\n\x05nodes\x18\x02\x20\x03(\x0b2\x14.Cov\
+    erTree.NodeProtoR\x05nodes\"\xc5\x02\n\tCoreProto\x12%\n\x0euse_singleto\
+    ns\x18\x01\x20\x01(\x08R\ruseSingletons\x12\x1d\n\nscale_base\x18\x02\
+    \x20\x01(\x02R\tscaleBase\x12\x16\n\x06cutoff\x18\x03\x20\x01(\x04R\x06c\
+    utoff\x12\x1e\n\nresolution\x18\x04\x20\x01(\x11R\nresolution\x12%\n\x0e\
+    partition_type\x18\x05\x20\x01(\tR\rpartitionType\x12\x10\n\x03dim\x18\
+    \x07\x20\x01(\x04R\x03dim\x12\x14\n\x05count\x18\x08\x20\x01(\x04R\x05co\
+    unt\x12\x1d\n\nroot_scale\x18\t\x20\x01(\x05R\trootScale\x12\x1d\n\nroot\
+    _index\x18\n\x20\x01(\x04R\trootIndex\x12-\n\x06layers\x18\x0b\x20\x03(\
+    \x0b2\x15.CoverTree.LayerProtoR\x06layersb\x06proto3\
 ";
 
 static file_descriptor_proto_lazy: ::protobuf::rt::LazyV2<::protobuf::descriptor::FileDescriptorProto> = ::protobuf::rt::LazyV2::INIT;

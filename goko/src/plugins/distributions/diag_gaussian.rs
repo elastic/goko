@@ -8,6 +8,8 @@ use super::*;
 use crate::covertree::node::CoverNode;
 use crate::covertree::CoverTreeReader;
 
+use rand::prelude::*;
+use rand_distr::StandardNormal;
 use std::f32::consts::PI;
 
 /// Node component, coded in such a way that it can be efficiently, recursively computed.
@@ -141,11 +143,35 @@ impl DiagGaussian {
 
     /// Mean: `moment1/count`
     pub fn mean(&self) -> Vec<f32> {
-        internal_mean!(self.moment1, self.count).collect()
+        if self.count > 0 {
+            internal_mean!(self.moment1, self.count).collect()
+        } else {
+            vec![0.0; self.moment1.len()]
+        }
     }
     /// Variance: `moment2/count - (moment1/count)^2`
     pub fn var(&self) -> Vec<f32> {
-        internal_var!(self.moment1, self.moment2, self.count).collect()
+        if self.count > 0 {
+            internal_var!(self.moment1, self.moment2, self.count).collect()
+        } else {
+            vec![0.0; self.moment1.len()]
+        }
+    }
+    /// The count used in the above equations
+    pub fn count(&self) -> usize {
+        self.count
+    }
+    /// Samples from the distribution, unconstrained.
+    pub fn sample(&self) -> Vec<f32> {
+        let mean_iter = internal_mean!(self.moment1, self.count);
+        let std_dev_iter = internal_var!(self.moment1, self.moment2, self.count).map(|f| f.sqrt());
+
+        StandardNormal
+            .sample_iter(thread_rng())
+            .take(self.moment1.len())
+            .zip(mean_iter.zip(std_dev_iter))
+            .map(|(s, (a, b)): (f32, _)| s * b + a)
+            .collect()
     }
 }
 
@@ -202,7 +228,6 @@ impl<D: PointCloud> GokoPlugin<D> for GokoDiagGaussian {
             moment2,
             count,
         };
-
         // If we're a routing node then grab the childen's values
         if let Some((nested_scale, child_addresses)) = my_node.children() {
             if parameters.recursive {
@@ -324,5 +349,34 @@ pub(crate) mod tests {
             assert_approx_eq!(moment2, p.moment2[0]);
             assert_eq!(count, p.count);
         });
+    }
+
+    #[test]
+    fn diag_gaussian_sanity_check() {
+        let mut ct = build_basic_tree();
+        ct.add_plugin::<GokoDiagGaussian>(GokoDiagGaussian::recursive());
+        let ct_reader = ct.reader();
+        let mut untested_addresses = vec![ct_reader.root_address()];
+        while let Some(addr) = untested_addresses.pop() {
+            let count = ct_reader
+                .get_node_plugin_and::<DiagGaussian, _, _>(addr, |p| {
+                    p.mean()
+                        .iter()
+                        .for_each(|f| assert!(f.is_finite(), "Mean: {}, at address {:?}", f, addr));
+                    p.var().iter().for_each(|f| {
+                        assert!(f.is_finite(), "Variance: {}, at address {:?}", f, addr)
+                    });
+                    p.count
+                })
+                .unwrap();
+            ct_reader.get_node_and(addr, |n| {
+                assert_eq!(n.coverage_count(), count, "Node: {:?}", n)
+            });
+
+            ct_reader.get_node_children_and(addr, |covered, children| {
+                untested_addresses.push(covered);
+                untested_addresses.extend(children);
+            });
+        }
     }
 }

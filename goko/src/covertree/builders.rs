@@ -178,7 +178,7 @@ impl BuilderNode {
                     .fetch_add(1, atomic::Ordering::SeqCst);
             }
         }
-        if inserts.len() > 0 || !(nested_potential.len() == 1 && parameters.use_singletons) {
+        if !inserts.is_empty() || !(nested_potential.len() == 1 && parameters.use_singletons) {
             parent_node.insert_nested_child(split_scale_index, nested_potential.len())?;
 
             let new_node = BuilderNode {

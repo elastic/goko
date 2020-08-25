@@ -43,11 +43,11 @@ impl PyBayesCategoricalTracker {
         println!("{:#?}", self.hkl);
     }
 
-    pub fn probs(&self,node_address:(i32, usize)) -> Option<(Vec<((i32, usize),f64)>,f64)> {
+    pub fn probs(&self, node_address: (i32, usize)) -> Option<(Vec<((i32, usize), f64)>, f64)> {
         self.hkl.prob_vector(node_address)
     }
 
-    pub fn evidence(&self,node_address:(i32, usize)) -> Option<(Vec<((i32, usize),f64)>,f64)> {
+    pub fn evidence(&self, node_address: (i32, usize)) -> Option<(Vec<((i32, usize), f64)>, f64)> {
         self.hkl.evidence_prob_vector(node_address)
     }
 
@@ -69,8 +69,6 @@ impl PyBayesCategoricalTracker {
     }
 }
 
-
-
 #[pyclass(unsendable)]
 pub struct PyKLDivergenceBaseline {
     pub baseline: KLDivergenceBaseline,
@@ -78,7 +76,7 @@ pub struct PyKLDivergenceBaseline {
 
 #[pymethods]
 impl PyKLDivergenceBaseline {
-    pub fn stats(&self,i:usize) -> PyResult<PyObject> {
+    pub fn stats(&self, i: usize) -> PyResult<PyObject> {
         let stats = self.baseline.stats(i);
         let gil = GILGuard::acquire();
         let dict = PyDict::new(gil.python());
@@ -86,7 +84,7 @@ impl PyKLDivergenceBaseline {
         max_dict.set_item("mean", stats.max.0)?;
         max_dict.set_item("var", stats.max.1)?;
         dict.set_item("max", max_dict)?;
-        
+
         let min_dict = PyDict::new(gil.python());
         min_dict.set_item("mean", stats.min.0)?;
         min_dict.set_item("var", stats.min.1)?;

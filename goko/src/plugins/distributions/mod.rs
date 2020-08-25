@@ -67,7 +67,7 @@ pub trait DiscreteBayesianSequenceTracker<D: PointCloud>: Debug {
     fn add_path(&mut self, trace: Vec<(f32, NodeAddress)>);
     /// The current distributions that a dry insert touched.
     fn running_evidence(&self) -> &HashMap<NodeAddress, <<Self as plugins::distributions::DiscreteBayesianSequenceTracker<D>>::Distribution as DiscreteBayesianDistribution>::Evidence>;
-    
+
     /// Gives the per-node KL divergence, with the node address
     fn all_node_kl(&self) -> Vec<(f64, NodeAddress)> {
         self.running_evidence()
@@ -96,22 +96,20 @@ pub trait DiscreteBayesianSequenceTracker<D: PointCloud>: Debug {
         let mut nz_count = 0;
         let mut moment1_nz = 0.0;
         let mut moment2_nz = 0.0;
-        self.all_node_kl()
-            .iter()
-            .for_each(|(kl, _address)| {
-                if *kl > 1.0e-10 {
-                    moment1_nz += kl;
-                    moment2_nz += kl * kl;
-                    if max < *kl {
-                        max = *kl;
-                    }
-                    if *kl < min {
-                        min = *kl;
-                    }
-
-                    nz_count += 1;
+        self.all_node_kl().iter().for_each(|(kl, _address)| {
+            if *kl > 1.0e-10 {
+                moment1_nz += kl;
+                moment2_nz += kl * kl;
+                if max < *kl {
+                    max = *kl;
                 }
-            });
+                if *kl < min {
+                    min = *kl;
+                }
+
+                nz_count += 1;
+            }
+        });
         KLDivergenceStats {
             max,
             min,
@@ -127,16 +125,14 @@ pub trait DiscreteBayesianSequenceTracker<D: PointCloud>: Debug {
         let mut layer_totals: Vec<u64> = vec![0; self.tree_reader().len()];
         let mut layer_node_counts = vec![Vec::<usize>::new(); self.tree_reader().len()];
         let parameters = self.tree_reader().parameters();
-        self.all_node_kl()
-            .iter()
-            .for_each(|(_kl, address)| {
-                layer_totals[parameters.internal_index(address.0)] += 1;
-                layer_node_counts[parameters.internal_index(address.0)].push(
-                    self.tree_reader()
-                        .get_node_and(*address, |n| n.cover_count())
-                        .unwrap(),
-                );
-            });
+        self.all_node_kl().iter().for_each(|(_kl, address)| {
+            layer_totals[parameters.internal_index(address.0)] += 1;
+            layer_node_counts[parameters.internal_index(address.0)].push(
+                self.tree_reader()
+                    .get_node_and(*address, |n| n.coverage_count())
+                    .unwrap(),
+            );
+        });
         let weighted_layer_totals: Vec<f32> = layer_node_counts
             .iter()
             .map(|counts| {
@@ -149,7 +145,7 @@ pub trait DiscreteBayesianSequenceTracker<D: PointCloud>: Debug {
             layer_totals,
             weighted_layer_totals,
         }
-    }    
+    }
 }
 
 /// Tracks the non-zero KL div (all KL divergences above 1e-10)
@@ -181,48 +177,47 @@ pub struct FractalDimStats {
     pub weighted_layer_totals: Vec<f32>,
 }
 
-
 /// Tracks the non-zero (all KL divergences above 1e-10)
 #[derive(Debug, Default)]
 pub struct KLDivergenceBaselineStats {
     /// The maximum non-zero KL divergence
-    pub max: (f64,f64),
+    pub max: (f64, f64),
     /// The minimum non-zero KL divergence
-    pub min: (f64,f64),
+    pub min: (f64, f64),
     /// The number of nodes that have a non-zero divergence
-    pub nz_count: (f64,f64),
+    pub nz_count: (f64, f64),
     /// The first moment, use this with the `nz_count` to get the mean
-    pub moment1_nz: (f64,f64),
+    pub moment1_nz: (f64, f64),
     /// The second moment, use this with the `nz_count` and first moment to get the variance
-    pub moment2_nz: (f64,f64),
+    pub moment2_nz: (f64, f64),
 }
 
 impl KLDivergenceBaselineStats {
-    pub(crate) fn add(&mut self, stats:&KLDivergenceStats) {
+    pub(crate) fn add(&mut self, stats: &KLDivergenceStats) {
         self.max.0 += stats.max;
-        self.max.1 += stats.max*stats.max;
+        self.max.1 += stats.max * stats.max;
         self.min.0 += stats.min;
-        self.min.1 += stats.min*stats.min;
+        self.min.1 += stats.min * stats.min;
         self.nz_count.0 += stats.nz_count as f64;
-        self.nz_count.1 += (stats.nz_count*stats.nz_count) as f64;
+        self.nz_count.1 += (stats.nz_count * stats.nz_count) as f64;
         self.moment1_nz.0 += stats.moment1_nz;
-        self.moment1_nz.1 += stats.moment1_nz*stats.moment1_nz;
+        self.moment1_nz.1 += stats.moment1_nz * stats.moment1_nz;
         self.moment2_nz.0 += stats.moment2_nz;
-        self.moment2_nz.1 += stats.moment2_nz*stats.moment2_nz;
+        self.moment2_nz.1 += stats.moment2_nz * stats.moment2_nz;
     }
 
     fn to_mean_var(&self, count: f64) -> KLDivergenceBaselineStats {
-        let max_mean = self.max.0/count;
-        let min_mean = self.min.0/count;
-        let nz_count_mean = self.nz_count.0/count;
-        let moment1_nz_mean = self.moment1_nz.0/count;
-        let moment2_nz_mean = self.moment2_nz.0/count;
+        let max_mean = self.max.0 / count;
+        let min_mean = self.min.0 / count;
+        let nz_count_mean = self.nz_count.0 / count;
+        let moment1_nz_mean = self.moment1_nz.0 / count;
+        let moment2_nz_mean = self.moment2_nz.0 / count;
 
-        let max_var = self.max.1/count - max_mean*max_mean;
-        let min_var = self.min.1/count - min_mean*min_mean;
-        let nz_count_var = self.nz_count.1/count - nz_count_mean*nz_count_mean;
-        let moment1_nz_var = self.moment1_nz.1/count - moment1_nz_mean*moment1_nz_mean;
-        let moment2_nz_var = self.moment2_nz.1/count - moment2_nz_mean*moment2_nz_mean;
+        let max_var = self.max.1 / count - max_mean * max_mean;
+        let min_var = self.min.1 / count - min_mean * min_mean;
+        let nz_count_var = self.nz_count.1 / count - nz_count_mean * nz_count_mean;
+        let moment1_nz_var = self.moment1_nz.1 / count - moment1_nz_mean * moment1_nz_mean;
+        let moment2_nz_var = self.moment2_nz.1 / count - moment2_nz_mean * moment2_nz_mean;
 
         KLDivergenceBaselineStats {
             max: (max_mean, max_var),
@@ -233,26 +228,26 @@ impl KLDivergenceBaselineStats {
         }
     }
 
-    fn interpolate(mut self, other:&Self, w: f64) -> Self {
-        self.max.0 += w*(other.max.0 - self.max.0);
-        self.max.1 += w*(other.max.1 - self.max.1);
+    fn interpolate(mut self, other: &Self, w: f64) -> Self {
+        self.max.0 += w * (other.max.0 - self.max.0);
+        self.max.1 += w * (other.max.1 - self.max.1);
 
-        self.min.0 += w*(other.min.0 - self.min.0);
-        self.min.1 += w*(other.min.1 - self.min.1);
+        self.min.0 += w * (other.min.0 - self.min.0);
+        self.min.1 += w * (other.min.1 - self.min.1);
 
-        self.nz_count.0 += w*(other.nz_count.0 - self.nz_count.0);
-        self.nz_count.1 += w*(other.nz_count.1 - self.nz_count.1);
+        self.nz_count.0 += w * (other.nz_count.0 - self.nz_count.0);
+        self.nz_count.1 += w * (other.nz_count.1 - self.nz_count.1);
 
-        self.moment1_nz.0 += w*(other.moment1_nz.0 - self.moment1_nz.0);
-        self.moment1_nz.1 += w*(other.moment1_nz.1 - self.moment1_nz.1);
+        self.moment1_nz.0 += w * (other.moment1_nz.0 - self.moment1_nz.0);
+        self.moment1_nz.1 += w * (other.moment1_nz.1 - self.moment1_nz.1);
 
-        self.moment2_nz.0 += w*(other.moment2_nz.0 - self.moment2_nz.0);
-        self.moment2_nz.1 += w*(other.moment2_nz.1 - self.moment2_nz.1);
+        self.moment2_nz.0 += w * (other.moment2_nz.0 - self.moment2_nz.0);
+        self.moment2_nz.1 += w * (other.moment2_nz.1 - self.moment2_nz.1);
         self
     }
 }
 
-/// Computing the KL div of each node's prior and posterior is expensive. 
+/// Computing the KL div of each node's prior and posterior is expensive.
 pub struct KLDivergenceBaseline {
     /// The number of sequences we're have the stats from
     pub num_sequences: usize,
@@ -263,27 +258,27 @@ pub struct KLDivergenceBaseline {
 }
 
 impl KLDivergenceBaseline {
-    /// Gets the stats object that stores an approximate mean and variance of the samples. 
-    pub fn stats(&self,i:usize) -> KLDivergenceBaselineStats {
+    /// Gets the stats object that stores an approximate mean and variance of the samples.
+    pub fn stats(&self, i: usize) -> KLDivergenceBaselineStats {
         match self.sequence_len.binary_search(&i) {
-            Ok(index) => {
-                self.stats[index].to_mean_var(self.num_sequences as f64)
-            }
+            Ok(index) => self.stats[index].to_mean_var(self.num_sequences as f64),
             Err(index) => {
                 if index == 0 {
                     KLDivergenceBaselineStats::default()
                 } else if index == self.sequence_len.len() {
-                    let stats1 = self.stats[index-2].to_mean_var(self.num_sequences as f64);
-                    let stats2 = self.stats[index-1].to_mean_var(self.num_sequences as f64);
-                    let weight = ((i- self.sequence_len[index-2]) as f64)/((self.sequence_len[index-1] - self.sequence_len[index-2]) as f64);
-                    stats1.interpolate(&stats2,weight)
+                    let stats1 = self.stats[index - 2].to_mean_var(self.num_sequences as f64);
+                    let stats2 = self.stats[index - 1].to_mean_var(self.num_sequences as f64);
+                    let weight = ((i - self.sequence_len[index - 2]) as f64)
+                        / ((self.sequence_len[index - 1] - self.sequence_len[index - 2]) as f64);
+                    stats1.interpolate(&stats2, weight)
                 } else {
-                    let stats1 = self.stats[index-1].to_mean_var(self.num_sequences as f64);
+                    let stats1 = self.stats[index - 1].to_mean_var(self.num_sequences as f64);
                     let stats2 = self.stats[index].to_mean_var(self.num_sequences as f64);
-                    let weight = ((i- self.sequence_len[index-1]) as f64)/((self.sequence_len[index] - self.sequence_len[index-1]) as f64);
-                    stats1.interpolate(&stats2,weight)
+                    let weight = ((i - self.sequence_len[index - 1]) as f64)
+                        / ((self.sequence_len[index] - self.sequence_len[index - 1]) as f64);
+                    stats1.interpolate(&stats2, weight)
                 }
-            },
+            }
         }
     }
 }

@@ -466,13 +466,13 @@ impl<D: PointCloud> CoverTreeReader<D> {
                     let mut pops: Vec<usize> = children
                         .iter()
                         .map(|child_addr| {
-                            self.get_node_and(*child_addr, |child| child.cover_count())
+                            self.get_node_and(*child_addr, |child| child.coverage_count())
                                 .unwrap()
                         })
                         .collect();
                     pops.push(
                         self.get_node_and((nested_scale, node_address.1), |child| {
-                            child.cover_count()
+                            child.coverage_count()
                         })
                         .unwrap(),
                     );
@@ -504,17 +504,19 @@ impl<D: PointCloud> CoverTreeReader<D> {
         let mut child_coverage_counts: Vec<usize> = Vec::new();
         let mut singletons_count: f32 = 0.0;
         parent_layer.for_each_node(|center_index, n| {
-            parent_coverage_counts.push(n.cover_count());
+            parent_coverage_counts.push(n.coverage_count());
 
             singletons_count += n.singletons().len() as f32;
             if let Some((nested_scale, children)) = n.children() {
                 child_coverage_counts.extend(children.iter().map(|child_addr| {
-                    self.get_node_and(*child_addr, |child| child.cover_count())
+                    self.get_node_and(*child_addr, |child| child.coverage_count())
                         .unwrap()
                 }));
                 child_coverage_counts.push(
-                    self.get_node_and((nested_scale, *center_index), |child| child.cover_count())
-                        .unwrap(),
+                    self.get_node_and((nested_scale, *center_index), |child| {
+                        child.coverage_count()
+                    })
+                    .unwrap(),
                 );
             }
         });

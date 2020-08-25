@@ -106,18 +106,18 @@ impl<D: LabeledCloud> LabeledCloud for HashGluedCloud<D> {
 }
 
 impl<D: NamedCloud> NamedCloud for HashGluedCloud<D> {
-    fn name(&self, pi: PointIndex) -> PointCloudResult<Option<&String>> {
+    fn name(&self, pi: PointIndex) -> PointCloudResult<Option<&str>> {
         let (i, j) = self.get_address(pi)?;
         self.data_sources[i].name(j)
     }
-    fn index(&self, pn: &String) -> PointCloudResult<&PointIndex> {
+    fn index(&self, pn: &str) -> PointCloudResult<&PointIndex> {
         for data_source in &self.data_sources {
             let name = data_source.index(pn);
             if name.is_ok() {
                 return name;
             }
         }
-        Err(PointCloudError::NameNotInCloud(pn.clone()))
+        Err(PointCloudError::NameNotInCloud(pn.to_string()))
     }
     fn names(&self) -> Vec<String> {
         self.addresses
@@ -127,7 +127,7 @@ impl<D: NamedCloud> NamedCloud for HashGluedCloud<D> {
                     .name(*j)
                     .ok()
                     .flatten()
-                    .map(|s| s.clone())
+                    .map(|s| s.to_string())
             })
             .collect()
     }

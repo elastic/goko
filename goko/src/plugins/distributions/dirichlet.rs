@@ -54,12 +54,15 @@ impl Dirichlet {
     }
 
     /// Gives the probability vector for this
-    pub fn prob_vector(&self) -> Option<(Vec<(NodeAddress,f64)>,f64)> {
-
+    pub fn prob_vector(&self) -> Option<(Vec<(NodeAddress, f64)>, f64)> {
         let total = self.total();
         if total > 0.0 {
-            let v: Vec<(NodeAddress,f64)> = self.child_counts.iter().map(|(na,f)| (*na,f/total)).collect();
-            Some((v,self.singleton_count/total))
+            let v: Vec<(NodeAddress, f64)> = self
+                .child_counts
+                .iter()
+                .map(|(na, f)| (*na, f / total))
+                .collect();
+            Some((v, self.singleton_count / total))
         } else {
             None
         }
@@ -119,12 +122,14 @@ impl DiscreteBayesianDistribution for Dirichlet {
         if self.singleton_count > 0.0 {
             other_total_lng += ln_gamma(other.singleton_count + self.singleton_count);
             my_total_lng += ln_gamma(self.singleton_count);
-            digamma_portion -= other.singleton_count
-                * (digamma(self.singleton_count) - digamma(my_total));
+            digamma_portion -=
+                other.singleton_count * (digamma(self.singleton_count) - digamma(my_total));
         }
-        for (other_ca, other_ca_count) in other.child_counts.iter()
-        {
-            let ca_count = match self.child_counts.binary_search_by_key(other_ca, |&(a, _)| a) {
+        for (other_ca, other_ca_count) in other.child_counts.iter() {
+            let ca_count = match self
+                .child_counts
+                .binary_search_by_key(other_ca, |&(a, _)| a)
+            {
                 Ok(ind) => self.child_counts[ind].1,
                 Err(_) => return None,
             };
@@ -288,9 +293,10 @@ impl<D: PointCloud> BayesCategoricalTracker<D> {
             self.running_evidence
                 .entry(*k)
                 .and_modify(|e| e.merge(v))
-                .or_insert(v.clone());
+                .or_insert_with(|| v.clone());
         }
-        self.sequence_queue.extend(other.sequence_queue.iter().cloned());
+        self.sequence_queue
+            .extend(other.sequence_queue.iter().cloned());
         self
     }
 
@@ -329,9 +335,7 @@ impl<D: PointCloud> BayesCategoricalTracker<D> {
         let mut child_address_iter = trace.iter().map(|(_, ca)| ca);
         child_address_iter.next();
         for (parent, child) in parent_address_iter.zip(child_address_iter) {
-            let parent_evidence = self.running_evidence
-                .get_mut(parent)
-                .unwrap();
+            let parent_evidence = self.running_evidence.get_mut(parent).unwrap();
             parent_evidence.remove_child_pop(Some(*child), self.observation_weight);
         }
         let last = trace.last().unwrap().1;
@@ -342,7 +346,7 @@ impl<D: PointCloud> BayesCategoricalTracker<D> {
     }
 
     /// Gives the probability vector for this
-    pub fn prob_vector(&self,na:NodeAddress) -> Option<(Vec<(NodeAddress,f64)>,f64)> {
+    pub fn prob_vector(&self, na: NodeAddress) -> Option<(Vec<(NodeAddress, f64)>, f64)> {
         self.reader
             .get_node_plugin_and::<Dirichlet, _, _>(na, |p| {
                 let mut dir = p.clone();
@@ -350,12 +354,16 @@ impl<D: PointCloud> BayesCategoricalTracker<D> {
                     dir.add_evidence(e)
                 }
                 dir.prob_vector()
-            }).flatten()
+            })
+            .flatten()
     }
 
     /// Gives the probability vector for this
-    pub fn evidence_prob_vector(&self,na:NodeAddress) -> Option<(Vec<(NodeAddress,f64)>,f64)> {
-        self.running_evidence.get(&na).map(|e| e.prob_vector()).flatten()
+    pub fn evidence_prob_vector(&self, na: NodeAddress) -> Option<(Vec<(NodeAddress, f64)>, f64)> {
+        self.running_evidence
+            .get(&na)
+            .map(|e| e.prob_vector())
+            .flatten()
     }
 }
 impl<D: PointCloud> DiscreteBayesianSequenceTracker<D> for BayesCategoricalTracker<D> {
@@ -380,10 +388,10 @@ impl<D: PointCloud> DiscreteBayesianSequenceTracker<D> for BayesCategoricalTrack
         &self.reader
     }
     fn sequence_len(&self) -> usize {
-        if self.sequence_queue.len() > 0 {
-            self.sequence_queue.len()
-        } else {
+        if self.sequence_queue.is_empty() {
             self.sequence_count
+        } else {
+            self.sequence_queue.len()
         }
     }
 }
@@ -398,9 +406,8 @@ pub struct DirichletBaseline {
     observation_weight: f64,
 }
 
-impl DirichletBaseline {
-    /// New with sensible defaults
-    pub fn new() -> DirichletBaseline {
+impl Default for DirichletBaseline {
+    fn default() -> DirichletBaseline {
         DirichletBaseline {
             sample_rate: 100,
             sequence_len: 0,
@@ -409,10 +416,13 @@ impl DirichletBaseline {
             observation_weight: 1.0,
         }
     }
+}
+
+impl DirichletBaseline {
     /// Sets a new maxium sequence length. Set this to be the window size if you're using windows, the lenght of the test set you've got,
-    /// or leave it alone as the default limit is the number of points in the training set. 
+    /// or leave it alone as the default limit is the number of points in the training set.
     ///
-    /// We sample up to this cap, linearly interpolating above this. So, the baseline produced is fairly accurate for indexes below this 
+    /// We sample up to this cap, linearly interpolating above this. So, the baseline produced is fairly accurate for indexes below this
     /// and unreliable above this.
     pub fn set_sequence_len(&mut self, sequence_len: usize) {
         self.sequence_len = sequence_len;
@@ -429,13 +439,16 @@ impl DirichletBaseline {
     pub fn set_observation_weight(&mut self, observation_weight: f64) {
         self.observation_weight = observation_weight;
     }
-    /// Samples at the following rate, then interpolates for sequence lengths between the following. 
+    /// Samples at the following rate, then interpolates for sequence lengths between the following.
     pub fn set_sample_rate(&mut self, sample_rate: usize) {
         self.sample_rate = sample_rate;
     }
 
     /// Trains the sequences up.
-    pub fn train<D: PointCloud>(&self,reader: CoverTreeReader<D>) -> GokoResult<KLDivergenceBaseline> {
+    pub fn train<D: PointCloud>(
+        &self,
+        reader: CoverTreeReader<D>,
+    ) -> GokoResult<KLDivergenceBaseline> {
         let point_indexes = reader.point_cloud().reference_indexes();
         let sequence_len = if self.sequence_len == 0 {
             point_indexes.len()
@@ -443,25 +456,34 @@ impl DirichletBaseline {
             self.sequence_len
         };
 
-        let results: Vec<Vec<KLDivergenceStats>> = repeatn(reader.clone(), self.num_sequences).map(|reader| {
-            let mut tracker = BayesCategoricalTracker::new(
-                self.prior_weight,
-                self.observation_weight,
-                0,
-                reader,
-            );
-            (&point_indexes[..]).choose_multiple(&mut thread_rng(),sequence_len).enumerate().filter_map(|(i,pi)| {
-                tracker.add_path(tracker.reader.known_path(*pi).unwrap());
-                if i % self.sample_rate == 0 {
-                    Some(tracker.kl_div_stats())
-                } else {
-                    None
-                }
-            }).collect()
-        }).collect();
+        let results: Vec<Vec<KLDivergenceStats>> = repeatn(reader, self.num_sequences)
+            .map(|reader| {
+                let mut tracker = BayesCategoricalTracker::new(
+                    self.prior_weight,
+                    self.observation_weight,
+                    0,
+                    reader,
+                );
+                (&point_indexes[..])
+                    .choose_multiple(&mut thread_rng(), sequence_len)
+                    .enumerate()
+                    .filter_map(|(i, pi)| {
+                        tracker.add_path(tracker.reader.known_path(*pi).unwrap());
+                        if i % self.sample_rate == 0 {
+                            Some(tracker.kl_div_stats())
+                        } else {
+                            None
+                        }
+                    })
+                    .collect()
+            })
+            .collect();
         let len = results[0].len();
         let mut sequence_len = Vec::with_capacity(len);
-        let mut stats: Vec<KLDivergenceBaselineStats> = std::iter::repeat_with(|| KLDivergenceBaselineStats::default()).take(len).collect();
+        let mut stats: Vec<KLDivergenceBaselineStats> =
+            std::iter::repeat_with(KLDivergenceBaselineStats::default)
+                .take(len)
+                .collect();
 
         for i in 0..len {
             for result_vec in &results {
@@ -518,8 +540,14 @@ pub(crate) mod tests {
         println!("Buckets Posterior: {:?}", buckets_posterior);
         println!("Evidence: {:?}", categorical);
         assert_approx_eq!(buckets_posterior.ln_prob(None).unwrap(), 0.5f64.ln());
-        assert_approx_eq!(buckets_posterior.ln_prob(Some(&(0, 0))).unwrap(), 0.5f64.ln());
-        assert_approx_eq!(buckets.kl_divergence(&buckets_posterior).unwrap(), buckets.posterior_kl_divergence(&categorical).unwrap());
+        assert_approx_eq!(
+            buckets_posterior.ln_prob(Some(&(0, 0))).unwrap(),
+            0.5f64.ln()
+        );
+        assert_approx_eq!(
+            buckets.kl_divergence(&buckets_posterior).unwrap(),
+            buckets.posterior_kl_divergence(&categorical).unwrap()
+        );
     }
 
     #[test]
@@ -529,7 +557,7 @@ pub(crate) mod tests {
         buckets.add_child_pop(Some((0, 0)), 2.0);
 
         let mut categorical = Categorical::new();
-        categorical.add_child_pop(None,3.0);
+        categorical.add_child_pop(None, 3.0);
         categorical.add_child_pop(Some((0, 0)), 2.0);
 
         let mut buckets_posterior = buckets.clone();
@@ -538,8 +566,14 @@ pub(crate) mod tests {
         println!("Buckets: {:?}", buckets);
         println!("Buckets Posterior: {:?}", buckets_posterior);
         println!("Evidence: {:?}", categorical);
-        assert_approx_eq!(buckets.kl_divergence(&buckets_posterior).unwrap(), buckets.posterior_kl_divergence(&categorical).unwrap());
-        assert_approx_eq!(buckets.kl_divergence(&buckets_posterior).unwrap(), 0.1789970483832892);
+        assert_approx_eq!(
+            buckets.kl_divergence(&buckets_posterior).unwrap(),
+            buckets.posterior_kl_divergence(&categorical).unwrap()
+        );
+        assert_approx_eq!(
+            buckets.kl_divergence(&buckets_posterior).unwrap(),
+            0.1789970483832892
+        );
     }
 
     #[test]
@@ -548,7 +582,7 @@ pub(crate) mod tests {
         buckets.add_child_pop(None, 3.0);
 
         let mut categorical = Categorical::new();
-        categorical.add_child_pop(None,3.0);
+        categorical.add_child_pop(None, 3.0);
 
         let mut buckets_posterior = buckets.clone();
         buckets_posterior.add_evidence(&categorical);
@@ -556,7 +590,10 @@ pub(crate) mod tests {
         println!("Buckets: {:?}", buckets);
         println!("Buckets Posterior: {:?}", buckets_posterior);
         println!("Evidence: {:?}", categorical);
-        assert_approx_eq!(buckets.kl_divergence(&buckets_posterior).unwrap(), buckets.posterior_kl_divergence(&categorical).unwrap());
+        assert_approx_eq!(
+            buckets.kl_divergence(&buckets_posterior).unwrap(),
+            buckets.posterior_kl_divergence(&categorical).unwrap()
+        );
         assert_approx_eq!(buckets.kl_divergence(&buckets_posterior).unwrap(), 0.0);
     }
 
