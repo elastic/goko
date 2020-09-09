@@ -9,6 +9,8 @@ use crate::pc_errors::*;
 use crate::*;
 use serde::{Deserialize, Serialize};
 
+use ndarray::{Array1, Array2};
+
 #[inline]
 fn chunk(data_dim: usize) -> usize {
     min(15000 / data_dim, 20)
@@ -29,6 +31,33 @@ pub trait PointCloud: Debug + Send + Sync + 'static {
     fn reference_indexes(&self) -> Vec<PointIndex>;
     /// Gets a point from this dataset
     fn point(&self, pn: PointIndex) -> PointCloudResult<PointRef>;
+
+    /// Returns a dense array
+    fn point_dense_array(&self, index: PointIndex) -> PointCloudResult<Array1<f32>> {
+        let pref = self.point(index)?;
+        let vals: Vec<f32> = if let PointRef::Dense(vals) = pref {
+            vals.to_vec()
+        } else {
+            pref.dense_iter(self.dim()).collect()
+        };
+        Ok(Array1::from_shape_vec((self.dim(),), vals).unwrap())
+    }
+
+    /// Returns a dense array
+    fn points_dense_matrix(&self, indexes: &[PointIndex]) -> PointCloudResult<Array2<f32>> {
+        let dim = self.dim();
+        let mut data = Vec::with_capacity(dim * indexes.len());
+        for pi in indexes {
+            let pref = self.point(*pi)?;
+            if let PointRef::Dense(vals) = pref {
+                data.extend(vals);
+            } else {
+                data.extend(pref.dense_iter(dim));
+            };
+        }
+
+        Ok(Array2::from_shape_vec((indexes.len(), dim), data).unwrap())
+    }
 
     /// The main distance function. This paralizes if there are more than 100 points.
     fn distances_to_point_indices(

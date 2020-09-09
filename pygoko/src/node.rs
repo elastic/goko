@@ -67,7 +67,7 @@ impl PyNode {
 
     pub fn coverage_count(&self) -> usize {
         self.tree
-            .get_node_and(self.address, |n| n.cover_count())
+            .get_node_and(self.address, |n| n.coverage_count())
             .unwrap()
     }
 
@@ -166,6 +166,16 @@ impl PyNode {
         let gil = GILGuard::acquire();
         let py = gil.python();
         Ok(py_mean.into_pyarray(py).to_owned())
+    }
+
+    pub fn get_singular_values(&self) -> PyResult<Option<Py<PyArray1<f32>>>> {
+        let gil = GILGuard::acquire();
+        let py = gil.python();
+        Ok(self
+            .tree
+            .get_node_plugin_and::<SvdGaussian, _, _>(self.address, |p| {
+                p.singular_vals.clone().into_pyarray(py).to_owned()
+            }))
     }
 
     pub fn label_summary(&self) -> PyResult<Option<PyObject>> {

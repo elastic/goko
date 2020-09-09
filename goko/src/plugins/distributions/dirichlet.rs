@@ -22,6 +22,8 @@ use rayon::iter::repeatn;
 use statrs::function::gamma::{digamma, ln_gamma};
 use std::collections::{HashMap, VecDeque};
 
+use rand::distributions::{Distribution, Uniform};
+
 /// Simple probability density function for where things go by count
 ///
 #[derive(Debug, Clone, Default)]
@@ -151,7 +153,7 @@ impl DiscreteBayesianDistribution for Dirichlet {
     }
 }
 impl DiscreteDistribution for Dirichlet {
-    fn ln_prob(&self, loc: Option<&NodeAddress>) -> Option<f64> {
+    fn ln_pdf(&self, loc: Option<&NodeAddress>) -> Option<f64> {
         let ax = match loc {
             Some(ca) => self
                 .child_counts
@@ -162,6 +164,22 @@ impl DiscreteDistribution for Dirichlet {
         };
         Some(ax.ln() - self.total().ln())
     }
+
+    fn sample<R: Rng>(&self, rng: &mut R) -> Option<NodeAddress> {
+        let sum = self.total() as usize;
+        let uniform = Uniform::from(0..sum);
+        let sample = uniform.sample(rng) as f64;
+
+        let mut count = 0.0;
+        for (a, c) in &self.child_counts {
+            count += c;
+            if sample < count {
+                return Some(*a);
+            }
+        }
+        None
+    }
+
     /// from http://bariskurt.com/kullback-leibler-divergence-between-two-dirichlet-and-beta-distributions/
     /// We assume that the Dirichlet distribution passed into this one is conditioned on this one! It assumes they have the same keys!
     fn kl_divergence(&self, other: &Dirichlet) -> Option<f64> {
@@ -199,17 +217,13 @@ impl DiscreteDistribution for Dirichlet {
     }
 }
 
-impl<D: PointCloud> NodePlugin<D> for Dirichlet {
-    fn update(&mut self, _my_node: &CoverNode<D>, _my_tree: &CoverTreeReader<D>) {}
-}
+impl<D: PointCloud> NodePlugin<D> for Dirichlet {}
 
 /// Zero sized type that can be passed around. Equivilant to `()`
 #[derive(Debug, Clone)]
 pub struct DirichletTree {}
 
-impl<D: PointCloud> TreePlugin<D> for DirichletTree {
-    fn update(&mut self, _my_tree: &CoverTreeReader<D>) {}
-}
+impl<D: PointCloud> TreePlugin<D> for DirichletTree {}
 
 /// Zero sized type that can be passed around. Equivilant to `()`
 #[derive(Debug, Clone)]
@@ -223,7 +237,7 @@ impl<D: PointCloud> GokoPlugin<D> for GokoDirichlet {
         _parameters: &Self::TreeComponent,
         my_node: &CoverNode<D>,
         my_tree: &CoverTreeReader<D>,
-    ) -> Self::NodeComponent {
+    ) -> Option<Self::NodeComponent> {
         let mut bucket = Dirichlet::new();
 
         // If we're a routing node then grab the childen's values
@@ -243,7 +257,7 @@ impl<D: PointCloud> GokoPlugin<D> for GokoDirichlet {
         } else {
             bucket.add_child_pop(None, (my_node.singletons_len() + 1) as f64);
         }
-        bucket
+        Some(bucket)
     }
 }
 
@@ -509,7 +523,7 @@ pub(crate) mod tests {
         let mut buckets = Dirichlet::new();
         buckets.add_child_pop(None, 5.0);
         println!("{:?}", buckets);
-        assert_approx_eq!(buckets.ln_prob(None).unwrap(), 0.0);
+        assert_approx_eq!(buckets.ln_pdf(None).unwrap(), 0.0);
         assert_approx_eq!(buckets.kl_divergence(&buckets).unwrap(), 0.0);
     }
 
@@ -519,8 +533,8 @@ pub(crate) mod tests {
         buckets.add_child_pop(None, 5.0);
         buckets.add_child_pop(Some((0, 0)), 5.0);
         println!("{:?}", buckets);
-        assert_approx_eq!(buckets.ln_prob(None).unwrap(), 0.5f64.ln());
-        assert_approx_eq!(buckets.ln_prob(Some(&(0, 0))).unwrap(), 0.5f64.ln());
+        assert_approx_eq!(buckets.ln_pdf(None).unwrap(), 0.5f64.ln());
+        assert_approx_eq!(buckets.ln_pdf(Some(&(0, 0))).unwrap(), 0.5f64.ln());
         assert_approx_eq!(buckets.kl_divergence(&buckets).unwrap(), 0.0);
     }
 
@@ -539,9 +553,9 @@ pub(crate) mod tests {
         println!("Buckets: {:?}", buckets);
         println!("Buckets Posterior: {:?}", buckets_posterior);
         println!("Evidence: {:?}", categorical);
-        assert_approx_eq!(buckets_posterior.ln_prob(None).unwrap(), 0.5f64.ln());
+        assert_approx_eq!(buckets_posterior.ln_pdf(None).unwrap(), 0.5f64.ln());
         assert_approx_eq!(
-            buckets_posterior.ln_prob(Some(&(0, 0))).unwrap(),
+            buckets_posterior.ln_pdf(Some(&(0, 0))).unwrap(),
             0.5f64.ln()
         );
         assert_approx_eq!(

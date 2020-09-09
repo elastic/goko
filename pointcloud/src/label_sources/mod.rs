@@ -145,13 +145,18 @@ impl VecLabels {
     /// coverts a binary encoding to a integer label set
     pub fn binary_to_int(&self) -> SmallIntLabels {
         let mut mask = self.mask.clone().unwrap_or_else(|| vec![true; self.len()]);
+        assert_eq!(
+            self.label_dim, 1,
+            "Need to have 1d labels for binary encoding"
+        );
         let labels: Vec<i64> = (0..self.len())
             .map(|i| {
                 let label = self
                     .labels
-                    .get(self.label_dim)
+                    .get(i)
                     .map(|x| if x > &0.5 { 1 } else { 0 })
                     .unwrap_or(2);
+
                 if label == 2 {
                     mask[i] = false;
                 }

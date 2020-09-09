@@ -57,7 +57,7 @@ tests_require = install_requires + ["pytest", "pytest-benchmark"]
 
 setup(
     name="pygoko",
-    version="0.3.2",
+    version="0.4.0",
     classifiers=[
         "License :: OSI Approved :: MIT License",
         "Development Status :: 3 - Alpha",

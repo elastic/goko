@@ -21,17 +21,13 @@ impl<T: Summary> Clone for NodeLabelSummary<T> {
     }
 }
 
-impl<D: PointCloud + LabeledCloud> NodePlugin<D> for NodeLabelSummary<D::LabelSummary> {
-    fn update(&mut self, _my_node: &CoverNode<D>, _my_tree: &CoverTreeReader<D>) {}
-}
+impl<D: PointCloud + LabeledCloud> NodePlugin<D> for NodeLabelSummary<D::LabelSummary> {}
 
 ///
 #[derive(Debug, Clone, Default)]
 pub struct TreeLabelSummary {}
 
-impl<D: PointCloud + LabeledCloud> TreePlugin<D> for TreeLabelSummary {
-    fn update(&mut self, _my_tree: &CoverTreeReader<D>) {}
-}
+impl<D: PointCloud + LabeledCloud> TreePlugin<D> for TreeLabelSummary {}
 
 /// Plug in that allows for summaries of labels to be attached to
 #[derive(Debug, Clone, Default)]
@@ -44,7 +40,7 @@ impl<D: PointCloud + LabeledCloud> GokoPlugin<D> for LabelSummaryPlugin {
         _parameters: &Self::TreeComponent,
         my_node: &CoverNode<D>,
         my_tree: &CoverTreeReader<D>,
-    ) -> Self::NodeComponent {
+    ) -> Option<Self::NodeComponent> {
         let mut bucket = my_tree
             .parameters()
             .point_cloud
@@ -70,9 +66,9 @@ impl<D: PointCloud + LabeledCloud> GokoPlugin<D> for LabelSummaryPlugin {
                     .label(*my_node.center_index()),
             );
         }
-        NodeLabelSummary {
+        Some(NodeLabelSummary {
             summary: Arc::new(bucket),
-        }
+        })
     }
 }
 
@@ -91,17 +87,13 @@ impl<T: Summary> Clone for NodeMetaSummary<T> {
     }
 }
 
-impl<D: PointCloud + MetaCloud> NodePlugin<D> for NodeMetaSummary<D::MetaSummary> {
-    fn update(&mut self, _my_node: &CoverNode<D>, _my_tree: &CoverTreeReader<D>) {}
-}
+impl<D: PointCloud + MetaCloud> NodePlugin<D> for NodeMetaSummary<D::MetaSummary> {}
 
 ///
 #[derive(Debug, Clone, Default)]
 pub struct TreeMetaSummary {}
 
-impl<D: PointCloud + MetaCloud> TreePlugin<D> for TreeMetaSummary {
-    fn update(&mut self, _my_tree: &CoverTreeReader<D>) {}
-}
+impl<D: PointCloud + MetaCloud> TreePlugin<D> for TreeMetaSummary {}
 
 /// Plug in that allows for summaries of Metas to be attached to
 #[derive(Debug, Clone, Default)]
@@ -114,7 +106,7 @@ impl<D: PointCloud + MetaCloud> GokoPlugin<D> for MetaSummaryPlugin {
         _parameters: &Self::TreeComponent,
         my_node: &CoverNode<D>,
         my_tree: &CoverTreeReader<D>,
-    ) -> Self::NodeComponent {
+    ) -> Option<Self::NodeComponent> {
         let mut bucket = my_tree
             .parameters()
             .point_cloud
@@ -140,8 +132,8 @@ impl<D: PointCloud + MetaCloud> GokoPlugin<D> for MetaSummaryPlugin {
                     .metadata(*my_node.center_index()),
             );
         }
-        NodeMetaSummary {
+        Some(NodeMetaSummary {
             summary: Arc::new(bucket),
-        }
+        })
     }
 }

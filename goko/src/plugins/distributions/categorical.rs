@@ -8,6 +8,8 @@ use crate::covertree::CoverTreeReader;
 use crate::plugins::distributions::DiscreteDistribution;
 use crate::plugins::*;
 
+use rand::distributions::{Distribution, Uniform};
+use rand::Rng;
 /// Simple probability density function for where things go by count
 /// Stored as a flat vector in the order of the node addresses.
 #[derive(Debug, Clone, Default)]
@@ -18,7 +20,7 @@ pub struct Categorical {
 
 impl DiscreteDistribution for Categorical {
     /// Pass none if you want to test for a singleton, returns 0 if
-    fn ln_prob(&self, loc: Option<&NodeAddress>) -> Option<f64> {
+    fn ln_pdf(&self, loc: Option<&NodeAddress>) -> Option<f64> {
         let total = self.total();
         if total > 0.0 {
             let ax = match loc {
@@ -33,6 +35,21 @@ impl DiscreteDistribution for Categorical {
         } else {
             None
         }
+    }
+
+    fn sample<R: Rng>(&self, rng: &mut R) -> Option<NodeAddress> {
+        let sum = self.total() as usize;
+        let uniform = Uniform::from(0..sum);
+        let sample = uniform.sample(rng) as f64;
+
+        let mut count = 0.0;
+        for (a, c) in &self.child_counts {
+            count += c;
+            if sample < count {
+                return Some(*a);
+            }
+        }
+        None
     }
 
     /// Computes the KL divergence of two bucket probs.
@@ -134,17 +151,13 @@ impl Categorical {
     }
 }
 
-impl<D: PointCloud> NodePlugin<D> for Categorical {
-    fn update(&mut self, _my_node: &CoverNode<D>, _my_tree: &CoverTreeReader<D>) {}
-}
+impl<D: PointCloud> NodePlugin<D> for Categorical {}
 
 /// Zero sized type that can be passed around. Equivilant to `()`
 #[derive(Debug, Clone)]
 pub struct CategoricalTree {}
 
-impl<D: PointCloud> TreePlugin<D> for CategoricalTree {
-    fn update(&mut self, _my_tree: &CoverTreeReader<D>) {}
-}
+impl<D: PointCloud> TreePlugin<D> for CategoricalTree {}
 
 /// Zero sized type that can be passed around. Equivilant to `()`
 #[derive(Debug, Clone)]
@@ -158,7 +171,7 @@ impl<D: PointCloud> GokoPlugin<D> for GokoCategorical {
         _parameters: &Self::TreeComponent,
         my_node: &CoverNode<D>,
         my_tree: &CoverTreeReader<D>,
-    ) -> Self::NodeComponent {
+    ) -> Option<Self::NodeComponent> {
         let mut bucket = Categorical::new();
 
         // If we're a routing node then grab the childen's values
@@ -181,7 +194,7 @@ impl<D: PointCloud> GokoPlugin<D> for GokoCategorical {
         } else {
             bucket.add_child_pop(None, my_node.singletons_len() as f64 + 1.0);
         }
-        bucket
+        Some(bucket)
     }
 }
 
@@ -193,8 +206,8 @@ pub(crate) mod tests {
     #[test]
     fn empty_bucket_sanity_test() {
         let buckets = Categorical::new();
-        assert_eq!(buckets.ln_prob(None), None);
-        assert_eq!(buckets.ln_prob(Some(&(0, 0))), None);
+        assert_eq!(buckets.ln_pdf(None), None);
+        assert_eq!(buckets.ln_pdf(Some(&(0, 0))), None);
         assert_eq!(buckets.kl_divergence(&buckets), None)
     }
 
@@ -202,18 +215,18 @@ pub(crate) mod tests {
     fn singleton_bucket_sanity_test() {
         let mut buckets = Categorical::new();
         buckets.add_child_pop(None, 5.0);
-        assert_approx_eq!(buckets.ln_prob(None).unwrap(), 0.0);
+        assert_approx_eq!(buckets.ln_pdf(None).unwrap(), 0.0);
         assert_approx_eq!(buckets.kl_divergence(&buckets).unwrap(), 0.0);
-        assert_eq!(buckets.ln_prob(Some(&(0, 0))), Some(std::f64::NEG_INFINITY));
+        assert_eq!(buckets.ln_pdf(Some(&(0, 0))), Some(std::f64::NEG_INFINITY));
     }
 
     #[test]
     fn child_bucket_sanity_test() {
         let mut buckets = Categorical::new();
         buckets.add_child_pop(Some((0, 0)), 5.0);
-        assert_approx_eq!(buckets.ln_prob(Some(&(0, 0))).unwrap(), 0.0);
+        assert_approx_eq!(buckets.ln_pdf(Some(&(0, 0))).unwrap(), 0.0);
         assert_approx_eq!(buckets.kl_divergence(&buckets).unwrap(), 0.0);
-        assert_eq!(buckets.ln_prob(None).unwrap(), std::f64::NEG_INFINITY);
+        assert_eq!(buckets.ln_pdf(None).unwrap(), std::f64::NEG_INFINITY);
     }
 
     #[test]
@@ -228,9 +241,9 @@ pub(crate) mod tests {
         bucket2.add_child_pop(Some((0, 0)), 8.0);
         println!("{:?}", bucket2);
 
-        assert_approx_eq!(bucket1.ln_prob(None).unwrap(), (0.5f64).ln());
+        assert_approx_eq!(bucket1.ln_pdf(None).unwrap(), (0.5f64).ln());
         assert_approx_eq!(
-            bucket2.ln_prob(Some(&(0, 0))).unwrap(),
+            bucket2.ln_pdf(Some(&(0, 0))).unwrap(),
             (0.666666666f64).ln()
         );
         assert_approx_eq!(bucket1.kl_divergence(&bucket1).unwrap(), 0.0);

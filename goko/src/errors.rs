@@ -43,6 +43,8 @@ pub enum GokoError {
     IoError(io::Error),
     /// Parsing error when loading a CSV file
     ParsingError(ParsingError),
+    /// The probability distribution you are trying to sample from is invalid, probably because it was infered from 0 points.
+    InvalidProbDistro,
     /// Inserted a nested node into a node that already had a nested child
     DoubleNest,
     /// Inserted a node before you changed it from a leaf node into a normal node. Insert the nested child first.
@@ -62,6 +64,10 @@ impl fmt::Display for GokoError {
             GokoError::DoubleNest => write!(
                 f,
                 "Inserted a nested node into a node that already had a nested child"
+            ),
+            GokoError::InvalidProbDistro => write!(
+                f,
+                "The probability distribution you are trying to sample from is invalid, probably because it was infered from 0 points."
             ),
             GokoError::InsertBeforeNest => write!(
                 f,
@@ -88,6 +94,9 @@ impl Error for GokoError {
             GokoError::InsertBeforeNest => {
                 "Inserted a node into a node that does not have a nested child"
             }
+            GokoError::InvalidProbDistro => {
+                "The probability distribution you are trying to sample from is invalid, probably because it was infered from 0 points."
+            }
         }
     }
 
@@ -99,6 +108,7 @@ impl Error for GokoError {
             GokoError::IndexNotInTree { .. } => None,
             GokoError::DoubleNest => None,
             GokoError::InsertBeforeNest => None,
+            GokoError::InvalidProbDistro => None,
         }
     }
 }

@@ -4,11 +4,15 @@
 //! It also has trackers used to see when queries and sequences are out of distribution.
 
 use super::*;
+use rand::Rng;
 use std::collections::HashMap;
 use std::fmt::Debug;
 
 mod diag_gaussian;
 pub use diag_gaussian::*;
+
+mod svd_gaussian;
+pub use svd_gaussian::*;
 
 mod categorical;
 pub use categorical::*;
@@ -19,7 +23,9 @@ pub use dirichlet::*;
 ///
 pub trait DiscreteDistribution: Clone + 'static {
     /// Pass none if you want to test for a singleton, returns 0 if
-    fn ln_prob(&self, child: Option<&NodeAddress>) -> Option<f64>;
+    fn ln_pdf(&self, child: Option<&NodeAddress>) -> Option<f64>;
+    /// Samples a decendent from this distribution
+    fn sample<R: Rng>(&self, rng: &mut R) -> Option<NodeAddress>;
 
     /// Computes the KL divergence of two bucket probs.
     /// KL(self || other)
@@ -30,7 +36,9 @@ pub trait DiscreteDistribution: Clone + 'static {
 ///
 pub trait ContinousDistribution: Clone + 'static {
     /// Pass none if you want to test for a singleton, returns 0 if
-    fn ln_prob(&self, point: &PointRef) -> Option<f64>;
+    fn ln_pdf(&self, point: &PointRef) -> Option<f64>;
+    /// Samples a point from this distribution
+    fn sample<R: Rng>(&self, rng: &mut R) -> Vec<f32>;
 
     /// Computes the KL divergence of two bucket probs.
     /// KL(self || other)

@@ -595,11 +595,15 @@ impl<D: PointCloud> CoverTreeWriter<D> {
         <P as plugins::GokoPlugin<D>>::TreeComponent: 'static,
         <P as plugins::GokoPlugin<D>>::NodeComponent: 'static,
     {
+        P::prepare_tree(&plug_in, self);
         let reader = self.reader();
         for layer in self.layers.iter_mut() {
             layer.reader().for_each_node(|pi, n| {
-                let node_component = P::node_component(&plug_in, n, &reader);
-                unsafe { layer.update_node(*pi, move |n| n.insert_plugin(node_component.clone())) }
+                if let Some(node_component) = P::node_component(&plug_in, n, &reader) {
+                    unsafe {
+                        layer.update_node(*pi, move |n| n.insert_plugin(node_component.clone()))
+                    }
+                }
             });
             layer.refresh()
         }

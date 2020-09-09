@@ -38,7 +38,7 @@ macro_rules! internal_var {
 }
 
 impl ContinousDistribution for DiagGaussian {
-    fn ln_prob(&self, point: &PointRef) -> Option<f64> {
+    fn ln_pdf(&self, point: &PointRef) -> Option<f64> {
         let mean_vars = internal_mean!(self.moment1, self.count).zip(internal_var!(
             self.moment1,
             self.moment2,
@@ -52,6 +52,18 @@ impl ContinousDistribution for DiagGaussian {
             .fold((0.0, 1.0), |(a, v), (x, u)| (a + x, v * u));
 
         Some((exponent - det + (self.dim() as f32) * (2.0 * PI).ln()) as f64)
+    }
+
+    fn sample<R: Rng>(&self, rng: &mut R) -> Vec<f32> {
+        let mean_iter = internal_mean!(self.moment1, self.count);
+        let std_dev_iter = internal_var!(self.moment1, self.moment2, self.count).map(|f| f.sqrt());
+
+        StandardNormal
+            .sample_iter(rng)
+            .take(self.moment1.len())
+            .zip(mean_iter.zip(std_dev_iter))
+            .map(|(s, (a, b)): (f32, _)| s * b + a)
+            .collect()
     }
 
     fn kl_divergence(&self, other: &DiagGaussian) -> Option<f64> {
@@ -161,23 +173,9 @@ impl DiagGaussian {
     pub fn count(&self) -> usize {
         self.count
     }
-    /// Samples from the distribution, unconstrained.
-    pub fn sample(&self) -> Vec<f32> {
-        let mean_iter = internal_mean!(self.moment1, self.count);
-        let std_dev_iter = internal_var!(self.moment1, self.moment2, self.count).map(|f| f.sqrt());
-
-        StandardNormal
-            .sample_iter(thread_rng())
-            .take(self.moment1.len())
-            .zip(mean_iter.zip(std_dev_iter))
-            .map(|(s, (a, b)): (f32, _)| s * b + a)
-            .collect()
-    }
 }
 
-impl<D: PointCloud> NodePlugin<D> for DiagGaussian {
-    fn update(&mut self, _my_node: &CoverNode<D>, _my_tree: &CoverTreeReader<D>) {}
-}
+impl<D: PointCloud> NodePlugin<D> for DiagGaussian {}
 
 /// Zero sized type that can be passed around. Equivilant to `()`
 #[derive(Debug, Clone)]
@@ -185,9 +183,7 @@ pub struct DiagGaussianTree {
     recursive: bool,
 }
 
-impl<D: PointCloud> TreePlugin<D> for DiagGaussianTree {
-    fn update(&mut self, _my_tree: &CoverTreeReader<D>) {}
-}
+impl<D: PointCloud> TreePlugin<D> for DiagGaussianTree {}
 
 /// Zero sized type that can be passed around. Equivilant to `()`
 pub struct GokoDiagGaussian {}
@@ -211,7 +207,7 @@ impl<D: PointCloud> GokoPlugin<D> for GokoDiagGaussian {
         parameters: &Self::TreeComponent,
         my_node: &CoverNode<D>,
         my_tree: &CoverTreeReader<D>,
-    ) -> Self::NodeComponent {
+    ) -> Option<Self::NodeComponent> {
         let moment1 = my_tree
             .parameters()
             .point_cloud
@@ -252,7 +248,7 @@ impl<D: PointCloud> GokoPlugin<D> for GokoDiagGaussian {
                     .unwrap(),
             );
         }
-        my_dg
+        Some(my_dg)
     }
 }
 

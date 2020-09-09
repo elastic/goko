@@ -20,11 +20,14 @@
 use ndarray::Array1;
 use numpy::{IntoPyArray, PyArray1, PyArray2};
 use pyo3::prelude::*;
+use pyo3::types::PyDict;
+use rand::prelude::*;
 
 use std::path::Path;
 use std::sync::Arc;
 
 use goko::plugins::distributions::*;
+use goko::query_interface::BulkInterface;
 use goko::*;
 use pointcloud::loaders::labeled_ram_from_yaml;
 use pointcloud::*;
@@ -131,6 +134,15 @@ impl CoverTree {
         Ok(())
     }
 
+    pub fn attach_svds(&mut self, min_point_count: usize, max_point_count: usize, tau: f32) {
+        let writer = self.writer.as_mut().unwrap();
+        writer.add_plugin::<GokoSvdGaussian>(GokoSvdGaussian::new(
+            min_point_count,
+            max_point_count,
+            tau,
+        ));
+    }
+
     pub fn data_point(&self, point_index: usize) -> PyResult<Option<Py<PyArray1<f32>>>> {
         let reader = self.writer.as_ref().unwrap().reader();
         let dim = reader.parameters().point_cloud.dim();
@@ -216,9 +228,71 @@ impl CoverTree {
         reader.known_path(point_index).unwrap()
     }
 
+    pub fn depths(&self, point_indexes: Vec<usize>, tau: Option<f32>) -> Vec<(usize,usize)> {
+        let reader = self.writer.as_ref().unwrap().reader();
+        let bulk = BulkInterface::new(reader);
+        let tau = tau.unwrap_or(0.00001);
+        bulk.known_path_and(&point_indexes, |reader,path| 
+            if let Ok(path) = path {
+                let mut homogenity_depth = path.len();
+                for (i, (_d, a)) in path.iter().enumerate() {
+                    let summ = reader.get_node_label_summary(*a).unwrap();
+                    if summ.summary.items.len() == 1 {
+                        homogenity_depth = i;
+                        break;
+                    }
+                    let sum = summ.summary.items.iter().map(|(_, c)| c).sum::<usize>() as f32;
+                    let max = *summ.summary.items.iter().map(|(_, c)| c).max().unwrap() as f32;
+                    if 1.0 - max / sum < tau {
+                        homogenity_depth = i;
+                        break;
+                    }
+                }
+                (path.len(), homogenity_depth)
+            } else {
+                (0, 0)
+            }
+        )
+    }
+
     pub fn path(&self, point: &PyArray1<f32>) -> Vec<(f32, (i32, usize))> {
         let reader = self.writer.as_ref().unwrap().reader();
         reader.path(point.readonly().as_slice().unwrap()).unwrap()
+    }
+
+    pub fn sample(&self) -> PyResult<(Py<PyArray1<f32>>, Option<PyObject>)> {
+        let reader = self.writer.as_ref().unwrap().reader();
+        let mut rng = SmallRng::from_entropy();
+        let mut parent_addr = reader.root_address();
+
+        while let Some(pat) = reader
+            .get_node_plugin_and::<Dirichlet, _, _>(parent_addr, |p| p.sample(&mut rng))
+            .unwrap()
+        {
+            parent_addr = pat;
+        }
+        let gil = GILGuard::acquire();
+        let py = gil.python();
+        let vec = reader
+            .get_node_plugin_and::<DiagGaussian, _, _>(parent_addr, |p| p.sample(&mut rng))
+            .map(|m| {
+                Array1::from_shape_vec((m.len(),), m)
+                    .unwrap()
+                    .into_pyarray(py)
+                    .to_owned()
+            })
+            .unwrap();
+        let dict = PyDict::new(py);
+        let summ = match reader.get_node_label_summary(parent_addr) {
+            Some(s) => {
+                dict.set_item("errors", s.errors)?;
+                dict.set_item("nones", s.nones)?;
+                dict.set_item("items", s.summary.items.to_vec())?;
+                Some(dict.into())
+            }
+            None => None,
+        };
+        Ok((vec, summ))
     }
 
     pub fn kl_div_dirichlet(
@@ -248,7 +322,7 @@ impl CoverTree {
         sample_rate: usize,
     ) -> PyKLDivergenceBaseline {
         let reader = self.writer.as_ref().unwrap().reader();
-        let mut trainer = DirichletBaseline::new();
+        let mut trainer = DirichletBaseline::default();
         trainer.set_prior_weight(prior_weight);
         trainer.set_observation_weight(observation_weight);
         trainer.set_sequence_len(sequence_len);

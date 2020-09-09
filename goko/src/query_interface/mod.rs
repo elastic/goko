@@ -15,19 +15,20 @@ impl<D: PointCloud> BulkInterface<D> {
         BulkInterface { reader }
     }
 
-    /// Bulk known path
-    pub fn known_path(
-        &self,
-        point_indexes: &[PointIndex],
-    ) -> Vec<GokoResult<Vec<(f32, NodeAddress)>>> {
+    /// Applies the passed in fn to the passed in indexes and collects the result in a vector. Core function for this struct.
+    pub fn index_map_with_reader<F, T>(&self, point_indexes: &[PointIndex], f: F) -> Vec<T>
+    where
+        F: Fn(&CoverTreeReader<D>, PointIndex) -> T + Send + Sync,
+        T: Send + Sync,
+    {
         let indexes_iter = point_indexes.par_chunks(100);
         let reader_copies = indexes_iter.len();
-        let mut chunked_results: Vec<Vec<GokoResult<Vec<(f32, NodeAddress)>>>> = indexes_iter
+        let mut chunked_results: Vec<Vec<T>> = indexes_iter
             .zip(repeatn(self.reader.clone(), reader_copies))
             .map(|(chunk_indexes, reader)| {
                 chunk_indexes
                     .iter()
-                    .map(|i| reader.known_path(*i))
+                    .map(|p| f(&reader, *p))
                     .collect()
             })
             .collect();
@@ -40,15 +41,23 @@ impl<D: PointCloud> BulkInterface<D> {
             .unwrap()
     }
 
-    /// Bulk path
-    pub fn path<'a>(&self, points: &[PointRef<'a>]) -> Vec<GokoResult<Vec<(f32, NodeAddress)>>> {
+    /// Applies the passed in fn to the passed in indexes and collects the result in a vector. Core function for this struct.
+    pub fn point_map_with_reader<'a,F, T>(&self, points: &[PointRef<'a>], f: F) -> Vec<T>
+    where
+        F: Fn(&CoverTreeReader<D>, PointRef<'a>) -> T + Send + Sync,
+        T: Send + Sync,
+    {
         let point_iter = points.par_chunks(100);
         let reader_copies = point_iter.len();
-        let mut chunked_results: Vec<Vec<GokoResult<Vec<(f32, NodeAddress)>>>> = point_iter
+        let mut chunked_results: Vec<Vec<T>> = point_iter
             .zip(repeatn(self.reader.clone(), reader_copies))
-            .map(|(chunk_points, reader)| chunk_points.iter().map(|p| reader.path(p)).collect())
+            .map(|(chunk_points, reader)| {
+                chunk_points
+                    .iter()
+                    .map(|p| f(&reader, *p))
+                    .collect()
+            })
             .collect();
-
         chunked_results
             .drain(..)
             .fold_first(|mut a, mut x| {
@@ -56,6 +65,25 @@ impl<D: PointCloud> BulkInterface<D> {
                 a
             })
             .unwrap()
+    }
+
+    /// Bulk known path
+    pub fn known_path(&self, point_indexes: &[PointIndex]) -> Vec<GokoResult<Vec<(f32, NodeAddress)>>> {
+        self.index_map_with_reader(point_indexes,|reader,i| reader.known_path(i))
+    }
+
+    /// Bulk known path
+    pub fn known_path_and<F, T>(&self, point_indexes: &[PointIndex], f: F) -> Vec<T>
+    where
+        F: Fn(&CoverTreeReader<D>, GokoResult<Vec<(f32, NodeAddress)>>) -> T + Send + Sync,
+        T: Send + Sync,
+    {
+        self.index_map_with_reader(point_indexes,|reader,i| f(&reader, reader.known_path(i)))
+    }
+
+    /// Bulk known path
+    pub fn path<'a>(&self, points: &[PointRef<'a>]) -> Vec<GokoResult<Vec<(f32, NodeAddress)>>> {
+        self.point_map_with_reader(points,|reader,p| reader.path(p))
     }
 
     /// Bulk knn
@@ -64,20 +92,7 @@ impl<D: PointCloud> BulkInterface<D> {
         points: &[PointRef<'a>],
         k: usize,
     ) -> Vec<GokoResult<Vec<(f32, PointIndex)>>> {
-        let point_iter = points.par_chunks(1);
-        let reader_copies = point_iter.len();
-        let mut chunked_results: Vec<Vec<GokoResult<Vec<(f32, PointIndex)>>>> = point_iter
-            .zip(repeatn(self.reader.clone(), reader_copies))
-            .map(|(chunk_points, reader)| chunk_points.iter().map(|p| reader.knn(p, k)).collect())
-            .collect();
-
-        chunked_results
-            .drain(..)
-            .fold_first(|mut a, mut x| {
-                a.extend(x.drain(..));
-                a
-            })
-            .unwrap()
+        self.point_map_with_reader(points,|reader,p| reader.knn(p,k))
     }
 
     /// Bulk routing knn
@@ -86,25 +101,7 @@ impl<D: PointCloud> BulkInterface<D> {
         points: &[PointRef<'a>],
         k: usize,
     ) -> Vec<GokoResult<Vec<(f32, PointIndex)>>> {
-        let point_iter = points.par_chunks(1);
-        let reader_copies = point_iter.len();
-        let mut chunked_results: Vec<Vec<GokoResult<Vec<(f32, PointIndex)>>>> = point_iter
-            .zip(repeatn(self.reader.clone(), reader_copies))
-            .map(|(chunk_points, reader)| {
-                chunk_points
-                    .iter()
-                    .map(|p| reader.routing_knn(p, k))
-                    .collect()
-            })
-            .collect();
-
-        chunked_results
-            .drain(..)
-            .fold_first(|mut a, mut x| {
-                a.extend(x.drain(..));
-                a
-            })
-            .unwrap()
+        self.point_map_with_reader(points,|reader,p| reader.routing_knn(p,k))
     }
 }
 

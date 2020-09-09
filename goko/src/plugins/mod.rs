@@ -17,26 +17,13 @@ use type_map::concurrent::TypeMap;
 
 pub mod distributions;
 pub mod labels;
-
-/*
-mod sequence_kl;
-pub mod utils {
-    //! Utilities to use the plugins
-    pub use super::sequence_kl::*;
-}
-*/
+pub mod utils;
 
 /// Mockup for the plugin interface attached to the node. These are meant to be functions that Goko uses to maintain the plugin.
-pub trait NodePlugin<D: PointCloud>: Send + Sync + Debug {
-    /// This is currently non-functional, thinking about how to efficiently use this.
-    fn update(&mut self, my_node: &CoverNode<D>, my_tree: &CoverTreeReader<D>);
-}
+pub trait NodePlugin<D: PointCloud>: Send + Sync + Debug {}
 
 /// Mockup for the plugin parameters attached to the base of the tree.  
-pub trait TreePlugin<D: PointCloud>: Send + Sync + Debug {
-    /// This is currently non-functional, thinking about how to efficiently use this.
-    fn update(&mut self, my_tree: &CoverTreeReader<D>);
-}
+pub trait TreePlugin<D: PointCloud>: Send + Sync + Debug {}
 
 /// Parent trait that make this all work. Ideally this should be included in the `TreePlugin` but rust doesn't like it.
 pub trait GokoPlugin<D: PointCloud> {
@@ -44,12 +31,14 @@ pub trait GokoPlugin<D: PointCloud> {
     type NodeComponent: NodePlugin<D> + Clone + 'static;
     /// This should largely be an object that manages the parameters of the plugin.
     type TreeComponent: TreePlugin<D> + Clone + 'static;
+    /// This is called just before we build the tree to prepare it for the upcomming plugin creations.
+    fn prepare_tree(_parameters: &Self::TreeComponent, _my_tree: &mut CoverTreeWriter<D>) {}
     /// The function that actually builds the node components.
     fn node_component(
         parameters: &Self::TreeComponent,
         my_node: &CoverNode<D>,
         my_tree: &CoverTreeReader<D>,
-    ) -> Self::NodeComponent;
+    ) -> Option<Self::NodeComponent>;
 }
 
 pub(crate) type NodePluginSet = TypeMap;
@@ -67,22 +56,14 @@ pub(crate) mod tests {
         cover_count: usize,
     }
 
-    impl<D: PointCloud> NodePlugin<D> for DumbNode1 {
-        fn update(&mut self, _my_node: &CoverNode<D>, _my_tree: &CoverTreeReader<D>) {
-            self.id += 1;
-        }
-    }
+    impl<D: PointCloud> NodePlugin<D> for DumbNode1 {}
 
     #[derive(Debug, Clone)]
     struct DumbTree1 {
         id: u32,
     }
 
-    impl<D: PointCloud> TreePlugin<D> for DumbTree1 {
-        fn update(&mut self, _my_tree: &CoverTreeReader<D>) {
-            self.id += 1;
-        }
-    }
+    impl<D: PointCloud> TreePlugin<D> for DumbTree1 {}
 
     #[derive(Debug)]
     struct DumbGoko1 {}
@@ -94,7 +75,7 @@ pub(crate) mod tests {
             parameters: &Self::TreeComponent,
             my_node: &CoverNode<D>,
             my_tree: &CoverTreeReader<D>,
-        ) -> Self::NodeComponent {
+        ) -> Option<Self::NodeComponent> {
             println!(
                 "Building Dumb Plugin for {:?}",
                 (my_node.scale_index(), my_node.center_index())
@@ -122,11 +103,11 @@ pub(crate) mod tests {
                     cover_count
                 }
             };
-            DumbNode1 {
+            Some(DumbNode1 {
                 id: parameters.id,
                 pi: *my_node.center_index(),
                 cover_count,
-            }
+            })
         }
     }
 
