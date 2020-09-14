@@ -53,6 +53,7 @@ assert_approx_eq = "1.0.0"
 
 [[bench]]
 name = "path_bench"
+path = "benches/path_bench.rs"
 harness = false
 
 [build-dependencies]
