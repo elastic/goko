@@ -13,9 +13,9 @@ use pyo3::types::PyDict;
 
 #[pyclass(unsendable)]
 pub struct IterLayerNode {
-    pub parameters: Arc<CoverTreeParameters<DefaultLabeledCloud<L2>>>,
+    pub parameters: Arc<CoverTreeParameters<DefaultLabeledCloud<L1>>>,
     pub addresses: Vec<NodeAddress>,
-    pub tree: CoverTreeReader<DefaultLabeledCloud<L2>>,
+    pub tree: CoverTreeReader<DefaultLabeledCloud<L1>>,
     pub index: usize,
 }
 
@@ -48,9 +48,9 @@ impl PyIterProtocol for IterLayerNode {
 
 #[pyclass(unsendable)]
 pub struct PyNode {
-    pub parameters: Arc<CoverTreeParameters<DefaultLabeledCloud<L2>>>,
+    pub parameters: Arc<CoverTreeParameters<DefaultLabeledCloud<L1>>>,
     pub address: NodeAddress,
-    pub tree: CoverTreeReader<DefaultLabeledCloud<L2>>,
+    pub tree: CoverTreeReader<DefaultLabeledCloud<L1>>,
 }
 
 #[pymethods]

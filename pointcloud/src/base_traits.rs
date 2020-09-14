@@ -13,7 +13,7 @@ use ndarray::{Array1, Array2};
 
 #[inline]
 fn chunk(data_dim: usize) -> usize {
-    min(15000 / data_dim, 20)
+    min(300000 / data_dim, 100)
 }
 
 /// Base trait for a point cloud
@@ -434,13 +434,15 @@ impl<D: PointCloud, L: LabelSet> LabeledCloud for SimpleLabeledCloud<D, L> {
 
 /// Enables the points in the underlying cloud to be named with strings.
 pub trait NamedCloud: PointCloud {
+    /// Name type, could be a string or a 
+    type Name: Sized + Clone +  Eq;
     /// Grabs the name of the point.
     /// Returns an error if the access errors out, and a None if the name is unknown
-    fn name(&self, pi: PointIndex) -> PointCloudResult<Option<&str>>;
+    fn name(&self, pi: PointIndex) -> PointCloudResult<&Self::Name>;
     /// Converts a name to an index you can use
-    fn index(&self, pn: &str) -> PointCloudResult<&PointIndex>;
+    fn index(&self, pn: &Self::Name) -> PointCloudResult<&PointIndex>;
     /// Gather's all valid known names
-    fn names(&self) -> Vec<PointName>;
+    fn names(&self) -> Vec<Self::Name>;
 }
 
 /// Allows for expensive metadata, this is identical to the label trait, but enables slower update

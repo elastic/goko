@@ -13,8 +13,8 @@ use crate::node::*;
 
 #[pyclass(unsendable)]
 pub struct IterLayers {
-    pub parameters: Arc<CoverTreeParameters<DefaultLabeledCloud<L2>>>,
-    pub tree: CoverTreeReader<DefaultLabeledCloud<L2>>,
+    pub parameters: Arc<CoverTreeParameters<DefaultLabeledCloud<L1>>>,
+    pub tree: CoverTreeReader<DefaultLabeledCloud<L1>>,
     pub scale_indexes: Vec<i32>,
     pub index: usize,
 }
@@ -47,13 +47,13 @@ impl PyIterProtocol for IterLayers {
 
 #[pyclass(unsendable)]
 pub struct PyLayer {
-    pub parameters: Arc<CoverTreeParameters<DefaultLabeledCloud<L2>>>,
-    pub tree: CoverTreeReader<DefaultLabeledCloud<L2>>,
+    pub parameters: Arc<CoverTreeParameters<DefaultLabeledCloud<L1>>>,
+    pub tree: CoverTreeReader<DefaultLabeledCloud<L1>>,
     pub scale_index: i32,
 }
 
 impl PyLayer {
-    fn layer(&self) -> &CoverLayerReader<DefaultLabeledCloud<L2>> {
+    fn layer(&self) -> &CoverLayerReader<DefaultLabeledCloud<L1>> {
         self.tree.layer(self.scale_index)
     }
 }

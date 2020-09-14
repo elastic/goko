@@ -3,6 +3,7 @@
 //use crossbeam_channel::unbounded;
 use crate::*;
 use rayon::iter::repeatn;
+use ndarray::ArrayView2;
 
 /// Inteface for bulk queries. Handles cloning the readers for you
 pub struct BulkInterface<D: PointCloud> {
@@ -44,7 +45,7 @@ impl<D: PointCloud> BulkInterface<D> {
     /// Applies the passed in fn to the passed in indexes and collects the result in a vector. Core function for this struct.
     pub fn point_map_with_reader<'a,F, T>(&self, points: &[PointRef<'a>], f: F) -> Vec<T>
     where
-        F: Fn(&CoverTreeReader<D>, PointRef<'a>) -> T + Send + Sync,
+        F: Fn(&CoverTreeReader<D>, PointRef) -> T + Send + Sync,
         T: Send + Sync,
     {
         let point_iter = points.par_chunks(100);
@@ -55,6 +56,34 @@ impl<D: PointCloud> BulkInterface<D> {
                 chunk_points
                     .iter()
                     .map(|p| f(&reader, *p))
+                    .collect()
+            })
+            .collect();
+        chunked_results
+            .drain(..)
+            .fold_first(|mut a, mut x| {
+                a.extend(x.drain(..));
+                a
+            })
+            .unwrap()
+    }
+
+    /// Applies the passed in fn to the passed in indexes and collects the result in a vector. Core function for this struct.
+    pub fn array_map_with_reader<'a,F, T>(&self, points: ArrayView2<'a,f32>, f: F) -> Vec<T>
+    where
+        F: Fn(&CoverTreeReader<D>, PointRef) -> T + Send + Sync,
+        T: Send + Sync,
+    {
+        let indexes: Vec<usize> = (0..points.nrows()).collect();
+        let point_iter = indexes.par_chunks(100);
+        let reader_copies = point_iter.len();
+
+        let mut chunked_results: Vec<Vec<T>> = point_iter
+            .zip(repeatn(self.reader.clone(), reader_copies))
+            .map(|(chunk_points, reader)| {
+                chunk_points
+                    .iter()
+                    .map(|i| f(&reader, PointRef::from(points.row(*i).as_slice().unwrap())))
                     .collect()
             })
             .collect();

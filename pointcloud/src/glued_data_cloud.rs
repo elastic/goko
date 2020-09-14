@@ -106,28 +106,29 @@ impl<D: LabeledCloud> LabeledCloud for HashGluedCloud<D> {
 }
 
 impl<D: NamedCloud> NamedCloud for HashGluedCloud<D> {
-    fn name(&self, pi: PointIndex) -> PointCloudResult<Option<&str>> {
+    type Name = D::Name;
+
+    fn name(&self, pi: PointIndex) -> PointCloudResult<&Self::Name> {
         let (i, j) = self.get_address(pi)?;
         self.data_sources[i].name(j)
     }
-    fn index(&self, pn: &str) -> PointCloudResult<&PointIndex> {
+    fn index(&self, pn: &Self::Name) -> PointCloudResult<&PointIndex> {
         for data_source in &self.data_sources {
-            let name = data_source.index(pn);
-            if name.is_ok() {
-                return name;
+            let index = data_source.index(pn);
+            if index.is_ok() {
+                return index;
             }
         }
-        Err(PointCloudError::NameNotInCloud(pn.to_string()))
+        Err(PointCloudError::UnknownName)
     }
-    fn names(&self) -> Vec<String> {
+    fn names(&self) -> Vec<Self::Name> where <D as NamedCloud>::Name: std::marker::Sized {
         self.addresses
             .values()
             .filter_map(|(i, j)| {
                 self.data_sources[*i]
                     .name(*j)
                     .ok()
-                    .flatten()
-                    .map(|s| s.to_string())
+                    .map(|n| n.clone())
             })
             .collect()
     }

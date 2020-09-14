@@ -1,6 +1,6 @@
 [package]
 name = "goko"
-version = "0.4.1"
+version = "0.4.2"
 edition = "2018"
 
 description = "A lock-free, eventually consistent, concurrent covertree."
@@ -39,7 +39,7 @@ fxhash = "0.2.1"
 rayon = "1.4.0"
 hashbrown = { version = "0.9.0", features = ["rayon"] }
 crossbeam-channel = "0.4.4"
-pointcloud = { version = "0.3.7", path = "../pointcloud" }
+pointcloud = { version = "0.3.8", path = "../pointcloud" }
 #evmap = { git = "https://github.com/comath/rust-evmap" }
 smallvec = "1.4.2"
 type-map = "0.3.0"
@@ -48,7 +48,12 @@ ndarray = "0.13.1"
 ndarray-linalg = "0.12.1"
 
 [dev-dependencies]
+criterion = "0.3"
 assert_approx_eq = "1.0.0"
+
+[[bench]]
+name = "path_bench"
+harness = false
 
 [build-dependencies]
 protoc-rust = "2.16.2"

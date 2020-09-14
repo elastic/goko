@@ -42,7 +42,7 @@ pub enum PointCloudError {
     /// You passes unsorted indexes into a function that required sorted indexes
     NotSorted,
     /// Most common error, the given point name isn't present in the training data
-    NameNotInCloud(String),
+    UnknownName,
     /// IO error when opening files
     IoError(io::Error),
     /// Parsing error when loading a CSV file
@@ -63,7 +63,7 @@ impl fmt::Display for PointCloudError {
             PointCloudError::DataAccessError { .. } => {
                 write!(f, "there was an issue grabbing a data point or label")
             }
-            PointCloudError::NameNotInCloud { .. } => {
+            PointCloudError::UnknownName => {
                 write!(f, "there was an issue grabbing a name from the known names")
             }
             PointCloudError::NodeNestingError { .. } => {
@@ -88,7 +88,7 @@ impl Error for PointCloudError {
             PointCloudError::DataAccessError { .. } => {
                 "there was an issue grabbing a data point or label"
             }
-            PointCloudError::NameNotInCloud { .. } => {
+            PointCloudError::UnknownName => {
                 "there was an issue grabbing a name from the known names"
             }
             PointCloudError::NodeNestingError { .. } => {
@@ -106,7 +106,7 @@ impl Error for PointCloudError {
             PointCloudError::IoError(ref e) => Some(e),
             PointCloudError::ParsingError(ref e) => Some(e),
             PointCloudError::DataAccessError { .. } => None,
-            PointCloudError::NameNotInCloud { .. } => None,
+            PointCloudError::UnknownName => None,
             PointCloudError::NodeNestingError { .. } => None,
             PointCloudError::MetricError { .. } => None,
             PointCloudError::NotSorted { .. } => None,

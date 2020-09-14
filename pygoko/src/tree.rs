@@ -39,8 +39,8 @@ use crate::plugins::*;
 #[pyclass(unsendable)]
 pub struct CoverTree {
     builder: Option<CoverTreeBuilder>,
-    temp_point_cloud: Option<Arc<DefaultLabeledCloud<L2>>>,
-    writer: Option<CoverTreeWriter<DefaultLabeledCloud<L2>>>,
+    temp_point_cloud: Option<Arc<DefaultLabeledCloud<L1>>>,
+    writer: Option<CoverTreeWriter<DefaultLabeledCloud<L1>>>,
     metric: String,
 }
 
@@ -52,7 +52,7 @@ impl CoverTree {
             builder: Some(CoverTreeBuilder::new()),
             temp_point_cloud: None,
             writer: None,
-            metric: "DefaultLabeledCloud<L2>".to_string(),
+            metric: "DefaultLabeledCloud<L1>".to_string(),
         })
     }
     pub fn set_scale_base(&mut self, x: f32) {
@@ -89,7 +89,7 @@ impl CoverTree {
 
     pub fn load_yaml_config(&mut self, file_name: String) -> PyResult<()> {
         let path = Path::new(&file_name);
-        let point_cloud = Arc::new(labeled_ram_from_yaml::<_, L2>(&path).unwrap());
+        let point_cloud = Arc::new(labeled_ram_from_yaml::<_, L1>(&path).unwrap());
         let builder = CoverTreeBuilder::from_yaml(&path);
         self.builder = Some(builder);
         self.temp_point_cloud = Some(point_cloud);
@@ -112,7 +112,7 @@ impl CoverTree {
                 Some(labels) => Vec::from(labels.readonly().as_slice().unwrap()),
                 None => vec![0; len],
             };
-            Arc::new(DefaultLabeledCloud::<L2>::new_simple(
+            Arc::new(DefaultLabeledCloud::<L1>::new_simple(
                 Vec::from(data.readonly().as_slice().unwrap()),
                 data_dim,
                 my_labels,
@@ -228,12 +228,40 @@ impl CoverTree {
         reader.known_path(point_index).unwrap()
     }
 
-    pub fn depths(&self, point_indexes: Vec<usize>, tau: Option<f32>) -> Vec<(usize,usize)> {
+    pub fn index_depths(&self, point_indexes: Vec<usize>, tau: Option<f32>) -> Vec<(usize,usize)> {
         let reader = self.writer.as_ref().unwrap().reader();
         let bulk = BulkInterface::new(reader);
         let tau = tau.unwrap_or(0.00001);
         bulk.known_path_and(&point_indexes, |reader,path| 
             if let Ok(path) = path {
+                let mut homogenity_depth = path.len();
+                for (i, (_d, a)) in path.iter().enumerate() {
+                    let summ = reader.get_node_label_summary(*a).unwrap();
+                    if summ.summary.items.len() == 1 {
+                        homogenity_depth = i;
+                        break;
+                    }
+                    let sum = summ.summary.items.iter().map(|(_, c)| c).sum::<usize>() as f32;
+                    let max = *summ.summary.items.iter().map(|(_, c)| c).max().unwrap() as f32;
+                    if 1.0 - max / sum < tau {
+                        homogenity_depth = i;
+                        break;
+                    }
+                }
+                (path.len(), homogenity_depth)
+            } else {
+                (0, 0)
+            }
+        )
+    }
+
+    pub fn point_depths(&self, points: &PyArray2<f32>, tau: Option<f32>) -> Vec<(usize,usize)> {
+        let reader = self.writer.as_ref().unwrap().reader();
+        let bulk = BulkInterface::new(reader);
+        let tau = tau.unwrap_or(0.00001);
+        
+        bulk.array_map_with_reader(points.readonly().as_array(), |reader,point| 
+            if let Ok(path) = reader.path(point) {
                 let mut homogenity_depth = path.len();
                 for (i, (_d, a)) in path.iter().enumerate() {
                     let summ = reader.get_node_label_summary(*a).unwrap();

@@ -25,8 +25,8 @@ impl PyBucketProbs {
 
 #[pyclass(unsendable)]
 pub struct PyBayesCategoricalTracker {
-    pub hkl: BayesCategoricalTracker<DefaultLabeledCloud<L2>>,
-    pub tree: CoverTreeReader<DefaultLabeledCloud<L2>>,
+    pub hkl: BayesCategoricalTracker<DefaultLabeledCloud<L1>>,
+    pub tree: CoverTreeReader<DefaultLabeledCloud<L1>>,
 }
 
 #[pymethods]
