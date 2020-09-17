@@ -24,6 +24,8 @@ use crate::pc_errors::*;
 use packed_simd::*;
 use std::fmt::Debug;
 
+
+
 /// The trait that enables a metric
 pub trait Metric: 'static + Send + Sync + Debug + Clone {
     /// Dense calculation
@@ -52,6 +54,101 @@ pub trait Metric: 'static + Send + Sync + Debug + Clone {
 /// L2 norm, the square root of the sum of squares
 #[derive(Debug, Clone)]
 pub struct L2 {}
+
+/*
+#[cfg(target_arch = "x86_64")]
+use std::arch::x86_64::*;
+#[cfg(target_arch = "x86")]
+use std::arch::x86::*;
+
+fn dense_l2_safe(x: &[f32], y: &[f32]) -> f32 {
+    y.iter().zip(x).map(|(xi, yi)| (xi - yi) * (xi - yi)).fold(0.0, |acc, y| acc + y)
+}
+
+fn dense_l2_avx(mut x: &[f32], mut y: &[f32]) -> f32 {
+    assert_eq!(x.len(),y.len());
+    let mut index = 0;
+    let len = x.len();
+    let mut x_ptr = x.as_ptr();
+    let mut y_ptr = y.as_ptr();
+
+    let mut avx_acc = unsafe {_mm256_setzero_ps()};
+    while len - index > 8 {
+        unsafe {
+            let x_simd = _mm256_loadu_ps(x_ptr);
+            let y_simd = _mm256_loadu_ps(y_ptr);
+            let diff = _mm256_sub_ps(x_simd,y_simd);
+            avx_acc = _mm256_fmadd_ps(diff,diff,avx_acc);
+
+            x_ptr = x_ptr.offset(8);
+            y_ptr = y_ptr.offset(8);
+        }
+        index += 8;
+    }
+
+    let simd: [f32;8] = unsafe { std::mem::transmute(avx_acc) };
+
+    y = &y[index..];
+    x = &x[index..];
+    let leftover: f32 = y
+        .iter()
+        .zip(x)
+        .map(|(xi, yi)| (xi - yi) * (xi - yi))
+        .fold(0.0, |acc, y| acc + y);
+
+    simd.iter().fold(leftover,|a,x| a+x).sqrt()
+}
+
+
+use simdeez::*;
+use simdeez::scalar::*;
+use simdeez::sse2::*;
+use simdeez::sse41::*;
+use simdeez::avx::*;
+use simdeez::avx2::*;
+// If you want your SIMD function to use use runtime feature detection to call
+// the fastest available version, use the simd_runtime_generate macro:
+simd_runtime_generate!(
+fn l2_distance(x: &[f32], y: &[f32]) -> Vec<f32> {
+    
+    /// Set each slice to the same length for iteration efficiency
+    let mut x = &x[..x.len()];
+    let mut y = &y[..x.len()];
+    let mut acc = S::setzero_ps();
+    let mut leftover: f32 = 0;
+
+    // Operations have to be done in terms of the vector width
+    // so that it will work with any size vector.
+    // the width of a vector type is provided as a constant
+    // so the compiler is free to optimize it more.
+    // S::VF32_WIDTH is a constant, 4 when using SSE, 8 when using AVX2, etc
+    while x.len() >= S::VF32_WIDTH {
+        //load data from your vec into an SIMD value
+        let xv = S::loadu_ps(&x[0]);
+        let yv = S::loadu_ps(&y[0]);
+
+        // Use the usual intrinsic syntax if you prefer
+        let mut diff = S::sub_ps(xv1, yv1);
+        acc += diff*diff;
+        
+        // Move each slice to the next position
+        x = &x[S::VF32_WIDTH..];
+        y = &y[S::VF32_WIDTH..];
+    }
+    
+    // (Optional) Compute the remaining elements. Not necessary if you are sure the length
+    // of your data is always a multiple of the maximum S::VF32_WIDTH you compile for (4 for SSE, 8 for AVX2, etc).
+    // This can be asserted by putting `assert_eq!(x1.len(), 0);` here
+    for i in 0..x1.len() {
+        let diff = x[i] - y[i];
+        leftover += diff*diff;
+    }
+    for i in 0..S::VF32_WIDTH {
+        leftover += acc[i];
+    }
+    leftover.sqrt()
+});
+*/
 
 impl Metric for L2 {
     #[inline]

@@ -19,6 +19,7 @@ pub struct HashGluedCloud<D: PointCloud> {
 impl<D: PointCloud> HashGluedCloud<D> {
     /// Creates a new one, preserves the order in the supplied vec.
     pub fn new(data_sources: Vec<D>) -> HashGluedCloud<D> {
+        
         let mut addresses = HashMap::with_hasher(FxBuildHasher::default());
         let mut pi: PointIndex = 0;
         for (i, source) in data_sources.iter().enumerate() {
@@ -31,6 +32,30 @@ impl<D: PointCloud> HashGluedCloud<D> {
             addresses,
             data_sources,
         }
+    }
+
+    /// Remaps the indexes, treats the first element of the pair as the old index, and the second as the new index
+    pub fn reindex(&mut self, new_indexes:&[(PointIndex,PointIndex)]) -> PointCloudResult<()>{
+        assert!(new_indexes.len() == self.addresses.len());
+        let mut new_addresses = HashMap::with_hasher(FxBuildHasher::default());
+        for (old_index,new_index) in new_indexes.iter() {
+            match self.addresses.get(&old_index) {
+                Some(addr) => {
+                    new_addresses.insert(*new_index, *addr);
+                },
+                None => return Err(PointCloudError::DataAccessError {
+                    index: *old_index,
+                    reason: "address not found".to_string(),
+                }),
+            }
+        }
+        self.addresses = new_addresses;
+        Ok(())
+    }
+
+    /// Borrows the underlying data sources
+    pub fn data_sources(&self) -> &[D] {
+        &self.data_sources
     }
 
     /// Extracts the underlying point clouds

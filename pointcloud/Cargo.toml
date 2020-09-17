@@ -1,6 +1,6 @@
 [package]
 name = "pointcloud"
-version = "0.3.8"
+version = "0.3.9"
 edition = "2018"
 
 description = "An accessor layer for goko"
@@ -48,4 +48,10 @@ winapi = { version = "0.3", features = ["basetsd", "handleapi", "memoryapi", "mi
 
 [dev-dependencies]
 tempdir = "0.3"
+criterion = "0.3"
 assert_approx_eq = "1.0.0"
+
+[[bench]]
+name = "dists_bench"
+path = "benches/dists_bench.rs"
+harness = false

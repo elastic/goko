@@ -48,7 +48,6 @@ fn build_tree() -> CoverTreeWriter<SimpleLabeledCloud<DataRam<L2>, SmallIntLabel
 fn main() {
     let mut ct = build_tree();
     ct.generate_summaries();
-    let test_set = build_test_set();
     ct.refresh();
     let ct_reader = ct.reader();
     println!("Tree has {} nodes", ct_reader.node_count());
