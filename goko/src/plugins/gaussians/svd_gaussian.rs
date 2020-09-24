@@ -48,21 +48,16 @@ impl<D: PointCloud> NodePlugin<D> for SvdGaussian {}
 
 /// Zero sized type that can be passed around. Equivilant to `()`
 #[derive(Debug, Clone)]
-pub struct SvdGaussianTree {
+pub struct GokoSvdGaussian {
     max_points: usize,
     min_points: usize,
     tau: f32,
 }
 
-impl<D: PointCloud> TreePlugin<D> for SvdGaussianTree {}
-
-/// Zero sized type that can be passed around. Equivilant to `()`
-pub struct GokoSvdGaussian {}
-
 impl GokoSvdGaussian {
     /// Specify the max number of points, and the min that you want to compute the SVD over, and the tau used for dimension calulations
-    pub fn new(min_points: usize, max_points: usize, tau: f32) -> SvdGaussianTree {
-        SvdGaussianTree {
+    pub fn new(min_points: usize, max_points: usize, tau: f32) -> GokoSvdGaussian {
+        GokoSvdGaussian {
             max_points,
             min_points,
             tau,
@@ -72,15 +67,14 @@ impl GokoSvdGaussian {
 
 impl<D: PointCloud> GokoPlugin<D> for GokoSvdGaussian {
     type NodeComponent = SvdGaussian;
-    type TreeComponent = SvdGaussianTree;
-    fn prepare_tree(parameters: &Self::TreeComponent, my_tree: &mut CoverTreeWriter<D>) {
+    fn prepare_tree(parameters: &Self, my_tree: &mut CoverTreeWriter<D>) {
         my_tree.add_plugin::<GokoCoverageIndexes>(GokoCoverageIndexes::restricted(
             parameters.max_points,
         ));
         my_tree.add_plugin::<GokoDiagGaussian>(GokoDiagGaussian::recursive());
     }
     fn node_component(
-        parameters: &Self::TreeComponent,
+        parameters: &Self,
         my_node: &CoverNode<D>,
         my_tree: &CoverTreeReader<D>,
     ) -> Option<Self::NodeComponent> {

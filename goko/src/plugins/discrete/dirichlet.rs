@@ -14,15 +14,13 @@ use crate::covertree::node::CoverNode;
 use crate::covertree::CoverTreeReader;
 use crate::plugins::*;
 
-use super::*;
-use std::fmt;
-
 use rand::prelude::*;
-use rayon::iter::repeatn;
 use statrs::function::gamma::{digamma, ln_gamma};
-use std::collections::{HashMap, VecDeque};
 
 use rand::distributions::{Distribution, Uniform};
+
+use super::categorical::*;
+
 
 /// Simple probability density function for where things go by count
 ///
@@ -100,22 +98,25 @@ impl Dirichlet {
             }
         }
     }
-}
-impl DiscreteBayesianDistribution for Dirichlet {
-    type Evidence = Categorical;
 
-    fn add_observation(&mut self, loc: Option<NodeAddress>) {
+    /// Adds a single observation to the Dirichlet distribution.
+    /// Mutates the distribution in place to the posterior given the new evidence.
+    pub fn add_observation(&mut self, loc: Option<NodeAddress>) {
         self.add_child_pop(loc, 1.0);
     }
 
-    fn add_evidence(&mut self, other: &Categorical) {
+    /// Adds a a group of observations to the Dirichlet distribution.
+    /// Mutates the distribution in place to the posterior given the new evidence.
+    pub fn add_evidence(&mut self, other: &Categorical) {
         for (na, c) in &other.child_counts {
             self.add_child_pop(Some(*na), *c);
         }
         self.add_child_pop(None, other.singleton_count);
     }
 
-    fn posterior_kl_divergence(&self, other: &Categorical) -> Option<f64> {
+    /// Computes KL(prior || posterior), where the prior is the distribution 
+    /// and the posterior is based on the evidence provided.
+    pub fn posterior_kl_divergence(&self, other: &Categorical) -> Option<f64> {
         let my_total = self.total();
         let other_total = other.total() + my_total;
         let mut my_total_lng = 0.0;
@@ -151,9 +152,9 @@ impl DiscreteBayesianDistribution for Dirichlet {
             Some(kld)
         }
     }
-}
-impl DiscreteDistribution for Dirichlet {
-    fn ln_pdf(&self, loc: Option<&NodeAddress>) -> Option<f64> {
+
+    /// Computes the log of the expected PDF of the Dirichlet distribution
+    pub fn ln_pdf(&self, loc: Option<&NodeAddress>) -> Option<f64> {
         let ax = match loc {
             Some(ca) => self
                 .child_counts
@@ -165,7 +166,8 @@ impl DiscreteDistribution for Dirichlet {
         Some(ax.ln() - self.total().ln())
     }
 
-    fn sample<R: Rng>(&self, rng: &mut R) -> Option<NodeAddress> {
+    /// Samples from the expected PDF of the Dirichlet distribution
+    pub fn sample<R: Rng>(&self, rng: &mut R) -> Option<NodeAddress> {
         let sum = self.total() as usize;
         let uniform = Uniform::from(0..sum);
         let sample = uniform.sample(rng) as f64;
@@ -182,7 +184,7 @@ impl DiscreteDistribution for Dirichlet {
 
     /// from http://bariskurt.com/kullback-leibler-divergence-between-two-dirichlet-and-beta-distributions/
     /// We assume that the Dirichlet distribution passed into this one is conditioned on this one! It assumes they have the same keys!
-    fn kl_divergence(&self, other: &Dirichlet) -> Option<f64> {
+    pub fn kl_divergence(&self, other: &Dirichlet) -> Option<f64> {
         let my_total = self.total();
         let mut other_total = other.singleton_count;
         let mut my_total_lng = 0.0;
@@ -221,20 +223,13 @@ impl<D: PointCloud> NodePlugin<D> for Dirichlet {}
 
 /// Zero sized type that can be passed around. Equivilant to `()`
 #[derive(Debug, Clone)]
-pub struct DirichletTree {}
-
-impl<D: PointCloud> TreePlugin<D> for DirichletTree {}
-
-/// Zero sized type that can be passed around. Equivilant to `()`
-#[derive(Debug, Clone)]
 pub struct GokoDirichlet {}
 
 /// Parent trait that make this all work. Ideally this should be included in the `TreePlugin` but rust doesn't like it.
 impl<D: PointCloud> GokoPlugin<D> for GokoDirichlet {
     type NodeComponent = Dirichlet;
-    type TreeComponent = DirichletTree;
     fn node_component(
-        _parameters: &Self::TreeComponent,
+        _parameters: &Self,
         my_node: &CoverNode<D>,
         my_tree: &CoverTreeReader<D>,
     ) -> Option<Self::NodeComponent> {
@@ -258,258 +253,6 @@ impl<D: PointCloud> GokoPlugin<D> for GokoDirichlet {
             bucket.add_child_pop(None, (my_node.singletons_len() + 1) as f64);
         }
         Some(bucket)
-    }
-}
-
-/// Computes a frequentist KL divergence calculation on each node the sequence touches.
-pub struct BayesCategoricalTracker<D: PointCloud> {
-    running_evidence: HashMap<NodeAddress, Categorical>,
-    sequence_queue: VecDeque<Vec<(f32, NodeAddress)>>,
-    sequence_count: usize,
-    window_size: usize,
-    prior_weight: f64,
-    observation_weight: f64,
-    reader: CoverTreeReader<D>,
-}
-
-impl<D: PointCloud> fmt::Debug for BayesCategoricalTracker<D> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "PointCloud {{ sequence_queue: {:?}, window_size: {} prior_weight: {}, observation_weight: {}, running_evidence: {:?}}}",
-            self.sequence_queue, self.window_size, self.prior_weight, self.observation_weight, self.running_evidence,
-        )
-    }
-}
-
-impl<D: PointCloud> BayesCategoricalTracker<D> {
-    /// Creates a new blank thing with capacity `size`, input 0 for unlimited.
-    pub fn new(
-        prior_weight: f64,
-        observation_weight: f64,
-        window_size: usize,
-        reader: CoverTreeReader<D>,
-    ) -> BayesCategoricalTracker<D> {
-        BayesCategoricalTracker {
-            running_evidence: HashMap::new(),
-            sequence_queue: VecDeque::new(),
-            sequence_count: 0,
-            window_size,
-            prior_weight,
-            observation_weight,
-            reader,
-        }
-    }
-
-    /// Appends a tracker to this one,
-    pub fn append(mut self, other: &Self) -> Self {
-        for (k, v) in other.running_evidence.iter() {
-            self.running_evidence
-                .entry(*k)
-                .and_modify(|e| e.merge(v))
-                .or_insert_with(|| v.clone());
-        }
-        self.sequence_queue
-            .extend(other.sequence_queue.iter().cloned());
-        self
-    }
-
-    fn get_distro(&self, address: NodeAddress) -> Dirichlet {
-        let mut prob = self
-            .reader
-            .get_node_plugin_and::<Dirichlet, _, _>(address, |p| p.clone())
-            .unwrap();
-        let total = prob.total();
-        if total > self.window_size as f64 {
-            prob.weight((total.ln() * self.window_size as f64) / total)
-        }
-        prob.weight(self.prior_weight);
-        prob
-    }
-
-    fn add_trace_to_pdfs(&mut self, trace: &[(f32, NodeAddress)]) {
-        let parent_address_iter = trace.iter().map(|(_, ca)| ca);
-        let mut child_address_iter = trace.iter().map(|(_, ca)| ca);
-        child_address_iter.next();
-        for (parent, child) in parent_address_iter.zip(child_address_iter) {
-            self.running_evidence
-                .entry(*parent)
-                .or_default()
-                .add_child_pop(Some(*child), self.observation_weight);
-        }
-        let last = trace.last().unwrap().1;
-        self.running_evidence
-            .entry(last)
-            .or_default()
-            .add_child_pop(None, self.observation_weight);
-    }
-
-    fn remove_trace_from_pdfs(&mut self, trace: &[(f32, NodeAddress)]) {
-        let parent_address_iter = trace.iter().map(|(_, ca)| ca);
-        let mut child_address_iter = trace.iter().map(|(_, ca)| ca);
-        child_address_iter.next();
-        for (parent, child) in parent_address_iter.zip(child_address_iter) {
-            let parent_evidence = self.running_evidence.get_mut(parent).unwrap();
-            parent_evidence.remove_child_pop(Some(*child), self.observation_weight);
-        }
-        let last = trace.last().unwrap().1;
-        self.running_evidence
-            .get_mut(&last)
-            .unwrap()
-            .remove_child_pop(None, self.observation_weight);
-    }
-
-    /// Gives the probability vector for this
-    pub fn prob_vector(&self, na: NodeAddress) -> Option<(Vec<(NodeAddress, f64)>, f64)> {
-        self.reader
-            .get_node_plugin_and::<Dirichlet, _, _>(na, |p| {
-                let mut dir = p.clone();
-                if let Some(e) = self.running_evidence.get(&na) {
-                    dir.add_evidence(e)
-                }
-                dir.prob_vector()
-            })
-            .flatten()
-    }
-
-    /// Gives the probability vector for this
-    pub fn evidence_prob_vector(&self, na: NodeAddress) -> Option<(Vec<(NodeAddress, f64)>, f64)> {
-        self.running_evidence
-            .get(&na)
-            .map(|e| e.prob_vector())
-            .flatten()
-    }
-}
-impl<D: PointCloud> DiscreteBayesianSequenceTracker<D> for BayesCategoricalTracker<D> {
-    type Distribution = Dirichlet;
-    /// Adds an element to the trace
-    fn add_path(&mut self, trace: Vec<(f32, NodeAddress)>) {
-        self.add_trace_to_pdfs(&trace);
-        self.sequence_count += 1;
-        if self.window_size != 0 {
-            self.sequence_queue.push_back(trace);
-
-            if self.sequence_queue.len() > self.window_size {
-                let oldest = self.sequence_queue.pop_front().unwrap();
-                self.remove_trace_from_pdfs(&oldest);
-            }
-        }
-    }
-    fn running_evidence(&self) -> &HashMap<NodeAddress, Categorical> {
-        &self.running_evidence
-    }
-    fn tree_reader(&self) -> &CoverTreeReader<D> {
-        &self.reader
-    }
-    fn sequence_len(&self) -> usize {
-        if self.sequence_queue.is_empty() {
-            self.sequence_count
-        } else {
-            self.sequence_queue.len()
-        }
-    }
-}
-
-/// Trains a baseline by sampling randomly from the training set (used to create the tree)
-/// This baseline is _not_ realistic.
-pub struct DirichletBaseline {
-    sample_rate: usize,
-    sequence_len: usize,
-    num_sequences: usize,
-    prior_weight: f64,
-    observation_weight: f64,
-}
-
-impl Default for DirichletBaseline {
-    fn default() -> DirichletBaseline {
-        DirichletBaseline {
-            sample_rate: 100,
-            sequence_len: 0,
-            num_sequences: 8,
-            prior_weight: 1.0,
-            observation_weight: 1.0,
-        }
-    }
-}
-
-impl DirichletBaseline {
-    /// Sets a new maxium sequence length. Set this to be the window size if you're using windows, the lenght of the test set you've got,
-    /// or leave it alone as the default limit is the number of points in the training set.
-    ///
-    /// We sample up to this cap, linearly interpolating above this. So, the baseline produced is fairly accurate for indexes below this
-    /// and unreliable above this.
-    pub fn set_sequence_len(&mut self, sequence_len: usize) {
-        self.sequence_len = sequence_len;
-    }
-    /// Sets a new count of sequences to train over, default 100. Stats for each sequence are returned.
-    pub fn set_num_sequences(&mut self, num_sequences: usize) {
-        self.num_sequences = num_sequences;
-    }
-    /// Sets a new prior weight, default 1.0. The prior is multiplied by this to increase or decrease it's importance
-    pub fn set_prior_weight(&mut self, prior_weight: f64) {
-        self.prior_weight = prior_weight;
-    }
-    /// Sets a new observation weight, default 1.0. Each discrete observation is treated as having this value.
-    pub fn set_observation_weight(&mut self, observation_weight: f64) {
-        self.observation_weight = observation_weight;
-    }
-    /// Samples at the following rate, then interpolates for sequence lengths between the following.
-    pub fn set_sample_rate(&mut self, sample_rate: usize) {
-        self.sample_rate = sample_rate;
-    }
-
-    /// Trains the sequences up.
-    pub fn train<D: PointCloud>(
-        &self,
-        reader: CoverTreeReader<D>,
-    ) -> GokoResult<KLDivergenceBaseline> {
-        let point_indexes = reader.point_cloud().reference_indexes();
-        let sequence_len = if self.sequence_len == 0 {
-            point_indexes.len()
-        } else {
-            self.sequence_len
-        };
-
-        let results: Vec<Vec<KLDivergenceStats>> = repeatn(reader, self.num_sequences)
-            .map(|reader| {
-                let mut tracker = BayesCategoricalTracker::new(
-                    self.prior_weight,
-                    self.observation_weight,
-                    0,
-                    reader,
-                );
-                (&point_indexes[..])
-                    .choose_multiple(&mut thread_rng(), sequence_len)
-                    .enumerate()
-                    .filter_map(|(i, pi)| {
-                        tracker.add_path(tracker.reader.known_path(*pi).unwrap());
-                        if i % self.sample_rate == 0 {
-                            Some(tracker.kl_div_stats())
-                        } else {
-                            None
-                        }
-                    })
-                    .collect()
-            })
-            .collect();
-        let len = results[0].len();
-        let mut sequence_len = Vec::with_capacity(len);
-        let mut stats: Vec<KLDivergenceBaselineStats> =
-            std::iter::repeat_with(KLDivergenceBaselineStats::default)
-                .take(len)
-                .collect();
-
-        for i in 0..len {
-            for result_vec in &results {
-                stats[i].add(&result_vec[i]);
-            }
-            sequence_len.push(results[0][i].sequence_len);
-        }
-        Ok(KLDivergenceBaseline {
-            num_sequences: results.len(),
-            stats,
-            sequence_len,
-        })
     }
 }
 

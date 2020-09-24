@@ -26,7 +26,6 @@ use rand::prelude::*;
 use std::path::Path;
 use std::sync::Arc;
 
-use goko::plugins::distributions::*;
 use goko::query_interface::BulkInterface;
 use goko::*;
 use pointcloud::loaders::labeled_ram_from_yaml;
@@ -35,6 +34,8 @@ use pointcloud::*;
 use crate::layer::*;
 use crate::node::*;
 use crate::plugins::*;
+use goko::plugins::discrete::prelude::*;
+use goko::plugins::gaussians::*;
 
 #[pyclass(unsendable)]
 pub struct CoverTree {
@@ -130,7 +131,7 @@ impl CoverTree {
         let writer = self.writer.as_mut().unwrap();
         writer.generate_summaries();
         writer.add_plugin::<GokoDiagGaussian>(GokoDiagGaussian::singletons());
-        writer.add_plugin::<GokoDirichlet>(DirichletTree {});
+        writer.add_plugin::<GokoDirichlet>(GokoDirichlet {});
         Ok(())
     }
 

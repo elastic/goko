@@ -14,16 +14,16 @@ Plugins are currently partially implemented. Expect them in the coming weeks!
 
 Children of a node that would only cover are stored in a singleton list. This saves a significant amount of memory (Trees built on Ember are 2-3x smaller) and you can chose not to query these nodes to speed up KNN & other queries. Considerations should be made when writing algorithms for this implementation for these unique children.
 
-## Planned Features
+## Installation
 
-#### Current work
-* Plugins! Math gadgets attached to each node.
-* Benchmarks
-* Inserts
+This depends on protoc which can be installed by installing `protobuf-compiler` on ubuntu. A normal dev machine should have the rest installed, but fresh machines may need to install the following, along with Rust:
 
-#### Near Future
-* Nerve encoding for potential TDA, and making us of the ||isation
-* Plugin support for the nerve.
+```bash
+sudo apt install -y build-essential libssl-dev libblas-dev liblapacke-dev pkg-config libprotobuf-dev libprotoc-dev protobuf-compiler
+```
 
-#### Future
-* Move to either `stdasync` or `tokio` to handle coroutines to integrate with services more easily.
+It also requires nightly due to `packed-simd`'s reliance on experimental APIs. Currently the latest version that is confirmed to work is 
+```bash
+rustup install nightly-2020-09-14
+rustup override set nightly-2020-09-14
+```

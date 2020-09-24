@@ -5,7 +5,6 @@
 
 use crate::covertree::node::CoverNode;
 use crate::covertree::CoverTreeReader;
-use crate::plugins::distributions::DiscreteDistribution;
 use crate::plugins::*;
 
 use rand::distributions::{Distribution, Uniform};
@@ -16,66 +15,6 @@ use rand::Rng;
 pub struct Categorical {
     pub(crate) child_counts: Vec<(NodeAddress, f64)>,
     pub(crate) singleton_count: f64,
-}
-
-impl DiscreteDistribution for Categorical {
-    /// Pass none if you want to test for a singleton, returns 0 if
-    fn ln_pdf(&self, loc: Option<&NodeAddress>) -> Option<f64> {
-        let total = self.total();
-        if total > 0.0 {
-            let ax = match loc {
-                Some(ca) => self
-                    .child_counts
-                    .binary_search_by_key(&ca, |(a, _)| a)
-                    .map(|i| self.child_counts[i].1)
-                    .unwrap_or(0.0),
-                None => self.singleton_count,
-            };
-            Some(ax.ln() - total.ln())
-        } else {
-            None
-        }
-    }
-
-    fn sample<R: Rng>(&self, rng: &mut R) -> Option<NodeAddress> {
-        let sum = self.total() as usize;
-        let uniform = Uniform::from(0..sum);
-        let sample = uniform.sample(rng) as f64;
-
-        let mut count = 0.0;
-        for (a, c) in &self.child_counts {
-            count += c;
-            if sample < count {
-                return Some(*a);
-            }
-        }
-        None
-    }
-
-    /// Computes the KL divergence of two bucket probs.
-    /// KL(self || other)
-    /// Returns None if the support of the self is not a subset of the support of the other
-    fn kl_divergence(&self, other: &Categorical) -> Option<f64> {
-        let my_total = self.total();
-        let other_total = other.total();
-        if my_total == 0.0 || other_total == 0.0 {
-            None
-        } else {
-            let ln_total = my_total.ln() - other_total.ln();
-            let mut sum: f64 = 0.0;
-            if self.singleton_count > 0.0 && other.singleton_count > 0.0 {
-                sum += (self.singleton_count / my_total)
-                    * (self.singleton_count.ln() - other.singleton_count.ln() - ln_total);
-            }
-            for ((ca, ca_count), (other_ca, other_ca_count)) in
-                self.child_counts.iter().zip(other.child_counts.iter())
-            {
-                assert_eq!(ca, other_ca);
-                sum += (ca_count / my_total) * (ca_count.ln() - other_ca_count.ln() - ln_total);
-            }
-            Some(sum)
-        }
-    }
 }
 
 impl Categorical {
@@ -149,15 +88,67 @@ impl Categorical {
             }
         }
     }
+
+    /// Pass none if you want to test for a singleton, returns 0 if
+    fn ln_pdf(&self, loc: Option<&NodeAddress>) -> Option<f64> {
+        let total = self.total();
+        if total > 0.0 {
+            let ax = match loc {
+                Some(ca) => self
+                    .child_counts
+                    .binary_search_by_key(&ca, |(a, _)| a)
+                    .map(|i| self.child_counts[i].1)
+                    .unwrap_or(0.0),
+                None => self.singleton_count,
+            };
+            Some(ax.ln() - total.ln())
+        } else {
+            None
+        }
+    }
+
+    fn sample<R: Rng>(&self, rng: &mut R) -> Option<NodeAddress> {
+        let sum = self.total() as usize;
+        let uniform = Uniform::from(0..sum);
+        let sample = uniform.sample(rng) as f64;
+
+        let mut count = 0.0;
+        for (a, c) in &self.child_counts {
+            count += c;
+            if sample < count {
+                return Some(*a);
+            }
+        }
+        None
+    }
+
+    /// Computes the KL divergence of two bucket probs.
+    /// KL(self || other)
+    /// Returns None if the support of the self is not a subset of the support of the other
+    fn kl_divergence(&self, other: &Categorical) -> Option<f64> {
+        let my_total = self.total();
+        let other_total = other.total();
+        if my_total == 0.0 || other_total == 0.0 {
+            None
+        } else {
+            let ln_total = my_total.ln() - other_total.ln();
+            let mut sum: f64 = 0.0;
+            if self.singleton_count > 0.0 && other.singleton_count > 0.0 {
+                sum += (self.singleton_count / my_total)
+                    * (self.singleton_count.ln() - other.singleton_count.ln() - ln_total);
+            }
+            for ((ca, ca_count), (other_ca, other_ca_count)) in
+                self.child_counts.iter().zip(other.child_counts.iter())
+            {
+                assert_eq!(ca, other_ca);
+                sum += (ca_count / my_total) * (ca_count.ln() - other_ca_count.ln() - ln_total);
+            }
+            Some(sum)
+        }
+    }
 }
 
 impl<D: PointCloud> NodePlugin<D> for Categorical {}
-
-/// Zero sized type that can be passed around. Equivilant to `()`
-#[derive(Debug, Clone)]
-pub struct CategoricalTree {}
-
-impl<D: PointCloud> TreePlugin<D> for CategoricalTree {}
 
 /// Zero sized type that can be passed around. Equivilant to `()`
 #[derive(Debug, Clone)]
@@ -166,9 +157,8 @@ pub struct GokoCategorical {}
 /// Parent trait that make this all work. Ideally this should be included in the `TreePlugin` but rust doesn't like it.
 impl<D: PointCloud> GokoPlugin<D> for GokoCategorical {
     type NodeComponent = Categorical;
-    type TreeComponent = CategoricalTree;
     fn node_component(
-        _parameters: &Self::TreeComponent,
+        _parameters: &Self,
         my_node: &CoverNode<D>,
         my_tree: &CoverTreeReader<D>,
     ) -> Option<Self::NodeComponent> {

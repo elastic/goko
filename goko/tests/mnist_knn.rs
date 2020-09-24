@@ -43,7 +43,7 @@ use std::path::Path;
 #[allow(dead_code)]
 extern crate goko;
 extern crate pointcloud;
-use goko::plugins::distributions::*;
+use goko::plugins::gaussians::*;
 use goko::utils::*;
 use goko::{CoverTreeReader, CoverTreeWriter};
 use pointcloud::*;

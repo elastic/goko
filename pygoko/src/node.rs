@@ -4,7 +4,8 @@ use ndarray::{Array1, Array2};
 use numpy::{IntoPyArray, PyArray1, PyArray2};
 use pyo3::PyIterProtocol;
 
-use goko::plugins::distributions::*;
+use goko::plugins::discrete::prelude::*;
+use goko::plugins::gaussians::*;
 use goko::*;
 use pointcloud::*;
 use std::sync::Arc;

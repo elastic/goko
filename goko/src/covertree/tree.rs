@@ -575,14 +575,14 @@ pub struct CoverTreeWriter<D: PointCloud> {
 impl<D: PointCloud + LabeledCloud> CoverTreeWriter<D> {
     ///
     pub fn generate_summaries(&mut self) {
-        self.add_plugin::<LabelSummaryPlugin>(TreeLabelSummary::default())
+        self.add_plugin::<LabelSummaryPlugin>(LabelSummaryPlugin::default())
     }
 }
 
 impl<D: PointCloud + MetaCloud> CoverTreeWriter<D> {
     ///
     pub fn generate_meta_summaries(&mut self) {
-        self.add_plugin::<MetaSummaryPlugin>(TreeMetaSummary::default())
+        self.add_plugin::<MetaSummaryPlugin>(MetaSummaryPlugin::default())
     }
 }
 
@@ -590,11 +590,8 @@ impl<D: PointCloud> CoverTreeWriter<D> {
     ///
     pub fn add_plugin<P: GokoPlugin<D>>(
         &mut self,
-        plug_in: <P as plugins::GokoPlugin<D>>::TreeComponent,
-    ) where
-        <P as plugins::GokoPlugin<D>>::TreeComponent: 'static,
-        <P as plugins::GokoPlugin<D>>::NodeComponent: 'static,
-    {
+        plug_in: P,
+    ) {
         P::prepare_tree(&plug_in, self);
         let reader = self.reader();
         for layer in self.layers.iter_mut() {

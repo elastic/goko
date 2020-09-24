@@ -15,29 +15,25 @@ use crate::*;
 use std::fmt::Debug;
 use type_map::concurrent::TypeMap;
 
-pub mod distributions;
+pub mod discrete;
+pub mod gaussians;
 pub mod labels;
 pub mod utils;
 
 /// Mockup for the plugin interface attached to the node. These are meant to be functions that Goko uses to maintain the plugin.
 pub trait NodePlugin<D: PointCloud>: Send + Sync + Debug {}
 
-/// Mockup for the plugin parameters attached to the base of the tree.  
-pub trait TreePlugin<D: PointCloud>: Send + Sync + Debug {}
-
 /// Parent trait that make this all work. Ideally this should be included in the `TreePlugin` but rust doesn't like it.
-pub trait GokoPlugin<D: PointCloud> {
+pub trait GokoPlugin<D: PointCloud>: Send + Sync + Debug + Clone + 'static {
     /// The node component of this plugin, these are attached to each node recursively when the plug in is attached to the tree.
     type NodeComponent: NodePlugin<D> + Clone + 'static;
-    /// This should largely be an object that manages the parameters of the plugin.
-    type TreeComponent: TreePlugin<D> + Clone + 'static;
     /// This is called just before we build the tree to prepare it for the upcomming plugin creations.
-    fn prepare_tree(_parameters: &Self::TreeComponent, _my_tree: &mut CoverTreeWriter<D>) {}
+    fn prepare_tree(_parameters: &Self, _my_tree: &mut CoverTreeWriter<D>) {}
     /// The function that actually builds the node components.
     fn node_component(
-        parameters: &Self::TreeComponent,
+        parameters: &Self,
         my_node: &CoverNode<D>,
-        my_tree: &CoverTreeReader<D>,
+        my_node: &CoverTreeReader<D>,
     ) -> Option<Self::NodeComponent>;
 }
 
@@ -59,20 +55,14 @@ pub(crate) mod tests {
     impl<D: PointCloud> NodePlugin<D> for DumbNode1 {}
 
     #[derive(Debug, Clone)]
-    struct DumbTree1 {
+    struct DumbGoko1 {
         id: u32,
     }
 
-    impl<D: PointCloud> TreePlugin<D> for DumbTree1 {}
-
-    #[derive(Debug)]
-    struct DumbGoko1 {}
-
     impl<D: PointCloud> GokoPlugin<D> for DumbGoko1 {
         type NodeComponent = DumbNode1;
-        type TreeComponent = DumbTree1;
         fn node_component(
-            parameters: &Self::TreeComponent,
+            parameters: &Self,
             my_node: &CoverNode<D>,
             my_tree: &CoverTreeReader<D>,
         ) -> Option<Self::NodeComponent> {
@@ -113,7 +103,7 @@ pub(crate) mod tests {
 
     #[test]
     fn dumb_plugins() {
-        let d = DumbTree1 { id: 1 };
+        let d = DumbGoko1 { id: 1 };
         let mut tree = build_basic_tree();
         tree.add_plugin::<DumbGoko1>(d);
         println!("{:?}", tree.reader().len());

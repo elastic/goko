@@ -179,32 +179,26 @@ impl<D: PointCloud> NodePlugin<D> for DiagGaussian {}
 
 /// Zero sized type that can be passed around. Equivilant to `()`
 #[derive(Debug, Clone)]
-pub struct DiagGaussianTree {
+pub struct GokoDiagGaussian {
     recursive: bool,
 }
 
-impl<D: PointCloud> TreePlugin<D> for DiagGaussianTree {}
-
-/// Zero sized type that can be passed around. Equivilant to `()`
-pub struct GokoDiagGaussian {}
-
 impl GokoDiagGaussian {
     /// Sets this up to build the gaussians recursively, so the gaussian for a node is for the total cover space.
-    pub fn recursive() -> DiagGaussianTree {
-        DiagGaussianTree { recursive: true }
+    pub fn recursive() -> Self {
+        Self { recursive: true }
     }
 
     /// Produces a gaussian off of just the singletons attached to the node, not the total cover space
-    pub fn singletons() -> DiagGaussianTree {
-        DiagGaussianTree { recursive: false }
+    pub fn singletons() -> Self {
+        Self { recursive: false }
     }
 }
 
 impl<D: PointCloud> GokoPlugin<D> for GokoDiagGaussian {
     type NodeComponent = DiagGaussian;
-    type TreeComponent = DiagGaussianTree;
     fn node_component(
-        parameters: &Self::TreeComponent,
+        parameters: &Self,
         my_node: &CoverNode<D>,
         my_tree: &CoverTreeReader<D>,
     ) -> Option<Self::NodeComponent> {

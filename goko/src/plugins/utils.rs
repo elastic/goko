@@ -21,37 +21,29 @@ impl CoverageIndexes {
     }
 }
 
-/// Parameters to control the gathering of indexes.
-/// It's wize to set this to some reasonable limit so you don't consume all the ram.
-#[derive(Debug, Clone)]
-pub struct CoverageIndexesParams {
+/// A plugin that helps gather all the indexes that the node covers into an array you can use.
+#[derive(Debug,Clone)]
+pub struct GokoCoverageIndexes {
     /// The actual limit
     pub max: usize,
 }
 
-impl<D: PointCloud> TreePlugin<D> for CoverageIndexesParams {}
-
-/// A plugin that helps gather all the indexes that the node covers into an array you can use.
-#[derive(Debug)]
-pub struct GokoCoverageIndexes {}
-
 impl GokoCoverageIndexes {
     /// Set up the plugin for restricting the number of indexes we collect into any one node
-    pub fn restricted(max: usize) -> CoverageIndexesParams {
-        CoverageIndexesParams { max }
+    pub fn restricted(max: usize) -> Self {
+        Self { max }
     }
 
     /// Set up the plugin for no restrictions
-    pub fn new() -> CoverageIndexesParams {
-        CoverageIndexesParams { max: usize::MAX }
+    pub fn new() -> Self {
+        Self { max: usize::MAX }
     }
 }
 
 impl<D: PointCloud> GokoPlugin<D> for GokoCoverageIndexes {
     type NodeComponent = CoverageIndexes;
-    type TreeComponent = CoverageIndexesParams;
     fn node_component(
-        parameters: &Self::TreeComponent,
+        parameters: &Self,
         my_node: &CoverNode<D>,
         my_tree: &CoverTreeReader<D>,
     ) -> Option<Self::NodeComponent> {

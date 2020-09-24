@@ -31,7 +31,7 @@ use pointcloud::{data_sources::*, label_sources::*, loaders::*};
 use std::sync::Arc;
 use std::time;
 
-use goko::plugins::distributions::*;
+use goko::plugins::discrete::prelude::*;
 use goko::query_interface::BulkInterface;
 
 fn build_tree() -> CoverTreeWriter<SimpleLabeledCloud<DataRam<L2>, VecLabels>> {
@@ -51,7 +51,7 @@ fn build_test_set() -> SimpleLabeledCloud<DataRam<L2>, VecLabels> {
 
 fn main() {
     let mut ct = build_tree();
-    ct.add_plugin::<GokoDirichlet>(DirichletTree {});
+    ct.add_plugin::<GokoDirichlet>(GokoDirichlet {});
     let test_set = build_test_set();
     //ct.cluster().unwrap();
     ct.refresh();
@@ -88,7 +88,7 @@ fn main() {
     let points: Vec<PointRef<'_>> = (0..test_set.len())
         .map(|i| test_set.point(i).unwrap())
         .collect();
-    let bulk = BulkInterface::new(tracker.tree_reader().clone());
+    let bulk = BulkInterface::new(ct.reader());
     let mut paths = bulk.path(&points);
     for path in paths.drain(0..) {
         tracker.add_path(path.unwrap());
