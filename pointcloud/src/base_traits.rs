@@ -19,7 +19,7 @@ fn chunk(data_dim: usize) -> usize {
 /// Base trait for a point cloud
 pub trait PointCloud: Debug + Send + Sync + 'static {
     /// Underlying metric this point cloud uses
-    type Metric: Metric;
+    type Point: Point;
 
     /// The number of samples this cloud covers
     fn len(&self) -> usize;
@@ -30,7 +30,7 @@ pub trait PointCloud: Debug + Send + Sync + 'static {
     /// Indexes used for access
     fn reference_indexes(&self) -> Vec<PointIndex>;
     /// Gets a point from this dataset
-    fn point(&self, pn: PointIndex) -> PointCloudResult<PointRef>;
+    fn point(&self, pn: PointIndex) -> PointCloudResult<Self::Point>;
 
     /// Returns a dense array
     fn point_dense_array(&self, index: PointIndex) -> PointCloudResult<Array1<f32>> {
@@ -79,7 +79,7 @@ pub trait PointCloud: Debug + Send + Sync + 'static {
                             for (d, j) in chunk_dists.iter_mut().zip(chunk_indexes) {
                                 match self
                                     .point(*j)
-                                    .map(|y| (Self::Metric::dist)(&x, &y))
+                                    .map(|y| x.dist(&y))
                                     .flatten()
                                 {
                                     Ok(dist) => *d = dist,
@@ -100,7 +100,7 @@ pub trait PointCloud: Debug + Send + Sync + 'static {
                 let x = self.point(*i)?;
                 for (l, j) in js.iter().enumerate() {
                     let y = self.point(*j)?;
-                    dists[k * js.len() + l] = (Self::Metric::dist)(&x, &y)?;
+                    dists[k * js.len() + l] = x.dist(&y);
                 }
             }
         }

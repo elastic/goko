@@ -8,3 +8,4 @@ dist
 *.png
 __pycache__
 add_license.py
+.DS_store
