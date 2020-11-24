@@ -31,7 +31,6 @@
 #[macro_use]
 extern crate assert_approx_eq;
 /*
-mod distances;
 pub mod pc_errors;
 
 pub mod data_sources;
@@ -63,7 +62,10 @@ impl<M: Metric> DefaultLabeledCloud<M> {
     }
 }
 */
+mod distances;
 pub use distances::*;
+
+use std::convert::{TryFrom,TryInto};
 
 /// To make things more obvious, we type the point index.
 /// This is abstracted over the files that were used to build the point cloud
@@ -115,6 +117,44 @@ impl<'a> Point<f64> for DenseL2<'a, f64> {
     }
 }
 
+
+pub struct SparseDenseIter<'a, T, S> {
+    sparse: &'a SparseL2<'a, T, S>,
+    index: usize,
+    sparse_index: usize,
+    dim: usize,
+}
+
+impl<'a, T: Default, S: Ord + TryInto<usize> + std::fmt::Debug> Iterator for SparseDenseIter<'a, T, S> {
+    type Item = T;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.index < self.dim {
+            match self.sparse.indexes[self.sparse_index].try_into() {
+                Ok(si) => {
+                    if si == self.index  {
+                        self.sparse_index += 1;
+                        self.index += 1;
+                        Some(self.sparse.values[self.sparse_index - 1])
+                    } else if self.index < self.dim {
+                        self.index += 1;
+                        Some(T::default())
+                    } else {
+                        None
+                    }
+                }
+                Err(_) => panic!("Could not covert a sparse index into a usize"),
+            }
+            
+        } else {
+            None
+        }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.dim, Some(self.dim))
+    }
+}
+
 struct SparseL2<'a, T, S> {
     dim: S,
     values: &'a [T],
@@ -122,6 +162,7 @@ struct SparseL2<'a, T, S> {
 }
 
 impl<'a> Point<f32> for SparseL2<'a, f32, u32> {
+    type DenseIter = SparseDenseIter<'a, f32, u32>;
     fn dist(&self,other: &Self) -> f32 {
         L2::sparse(self.indexes, self.values, other.indexes, other.values)
     }
@@ -130,6 +171,24 @@ impl<'a> Point<f32> for SparseL2<'a, f32, u32> {
     }
     fn dense(&self) -> Vec<f32> {
         let mut v = vec![0.0;self.dim as usize];
-        for (v,i) in values.iter().zip(self.items) 
+        for (xi,i) in self.values.iter().zip(self.indexes) {
+            v[*i as usize] = *xi;
+        }
+        v
+    }
+
+    fn dense_iter(&self) -> Self::DenseIter {
+        match self.dim.try_into() {
+            Ok(dim) => {
+                SparseDenseIter {
+                    sparse: &self,
+                    index: 0,
+                    sparse_index: 0,
+                    dim,
+                }
+            },
+            Err(_) => panic!("Could not covert a sparse dimension into a usize"),
+        }
+        
     }
 }

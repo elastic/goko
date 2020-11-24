@@ -19,7 +19,7 @@
 
 //! Supported distances
 
-use super::PointRef;
+//use super::PointRef;
 use crate::pc_errors::*;
 use packed_simd::*;
 use std::fmt::Debug;
