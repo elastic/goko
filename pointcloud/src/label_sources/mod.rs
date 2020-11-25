@@ -3,7 +3,6 @@
 use crate::base_traits::*;
 use crate::pc_errors::*;
 use crate::summaries::*;
-use crate::PointIndex;
 
 /// Labels for a small number of categories, using ints
 #[derive(Debug)]
@@ -22,7 +21,7 @@ impl LabelSet for SmallIntLabels {
     fn is_empty(&self) -> bool {
         self.labels.is_empty()
     }
-    fn label(&self, pn: PointIndex) -> PointCloudResult<Option<&i64>> {
+    fn label(&self, pn: usize) -> PointCloudResult<Option<&i64>> {
         if let Some(mask) = &self.mask {
             if mask[pn] {
                 Ok(self.labels.get(pn))
@@ -35,7 +34,7 @@ impl LabelSet for SmallIntLabels {
     }
     fn label_summary(
         &self,
-        pns: &[PointIndex],
+        pns: &[usize],
     ) -> PointCloudResult<SummaryCounter<Self::LabelSummary>> {
         let mut summary = CategorySummary::default();
         let mut nones = 0;
@@ -180,7 +179,7 @@ impl LabelSet for VecLabels {
     fn is_empty(&self) -> bool {
         self.labels.is_empty()
     }
-    fn label(&self, pn: PointIndex) -> PointCloudResult<Option<&Self::Label>> {
+    fn label(&self, pn: usize) -> PointCloudResult<Option<&Self::Label>> {
         if let Some(mask) = &self.mask {
             if mask[pn] {
                 Ok(self
@@ -197,7 +196,7 @@ impl LabelSet for VecLabels {
     }
     fn label_summary(
         &self,
-        pns: &[PointIndex],
+        pns: &[usize],
     ) -> PointCloudResult<SummaryCounter<Self::LabelSummary>> {
         let mut summary = Self::LabelSummary::default();
         let mut nones = 0;

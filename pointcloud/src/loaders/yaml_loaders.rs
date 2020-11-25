@@ -4,7 +4,6 @@ use std::fs;
 use yaml_rust::YamlLoader;
 
 use super::*;
-use crate::distances::L2;
 use crate::{DefaultCloud, DefaultLabeledCloud};
 
 /// Given a yaml file on disk, it builds a point cloud. Minimal example below.
@@ -16,9 +15,9 @@ use crate::{DefaultCloud, DefaultLabeledCloud};
 /// data_dim: 784
 /// label_csv_index: 2
 /// ```
-pub fn labeled_ram_from_yaml<P: AsRef<Path>, M: Metric>(
+pub fn labeled_ram_from_yaml<P: AsRef<Path>>(
     path: P,
-) -> PointCloudResult<DefaultLabeledCloud<M>> {
+) -> PointCloudResult<DefaultLabeledCloud> {
     let label_set = labels_from_yaml(&path)?;
     let data_set = ram_from_yaml(&path)?;
 
@@ -34,9 +33,9 @@ pub fn labeled_ram_from_yaml<P: AsRef<Path>, M: Metric>(
 /// data_dim: 784
 /// label_dim: 10
 /// ```
-pub fn vec_labeled_ram_from_yaml<P: AsRef<Path>, M: Metric>(
+pub fn vec_labeled_ram_from_yaml<P: AsRef<Path>>(
     path: P,
-) -> PointCloudResult<SimpleLabeledCloud<DataRam<M>, VecLabels>> {
+) -> PointCloudResult<SimpleLabeledCloud<DataRamL2, VecLabels>> {
     let config = fs::read_to_string(&path)
         .unwrap_or_else(|_| panic!("Unable to read config file {:?}", &path.as_ref()));
 
@@ -63,7 +62,7 @@ pub fn vec_labeled_ram_from_yaml<P: AsRef<Path>, M: Metric>(
         .as_i64()
         .expect("Unable to read the 'labels_dim'") as usize;
 
-    let label_set = convert_glued_memmap_to_ram(open_memmaps::<M>(labels_dim, labels_path)?)
+    let label_set = convert_glued_memmap_to_ram(open_memmaps(labels_dim, labels_path)?)
         .convert_to_labels();
     let data_set = convert_glued_memmap_to_ram(open_memmaps(data_dim, data_paths)?);
 
@@ -77,7 +76,7 @@ pub fn vec_labeled_ram_from_yaml<P: AsRef<Path>, M: Metric>(
 /// count: NUMBER_OF_DATA_POINTS
 /// data_dim: 784
 /// ```
-pub fn ram_from_yaml<P: AsRef<Path>, M: Metric>(path: P) -> PointCloudResult<DefaultCloud<M>> {
+pub fn ram_from_yaml<P: AsRef<Path>>(path: P) -> PointCloudResult<DefaultCloud> {
     let config = fs::read_to_string(&path)
         .unwrap_or_else(|_| panic!("Unable to read config file {:?}", &path.as_ref()));
 
@@ -133,7 +132,7 @@ pub fn labels_from_yaml<P: AsRef<Path>>(path: P) -> PointCloudResult<SmallIntLab
             ) {
                 ("csv", Some(index), _) | ("gz", Some(index), _) => open_int_csv(&path, index),
                 ("dat", _, Some(dim)) => {
-                    let labels: VecLabels = DataMemmap::<L2>::new(dim, &path)?.convert_to_labels();
+                    let labels: VecLabels = DataMemmapL2::new(dim, &path)?.convert_to_labels();
 
                     match dim.cmp(&1) {
                         Ordering::Greater => Ok(labels.one_hot_to_int()),

@@ -2,8 +2,6 @@
 
 use crate::pc_errors::{PointCloudError, PointCloudResult};
 
-use crate::{PointIndex, PointRef};
-
 use crate::base_traits::*;
 
 use fxhash::FxBuildHasher;
@@ -11,20 +9,20 @@ use hashbrown::HashMap;
 
 /// For large numbers of underlying point clouds
 #[derive(Debug)]
-pub struct HashGluedCloud<D: PointCloud> {
-    addresses: HashMap<PointIndex, (usize, PointIndex), FxBuildHasher>,
+pub struct HashGluedCloud<D>
+{
+    addresses: HashMap<usize, (usize, usize), FxBuildHasher>,
     data_sources: Vec<D>,
 }
 
 impl<D: PointCloud> HashGluedCloud<D> {
     /// Creates a new one, preserves the order in the supplied vec.
     pub fn new(data_sources: Vec<D>) -> HashGluedCloud<D> {
-        
         let mut addresses = HashMap::with_hasher(FxBuildHasher::default());
-        let mut pi: PointIndex = 0;
+        let mut pi: usize = 0;
         for (i, source) in data_sources.iter().enumerate() {
             for j in 0..source.len() {
-                addresses.insert(pi, (i, j as PointIndex));
+                addresses.insert(pi, (i, j as usize));
                 pi += 1;
             }
         }
@@ -33,9 +31,11 @@ impl<D: PointCloud> HashGluedCloud<D> {
             data_sources,
         }
     }
+}
 
+impl<D> HashGluedCloud<D> {
     /// Remaps the indexes, treats the first element of the pair as the old index, and the second as the new index
-    pub fn reindex(&mut self, new_indexes:&[(PointIndex,PointIndex)]) -> PointCloudResult<()>{
+    pub fn reindex(&mut self, new_indexes:&[(usize,usize)]) -> PointCloudResult<()>{
         assert!(new_indexes.len() == self.addresses.len());
         let mut new_addresses = HashMap::with_hasher(FxBuildHasher::default());
         for (old_index,new_index) in new_indexes.iter() {
@@ -64,7 +64,7 @@ impl<D: PointCloud> HashGluedCloud<D> {
     }
 
     #[inline]
-    fn get_address(&self, pn: PointIndex) -> PointCloudResult<(usize, PointIndex)> {
+    fn get_address(&self, pn: usize) -> PointCloudResult<(usize, usize)> {
         match self.addresses.get(&pn) {
             Some((i, j)) => Ok((*i, *j)),
             None => Err(PointCloudError::DataAccessError {
@@ -75,11 +75,14 @@ impl<D: PointCloud> HashGluedCloud<D> {
     }
 }
 
-impl<D: PointCloud> PointCloud for HashGluedCloud<D> {
+impl<Point, Field, D: PointCloud<Point, Field>> PointCloud<Point, Field> for HashGluedCloud<D> 
+where
+    Point: ?Sized + Send + Sync,
+    Field: PartialOrd + Send + Sync + Default + Copy + Clone {
     type Metric = D::Metric;
     /// Returns a slice corresponding to the point in question. Used for rarely referenced points,
     /// like outliers or leaves.
-    fn point(&self, pn: PointIndex) -> PointCloudResult<PointRef> {
+    fn point(&self, pn: usize) -> PointCloudResult<&Point> {
         let (i, j) = self.get_address(pn)?;
         self.data_sources[i].point(j)
     }
@@ -99,7 +102,7 @@ impl<D: PointCloud> PointCloud for HashGluedCloud<D> {
     }
 
     /// The names of the data are currently a shallow wrapper around a usize.
-    fn reference_indexes(&self) -> Vec<PointIndex> {
+    fn reference_indexes(&self) -> Vec<usize> {
         self.addresses.keys().cloned().collect()
     }
 
@@ -113,13 +116,13 @@ impl<D: LabeledCloud> LabeledCloud for HashGluedCloud<D> {
     type Label = D::Label;
     type LabelSummary = D::LabelSummary;
 
-    fn label(&self, pn: PointIndex) -> PointCloudResult<Option<&Self::Label>> {
+    fn label(&self, pn: usize) -> PointCloudResult<Option<&Self::Label>> {
         let (i, j) = self.get_address(pn)?;
         self.data_sources[i].label(j)
     }
     fn label_summary(
         &self,
-        pns: &[PointIndex],
+        pns: &[usize],
     ) -> PointCloudResult<SummaryCounter<Self::LabelSummary>> {
         let mut summary = SummaryCounter::<Self::LabelSummary>::default();
         for pn in pns {
@@ -130,14 +133,14 @@ impl<D: LabeledCloud> LabeledCloud for HashGluedCloud<D> {
     }
 }
 
-impl<D: NamedCloud> NamedCloud for HashGluedCloud<D> {
+impl<D: PointCloud + NamedCloud> NamedCloud for HashGluedCloud<D> {
     type Name = D::Name;
 
-    fn name(&self, pi: PointIndex) -> PointCloudResult<&Self::Name> {
+    fn name(&self, pi: usize) -> PointCloudResult<&Self::Name> {
         let (i, j) = self.get_address(pi)?;
         self.data_sources[i].name(j)
     }
-    fn index(&self, pn: &Self::Name) -> PointCloudResult<&PointIndex> {
+    fn index(&self, pn: &Self::Name) -> PointCloudResult<&usize> {
         for data_source in &self.data_sources {
             let index = data_source.index(pn);
             if index.is_ok() {
@@ -159,17 +162,17 @@ impl<D: NamedCloud> NamedCloud for HashGluedCloud<D> {
     }
 }
 
-impl<D: MetaCloud> MetaCloud for HashGluedCloud<D> {
+impl<D: PointCloud + MetaCloud> MetaCloud for HashGluedCloud<D> {
     type Metadata = D::Metadata;
     type MetaSummary = D::MetaSummary;
 
-    fn metadata(&self, pn: PointIndex) -> PointCloudResult<Option<&Self::Metadata>> {
+    fn metadata(&self, pn: usize) -> PointCloudResult<Option<&Self::Metadata>> {
         let (i, j) = self.get_address(pn)?;
         self.data_sources[i].metadata(j)
     }
     fn metasummary(
         &self,
-        pns: &[PointIndex],
+        pns: &[usize],
     ) -> PointCloudResult<SummaryCounter<Self::MetaSummary>> {
         let mut summary = SummaryCounter::<Self::MetaSummary>::default();
         for pn in pns {
@@ -185,16 +188,14 @@ mod tests {
     use super::*;
     use crate::data_sources::tests::*;
     use crate::data_sources::*;
-    use crate::distances::*;
     use crate::label_sources::*;
-    use crate::{Point, PointRef};
 
     pub fn build_glue_random_labeled_test(
         partitions: usize,
         count: usize,
         data_dim: usize,
         labels_dim: usize,
-    ) -> HashGluedCloud<SimpleLabeledCloud<DataRam<L2>, VecLabels>> {
+    ) -> HashGluedCloud<SimpleLabeledCloud<DataRam, VecLabels>> {
         HashGluedCloud::new(
             (0..partitions)
                 .map(|_i| build_ram_random_labeled_test(count, data_dim, labels_dim))
@@ -206,7 +207,7 @@ mod tests {
         partitions: usize,
         count: usize,
         data_dim: usize,
-    ) -> HashGluedCloud<DataRam<L2>> {
+    ) -> HashGluedCloud<DataRam> {
         HashGluedCloud::new(
             (0..partitions)
                 .map(|_i| build_ram_random_test(count, data_dim))
@@ -218,7 +219,7 @@ mod tests {
         partitions: usize,
         count: usize,
         data_dim: usize,
-    ) -> HashGluedCloud<SimpleLabeledCloud<DataRam<L2>, SmallIntLabels>> {
+    ) -> HashGluedCloud<SimpleLabeledCloud<DataRam, SmallIntLabels>> {
         HashGluedCloud::new(
             (0..partitions)
                 .map(|_i| build_ram_fixed_labeled_test(count, data_dim))
@@ -230,7 +231,7 @@ mod tests {
         partitions: usize,
         count: usize,
         data_dim: usize,
-    ) -> HashGluedCloud<DataRam<L2>> {
+    ) -> HashGluedCloud<DataRam> {
         HashGluedCloud::new(
             (0..partitions)
                 .map(|_i| build_ram_fixed_test(count, data_dim))
@@ -256,14 +257,9 @@ mod tests {
 
         for i in &[1, 3, 5, 7, 9] {
             let point = pc.point(*i).unwrap();
-            match point {
-                PointRef::Dense(val) => {
-                    for d in val {
-                        assert_approx_eq!(1.0, d);
-                    }
-                }
-                PointRef::Sparse(_, _) => panic!("Should return a sparse datum"),
-            };
+            for d in point {
+                assert_approx_eq!(1.0, d);
+            }
         }
     }
 
@@ -296,7 +292,7 @@ mod tests {
         println!("{:?}", pc);
 
         let indexes = [1, 3, 5, 7, 9];
-        let point = Point::Dense(vec![0.0; 5]);
+        let point = vec![0.0; 5];
 
         let dists = pc.distances_to_point(&point, &indexes).unwrap();
         for d in dists {
