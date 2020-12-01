@@ -32,10 +32,7 @@ impl LabelSet for SmallIntLabels {
             Ok(self.labels.get(pn))
         }
     }
-    fn label_summary(
-        &self,
-        pns: &[usize],
-    ) -> PointCloudResult<SummaryCounter<Self::LabelSummary>> {
+    fn label_summary(&self, pns: &[usize]) -> PointCloudResult<SummaryCounter<Self::LabelSummary>> {
         let mut summary = CategorySummary::default();
         let mut nones = 0;
         if let Some(mask) = &self.mask {
@@ -194,10 +191,7 @@ impl LabelSet for VecLabels {
                 .get(self.label_dim * (pn as usize)..self.label_dim * (pn as usize + 1)))
         }
     }
-    fn label_summary(
-        &self,
-        pns: &[usize],
-    ) -> PointCloudResult<SummaryCounter<Self::LabelSummary>> {
+    fn label_summary(&self, pns: &[usize]) -> PointCloudResult<SummaryCounter<Self::LabelSummary>> {
         let mut summary = Self::LabelSummary::default();
         let mut nones = 0;
         if let Some(mask) = &self.mask {

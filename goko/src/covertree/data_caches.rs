@@ -37,7 +37,7 @@ impl CoveredData {
             Self::NearestCoveredData(a) => a.max_distance(),
         }
     }
-    pub(crate) fn into_indexes(self) -> Vec<PointIndex> {
+    pub(crate) fn into_indexes(self) -> Vec<usize> {
         match self {
             Self::FirstCoveredData(a) => a.into_indexes(),
             Self::NearestCoveredData(a) => a.into_indexes(),
@@ -51,7 +51,7 @@ impl CoveredData {
         }
     }
 
-    pub(crate) fn center_index(&self) -> PointIndex {
+    pub(crate) fn center_index(&self) -> usize {
         match &self {
             Self::FirstCoveredData(a) => a.center_index,
             Self::NearestCoveredData(a) => a.center_index,
@@ -62,13 +62,13 @@ impl CoveredData {
 #[derive(Clone, Debug)]
 pub(crate) struct FirstCoveredData {
     dists: Vec<f32>,
-    coverage: Vec<PointIndex>,
-    pub(crate) center_index: PointIndex,
+    coverage: Vec<usize>,
+    pub(crate) center_index: usize,
 }
 
 #[derive(Debug, Clone)]
 pub(crate) struct UncoveredData {
-    coverage: Vec<PointIndex>,
+    coverage: Vec<usize>,
 }
 
 impl UncoveredData {
@@ -160,7 +160,7 @@ impl FirstCoveredData {
         Ok((close, new_far))
     }
 
-    pub(crate) fn into_indexes(self) -> Vec<PointIndex> {
+    pub(crate) fn into_indexes(self) -> Vec<usize> {
         self.coverage
     }
 
@@ -178,11 +178,11 @@ impl FirstCoveredData {
 
 #[derive(Clone, Debug)]
 pub(crate) struct NearestCoveredData {
-    centers: Vec<PointIndex>,
+    centers: Vec<usize>,
     dists: Vec<Vec<f32>>,
-    point_indexes: Vec<PointIndex>,
+    point_indexes: Vec<usize>,
     center_dists: Vec<f32>,
-    pub(crate) center_index: PointIndex,
+    pub(crate) center_index: usize,
 }
 
 impl NearestCoveredData {
@@ -210,7 +210,7 @@ impl NearestCoveredData {
         let mut rng = thread_rng();
 
         while coverage.iter().any(|b| !b) {
-            let uncovered_indexes: Vec<PointIndex> = self
+            let uncovered_indexes: Vec<usize> = self
                 .point_indexes
                 .iter()
                 .zip(&coverage)
@@ -231,7 +231,7 @@ impl NearestCoveredData {
         Ok(())
     }
 
-    fn add_point(&mut self, point_index: PointIndex, distance: f32) {
+    fn add_point(&mut self, point_index: usize, distance: f32) {
         if point_index != self.center_index {
             self.center_dists.push(distance);
             self.point_indexes.push(point_index);
@@ -285,7 +285,7 @@ impl NearestCoveredData {
         Ok(self.assign_to_nearest())
     }
 
-    pub(crate) fn into_indexes(self) -> Vec<PointIndex> {
+    pub(crate) fn into_indexes(self) -> Vec<usize> {
         self.point_indexes
     }
 
@@ -338,7 +338,7 @@ mod tests {
         let point_cloud = Arc::new(DefaultLabeledCloud::<L2>::new_simple(data, 1, labels));
 
         let mut cache = UncoveredData {
-            coverage: (0..19 as PointIndex).collect(),
+            coverage: (0..19 as usize).collect(),
         };
         let close = cache.pick_center(1.0, &point_cloud).unwrap();
 

@@ -20,7 +20,6 @@
 //! Tools and data structures for assisting cover tree queries.
 
 use crate::NodeAddress;
-use pointcloud::*;
 
 pub(crate) mod query_items;
 
@@ -45,5 +44,5 @@ pub trait RoutingQueryHeap {
 /// implement this to use the node fn
 pub trait SingletonQueryHeap {
     /// Shove a bunch of single points onto the heap
-    fn push_outliers(&mut self, indexes: &[PointIndex], dists: &[f32]);
+    fn push_outliers(&mut self, indexes: &[usize], dists: &[f32]);
 }

@@ -48,23 +48,24 @@ pub mod glued_data_cloud;
 pub mod label_sources;
 pub mod summaries;
 
-//pub mod loaders;
-/*
-use data_sources::DataRamL2;
+pub mod loaders;
+
+use data_sources::DataRam;
 use label_sources::SmallIntLabels;
 
-/// A sensible default for an labeled cloud
-pub type DefaultLabeledCloud = SimpleLabeledCloud<DataRamL2, SmallIntLabels>;
-/// A sensible default for an unlabeled cloud
-pub type DefaultCloud = DataRamL2;
+pub use metrics::L2;
 
-impl DefaultLabeledCloud {
+/// A sensible default for an labeled cloud
+pub type DefaultLabeledCloud<M = L2> = SimpleLabeledCloud<DataRam<M>, SmallIntLabels>;
+/// A sensible default for an unlabeled cloud
+pub type DefaultCloud<M = L2> = DataRam<M>;
+
+impl<M: Metric<[f32]>> DefaultLabeledCloud<M> {
     /// Simple way of gluing together the most common data source
-    pub fn new_simple(data: Vec<f32>, dim: usize, labels: Vec<i64>) -> DefaultLabeledCloud {
+    pub fn new_simple(data: Vec<f32>, dim: usize, labels: Vec<i64>) -> DefaultLabeledCloud<M> {
         SimpleLabeledCloud::new(
-            DataRamL2::new(data, dim).unwrap(),
+            DataRam::new(data, dim).unwrap(),
             SmallIntLabels::new(labels, None),
         )
     }
 }
-*/

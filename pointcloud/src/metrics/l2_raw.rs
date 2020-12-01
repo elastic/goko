@@ -1,19 +1,32 @@
 use packed_simd::*;
-use std::ops::{AddAssign, Mul, Sub, Add};
+use std::ops::{Add, AddAssign, Mul, Sub};
 
 /// basic sparse function
-pub fn sq_l2_sparse<T, S>(x_ind: &[S], x_val: &[T], y_ind: &[S], y_val: &[T]) -> T 
-    where
-    T: Default + AddAssign<T> + Add<T, Output = T> + Mul<T, Output = T> + Sub<T, Output = T> + Copy + Clone,
-    S: Ord {
+pub fn sq_l2_sparse<T, S>(x_ind: &[S], x_val: &[T], y_ind: &[S], y_val: &[T]) -> T
+where
+    T: Default
+        + AddAssign<T>
+        + Add<T, Output = T>
+        + Mul<T, Output = T>
+        + Sub<T, Output = T>
+        + Copy
+        + Clone,
+    S: Ord,
+{
     if x_val.is_empty() || y_val.is_empty() {
         if x_val.is_empty() && y_val.is_empty() {
             return T::default();
         }
         if !x_val.is_empty() && y_val.is_empty() {
-            x_val.iter().map(|x| *x * *x).fold(T::default(),|a,x| a + x)
+            x_val
+                .iter()
+                .map(|x| *x * *x)
+                .fold(T::default(), |a, x| a + x)
         } else {
-            y_val.iter().map(|x| *x * *x).fold(T::default(),|a,x| a + x)
+            y_val
+                .iter()
+                .map(|x| *x * *x)
+                .fold(T::default(), |a, x| a + x)
         }
     } else {
         let mut total = T::default();

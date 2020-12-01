@@ -17,16 +17,13 @@
 * under the License.
 */
 
-
-use pointcloud::*;
 use pointcloud::data_sources::*;
 use pointcloud::glued_data_cloud::*;
-
-use pointcloud::metrics::*;
+use pointcloud::*;
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
-fn build_ram_random_test<M:Metric<[f32],f32>>(count: usize, data_dim: usize) -> DataRam<M> {
+fn build_ram_random_test<M: Metric<[f32]>>(count: usize, data_dim: usize) -> DataRam<M> {
     DataRam::<M>::new(
         (0..count * data_dim)
             .map(|_i| rand::random::<f32>())
@@ -35,7 +32,6 @@ fn build_ram_random_test<M:Metric<[f32],f32>>(count: usize, data_dim: usize) -> 
     )
     .unwrap()
 }
-
 
 fn l2_benchmarks(c: &mut Criterion) {
     let count = 100;
@@ -50,8 +46,18 @@ fn l2_benchmarks(c: &mut Criterion) {
     //c.bench_function("L2_adjacency_matrix_small", |b| b.iter(|| pc.adjacency_matrix(black_box(&indexes_small)).unwrap()));
     //c.bench_function("L2_adjacency_matrix_large", |b| b.iter(|| pc.adjacency_matrix(black_box(&indexes_large)).unwrap()));
 
-    c.bench_function("L2_distances_to_point_small", |b| b.iter(|| pc.distances_to_point(black_box(&point),black_box(&indexes_small)).unwrap()));
-    c.bench_function("L2_distances_to_point_large", |b| b.iter(|| pc.distances_to_point(black_box(&point),black_box(&indexes_large)).unwrap()));
+    c.bench_function("L2_distances_to_point_small", |b| {
+        b.iter(|| {
+            pc.distances_to_point(black_box(&point.as_ref()), black_box(&indexes_small))
+                .unwrap()
+        })
+    });
+    c.bench_function("L2_distances_to_point_large", |b| {
+        b.iter(|| {
+            pc.distances_to_point(black_box(&point.as_ref()), black_box(&indexes_large))
+                .unwrap()
+        })
+    });
 }
 
 /*
@@ -68,8 +74,8 @@ fn l1_benchmarks(c: &mut Criterion) {
     c.bench_function("L1_adjacency_matrix_small", |b| b.iter(|| pc.adjacency_matrix(black_box(&indexes_small)).unwrap()));
     c.bench_function("L1_adjacency_matrix_large", |b| b.iter(|| pc.adjacency_matrix(black_box(&indexes_large)).unwrap()));
 
-    c.bench_function("L1_distances_to_point_small", |b| b.iter(|| pc.distances_to_point(black_box(&point),black_box(&indexes_small)).unwrap()));
-    c.bench_function("L1_distances_to_point_large", |b| b.iter(|| pc.distances_to_point(black_box(&point),black_box(&indexes_large)).unwrap()));
+    c.bench_function("L1_distances_to_point_small", |b| b.iter(|| pc.distances_to_point(black_box(&point.as_ref()),black_box(&indexes_small)).unwrap()));
+    c.bench_function("L1_distances_to_point_large", |b| b.iter(|| pc.distances_to_point(black_box(&point.as_ref()),black_box(&indexes_large)).unwrap()));
 }
 
 fn cosine_benchmarks(c: &mut Criterion) {
@@ -85,8 +91,8 @@ fn cosine_benchmarks(c: &mut Criterion) {
     c.bench_function("CosineSim_adjacency_matrix_small", |b| b.iter(|| pc.adjacency_matrix(black_box(&indexes_small)).unwrap()));
     c.bench_function("CosineSim_adjacency_matrix_large", |b| b.iter(|| pc.adjacency_matrix(black_box(&indexes_large)).unwrap()));
 
-    c.bench_function("CosineSim_distances_to_point_small", |b| b.iter(|| pc.distances_to_point(black_box(&point),black_box(&indexes_small)).unwrap()));
-    c.bench_function("CosineSim_distances_to_point_large", |b| b.iter(|| pc.distances_to_point(black_box(&point),black_box(&indexes_large)).unwrap()));
+    c.bench_function("CosineSim_distances_to_point_small", |b| b.iter(|| pc.distances_to_point(black_box(&point.as_ref()),black_box(&indexes_small)).unwrap()));
+    c.bench_function("CosineSim_distances_to_point_large", |b| b.iter(|| pc.distances_to_point(black_box(&point.as_ref()),black_box(&indexes_large)).unwrap()));
 }
 */
 
@@ -94,46 +100,94 @@ fn small_glue_benchmarks(c: &mut Criterion) {
     let count = 100;
     let glue_count = 10;
     let dim = 303;
-    let pc = HashGluedCloud::new((0..glue_count).map(|_| build_ram_random_test::<L2>(count, dim)).collect());
+    let pc = HashGluedCloud::new(
+        (0..glue_count)
+            .map(|_| build_ram_random_test::<L2>(count, dim))
+            .collect(),
+    );
 
     let indexes_small: [usize; 10] = [0, 10, 30, 50, 70, 90, 110, 130, 150, 170];
-    let indexes_large: Vec<usize> = (0..100).map(|i| i*5).collect();
+    let indexes_large: Vec<usize> = (0..100).map(|i| i * 5).collect();
 
     let point = vec![0.0; dim];
 
-    c.bench_function("small_glue_distances_to_point_small", |b| b.iter(|| pc.distances_to_point(black_box(&point),black_box(&indexes_small)).unwrap()));
-    c.bench_function("small_glue_distances_to_point_large", |b| b.iter(|| pc.distances_to_point(black_box(&point),black_box(&indexes_large)).unwrap()));
+    c.bench_function("small_glue_distances_to_point_small", |b| {
+        b.iter(|| {
+            pc.distances_to_point(black_box(&point.as_ref()), black_box(&indexes_small))
+                .unwrap()
+        })
+    });
+    c.bench_function("small_glue_distances_to_point_large", |b| {
+        b.iter(|| {
+            pc.distances_to_point(black_box(&point.as_ref()), black_box(&indexes_large))
+                .unwrap()
+        })
+    });
 }
 
 fn glue_benchmarks(c: &mut Criterion) {
     let count = 10;
     let glue_count = 100;
     let dim = 303;
-    let pc = HashGluedCloud::new((0..glue_count).map(|_| build_ram_random_test::<L2>(count, dim)).collect());
+    let pc = HashGluedCloud::new(
+        (0..glue_count)
+            .map(|_| build_ram_random_test::<L2>(count, dim))
+            .collect(),
+    );
 
     let indexes_small: [usize; 10] = [0, 10, 30, 50, 70, 90, 110, 130, 150, 170];
-    let indexes_large: Vec<usize> = (0..glue_count).map(|i| i*5).collect();
+    let indexes_large: Vec<usize> = (0..glue_count).map(|i| i * 5).collect();
 
     let point = vec![0.0; dim];
 
-    c.bench_function("glue_distances_to_point_small", |b| b.iter(|| pc.distances_to_point(black_box(&point),black_box(&indexes_small)).unwrap()));
-    c.bench_function("glue_distances_to_point_large", |b| b.iter(|| pc.distances_to_point(black_box(&point),black_box(&indexes_large)).unwrap()));
+    c.bench_function("glue_distances_to_point_small", |b| {
+        b.iter(|| {
+            pc.distances_to_point(black_box(&point.as_ref()), black_box(&indexes_small))
+                .unwrap()
+        })
+    });
+    c.bench_function("glue_distances_to_point_large", |b| {
+        b.iter(|| {
+            pc.distances_to_point(black_box(&point.as_ref()), black_box(&indexes_large))
+                .unwrap()
+        })
+    });
 }
 
 fn large_glue_benchmarks(c: &mut Criterion) {
     let count = 10;
     let glue_count = 65000;
     let dim = 303;
-    let pc = HashGluedCloud::new((0..glue_count).map(|_| build_ram_random_test::<L2>(count, dim)).collect());
+    let pc = HashGluedCloud::new(
+        (0..glue_count)
+            .map(|_| build_ram_random_test::<L2>(count, dim))
+            .collect(),
+    );
 
     let indexes_small: [usize; 10] = [0, 10, 30, 50, 70, 90, 110, 130, 150, 170];
-    let indexes_large: Vec<usize> = (0..100).map(|i| i*5).collect();
+    let indexes_large: Vec<usize> = (0..100).map(|i| i * 5).collect();
 
     let point = vec![0.0; dim];
 
-    c.bench_function("large_glue_distances_to_point_small", |b| b.iter(|| pc.distances_to_point(black_box(&point),black_box(&indexes_small)).unwrap()));
-    c.bench_function("large_glue_distances_to_point_large", |b| b.iter(|| pc.distances_to_point(black_box(&point),black_box(&indexes_large)).unwrap()));
+    c.bench_function("large_glue_distances_to_point_small", |b| {
+        b.iter(|| {
+            pc.distances_to_point(black_box(&point.as_ref()), black_box(&indexes_small))
+                .unwrap()
+        })
+    });
+    c.bench_function("large_glue_distances_to_point_large", |b| {
+        b.iter(|| {
+            pc.distances_to_point(black_box(&point.as_ref()), black_box(&indexes_large))
+                .unwrap()
+        })
+    });
 }
 
-criterion_group!(benches, l2_benchmarks, small_glue_benchmarks, glue_benchmarks, large_glue_benchmarks);
+criterion_group!(
+    benches,
+    l2_benchmarks,
+    small_glue_benchmarks,
+    glue_benchmarks,
+    large_glue_benchmarks
+);
 criterion_main!(benches);

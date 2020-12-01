@@ -9,8 +9,7 @@ use hashbrown::HashMap;
 
 /// For large numbers of underlying point clouds
 #[derive(Debug)]
-pub struct HashGluedCloud<D>
-{
+pub struct HashGluedCloud<D> {
     addresses: HashMap<usize, (usize, usize), FxBuildHasher>,
     data_sources: Vec<D>,
 }
@@ -35,18 +34,20 @@ impl<D: PointCloud> HashGluedCloud<D> {
 
 impl<D> HashGluedCloud<D> {
     /// Remaps the indexes, treats the first element of the pair as the old index, and the second as the new index
-    pub fn reindex(&mut self, new_indexes:&[(usize,usize)]) -> PointCloudResult<()>{
+    pub fn reindex(&mut self, new_indexes: &[(usize, usize)]) -> PointCloudResult<()> {
         assert!(new_indexes.len() == self.addresses.len());
         let mut new_addresses = HashMap::with_hasher(FxBuildHasher::default());
-        for (old_index,new_index) in new_indexes.iter() {
+        for (old_index, new_index) in new_indexes.iter() {
             match self.addresses.get(&old_index) {
                 Some(addr) => {
                     new_addresses.insert(*new_index, *addr);
-                },
-                None => return Err(PointCloudError::DataAccessError {
-                    index: *old_index,
-                    reason: "address not found".to_string(),
-                }),
+                }
+                None => {
+                    return Err(PointCloudError::DataAccessError {
+                        index: *old_index,
+                        reason: "address not found".to_string(),
+                    })
+                }
             }
         }
         self.addresses = new_addresses;
@@ -78,12 +79,11 @@ impl<D> HashGluedCloud<D> {
 impl<D: PointCloud> PointCloud for HashGluedCloud<D> {
     type Metric = D::Metric;
     type Point = D::Point;
-    type Field = D::Field;
     type PointRef<'a> = D::PointRef<'a>;
 
     /// Returns a slice corresponding to the point in question. Used for rarely referenced points,
     /// like outliers or leaves.
-    fn point<'a,'b:'a>(&'b self, pi: usize) -> PointCloudResult<Self::PointRef<'a>> {
+    fn point<'a, 'b: 'a>(&'b self, pi: usize) -> PointCloudResult<Self::PointRef<'a>> {
         let (i, j) = self.get_address(pi)?;
         self.data_sources[i].point(j)
     }
@@ -121,10 +121,7 @@ impl<D: LabeledCloud> LabeledCloud for HashGluedCloud<D> {
         let (i, j) = self.get_address(pn)?;
         self.data_sources[i].label(j)
     }
-    fn label_summary(
-        &self,
-        pns: &[usize],
-    ) -> PointCloudResult<SummaryCounter<Self::LabelSummary>> {
+    fn label_summary(&self, pns: &[usize]) -> PointCloudResult<SummaryCounter<Self::LabelSummary>> {
         let mut summary = SummaryCounter::<Self::LabelSummary>::default();
         for pn in pns {
             let (i, j) = self.get_address(*pn)?;
@@ -150,15 +147,13 @@ impl<D: PointCloud + NamedCloud> NamedCloud for HashGluedCloud<D> {
         }
         Err(PointCloudError::UnknownName)
     }
-    fn names(&self) -> Vec<Self::Name> where <D as NamedCloud>::Name: std::marker::Sized {
+    fn names(&self) -> Vec<Self::Name>
+    where
+        <D as NamedCloud>::Name: std::marker::Sized,
+    {
         self.addresses
             .values()
-            .filter_map(|(i, j)| {
-                self.data_sources[*i]
-                    .name(*j)
-                    .ok()
-                    .map(|n| n.clone())
-            })
+            .filter_map(|(i, j)| self.data_sources[*i].name(*j).ok().map(|n| n.clone()))
             .collect()
     }
 }
@@ -171,10 +166,7 @@ impl<D: PointCloud + MetaCloud> MetaCloud for HashGluedCloud<D> {
         let (i, j) = self.get_address(pn)?;
         self.data_sources[i].metadata(j)
     }
-    fn metasummary(
-        &self,
-        pns: &[usize],
-    ) -> PointCloudResult<SummaryCounter<Self::MetaSummary>> {
+    fn metasummary(&self, pns: &[usize]) -> PointCloudResult<SummaryCounter<Self::MetaSummary>> {
         let mut summary = SummaryCounter::<Self::MetaSummary>::default();
         for pn in pns {
             let (i, j) = self.get_address(*pn)?;
@@ -295,7 +287,7 @@ mod tests {
         let indexes = [1, 3, 5, 7, 9];
         let point = vec![0.0; 5];
 
-        let dists = pc.distances_to_point(&point[..], &indexes).unwrap();
+        let dists = pc.distances_to_point(&&point[..], &indexes).unwrap();
         for d in dists {
             assert_approx_eq!(3.0f32.sqrt(), d);
         }

@@ -56,7 +56,7 @@ fn main() {
     let bulk = BulkInterface::new(ct.reader());
     let point_indexes = ct_reader.point_cloud().reference_indexes();
     let tau = 0.05;
-    let depths = bulk.known_path_and(&point_indexes, |reader,path| 
+    let depths = bulk.known_path_and(&point_indexes, |reader, path| {
         if let Ok(path) = path {
             let mut homogenity_depth = path.len();
             for (i, (_d, a)) in path.iter().enumerate() {
@@ -76,11 +76,14 @@ fn main() {
         } else {
             (0, 0)
         }
-    );
+    });
 
     let mut final_depths = HashMap::new();
-    for (f,h) in &depths {
-        final_depths.entry(f-h).and_modify(|c| *c += 1).or_insert(1);
+    for (f, h) in &depths {
+        final_depths
+            .entry(f - h)
+            .and_modify(|c| *c += 1)
+            .or_insert(1);
     }
     let mut keys: Vec<usize> = final_depths.keys().cloned().collect();
     keys.sort();

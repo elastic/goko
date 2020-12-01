@@ -30,8 +30,6 @@ use crate::metrics::*;
 use crate::base_traits::*;
 use crate::label_sources::VecLabels;
 
-
-
 /// A thin wrapper to give a `Box<[f32]>` dimensionality.
 #[derive(Debug)]
 pub struct DataMemmap<M = L2> {
@@ -78,7 +76,7 @@ impl<M> DataMemmap<M> {
     }
 
     /// Reads and consumes this memmap and copies it into ram.
-    pub fn convert_to_ram(self) -> DataRam {
+    pub fn convert_to_ram(self) -> DataRam<M> {
         let dim = self.dim;
         let name = self.name;
         let mut data = Vec::with_capacity(self.data.len());
@@ -111,18 +109,16 @@ impl<M> DataRam<M> {
     }
 
     /// Merges two ram sets together.
-    pub fn merge(&mut self, other: DataRam) {
+    pub fn merge(&mut self, other: DataRam<M>) {
         assert!(self.dim == other.dim);
         self.data.extend(other.data);
     }
 }
 
-
 macro_rules! make_point_cloud {
     ($name:ident) => {
-        impl<M: Metric<[f32],f32>> PointCloud for $name<M> {
+        impl<M: Metric<[f32]>> PointCloud for $name<M> {
             type Metric = M;
-            type Field = f32;
             type Point = [f32];
             type PointRef<'a> = &'a [f32];
 
@@ -144,8 +140,10 @@ macro_rules! make_point_cloud {
             }
             #[inline]
             fn point<'a, 'b: 'a>(&'b self, i: usize) -> PointCloudResult<&'a [f32]> {
-                match self.data
-                    .get(self.dim * (i as usize)..(self.dim * (i as usize) + self.dim)) {
+                match self
+                    .data
+                    .get(self.dim * (i as usize)..(self.dim * (i as usize) + self.dim))
+                {
                     None => Err(PointCloudError::data_access(i as usize, self.name.clone())),
                     Some(x) => Ok(x),
                 }

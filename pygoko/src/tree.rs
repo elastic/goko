@@ -229,11 +229,11 @@ impl CoverTree {
         reader.known_path(point_index).unwrap()
     }
 
-    pub fn index_depths(&self, point_indexes: Vec<usize>, tau: Option<f32>) -> Vec<(usize,usize)> {
+    pub fn index_depths(&self, point_indexes: Vec<usize>, tau: Option<f32>) -> Vec<(usize, usize)> {
         let reader = self.writer.as_ref().unwrap().reader();
         let bulk = BulkInterface::new(reader);
         let tau = tau.unwrap_or(0.00001);
-        bulk.known_path_and(&point_indexes, |reader,path| 
+        bulk.known_path_and(&point_indexes, |reader, path| {
             if let Ok(path) = path {
                 let mut homogenity_depth = path.len();
                 for (i, (_d, a)) in path.iter().enumerate() {
@@ -253,15 +253,15 @@ impl CoverTree {
             } else {
                 (0, 0)
             }
-        )
+        })
     }
 
-    pub fn point_depths(&self, points: &PyArray2<f32>, tau: Option<f32>) -> Vec<(usize,usize)> {
+    pub fn point_depths(&self, points: &PyArray2<f32>, tau: Option<f32>) -> Vec<(usize, usize)> {
         let reader = self.writer.as_ref().unwrap().reader();
         let bulk = BulkInterface::new(reader);
         let tau = tau.unwrap_or(0.00001);
-        
-        bulk.array_map_with_reader(points.readonly().as_array(), |reader,point| 
+
+        bulk.array_map_with_reader(points.readonly().as_array(), |reader, point| {
             if let Ok(path) = reader.path(point) {
                 let mut homogenity_depth = path.len();
                 for (i, (_d, a)) in path.iter().enumerate() {
@@ -281,7 +281,7 @@ impl CoverTree {
             } else {
                 (0, 0)
             }
-        )
+        })
     }
 
     pub fn path(&self, point: &PyArray1<f32>) -> Vec<(f32, (i32, usize))> {

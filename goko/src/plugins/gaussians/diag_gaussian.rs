@@ -38,7 +38,7 @@ macro_rules! internal_var {
 }
 
 impl ContinousDistribution for DiagGaussian {
-    fn ln_pdf(&self, point: &PointRef) -> Option<f64> {
+    fn ln_pdf<T: PointRef>(&self, point: &T) -> Option<f64> {
         let mean_vars = internal_mean!(self.moment1, self.count).zip(internal_var!(
             self.moment1,
             self.moment2,
@@ -46,7 +46,7 @@ impl ContinousDistribution for DiagGaussian {
         ));
 
         let (exponent, det) = point
-            .dense_iter(self.dim())
+            .dense_iter()
             .zip(mean_vars)
             .map(|(xi, (ui, vi))| ((xi - ui) * (xi - ui) / vi, vi))
             .fold((0.0, 1.0), |(a, v), (x, u)| (a + x, v * u));
@@ -111,30 +111,28 @@ impl DiagGaussian {
     }
 
     /// adds a point to the Diagonal Gaussian
-    pub fn add_point(&mut self, point: &PointRef) {
-        let dim = self.dim();
+    pub fn add_point<T: PointRef>(&mut self, point: &T) {
         self.moment1
             .iter_mut()
-            .zip(point.dense_iter(dim))
+            .zip(point.dense_iter())
             .for_each(|(m, p)| *m += p);
         self.moment2
             .iter_mut()
-            .zip(point.dense_iter(dim))
+            .zip(point.dense_iter())
             .for_each(|(m, p)| *m += p * p);
         self.count += 1;
     }
 
     /// removes a point from the Diagonal Gaussian
-    pub fn remove_point(&mut self, point: &PointRef) {
-        let dim = self.dim();
+    pub fn remove_point<T: PointRef>(&mut self, point: &T) {
         if self.count != 0 {
             self.moment1
                 .iter_mut()
-                .zip(point.dense_iter(dim))
+                .zip(point.dense_iter())
                 .for_each(|(m, p)| *m -= p);
             self.moment2
                 .iter_mut()
-                .zip(point.dense_iter(dim))
+                .zip(point.dense_iter())
                 .for_each(|(m, p)| *m -= p * p);
             self.count += 1;
         }

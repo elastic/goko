@@ -1,8 +1,8 @@
 //! See the paper for how this works
 
-use hashbrown::HashMap;
 use crate::covertree::CoverTreeReader;
 use crate::plugins::*;
+use hashbrown::HashMap;
 
 use super::categorical::*;
 use super::dirichlet::*;
@@ -241,7 +241,7 @@ impl<D: PointCloud> BayesCategoricalTracker<D> {
 }
 
 /// Tracks the non-zero KL div (all KL divergences above 1e-10)
-#[derive(Debug,Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct KLDivergenceStats {
     /// The maximum non-zero KL divergence
     pub max: f64,
@@ -259,7 +259,7 @@ pub struct KLDivergenceStats {
 }
 
 /// Stats that let you compute the fractal dim of the query dataset wrt the base covertree
-#[derive(Debug,Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct FractalDimStats {
     /// The number of sequence elements that went into calculating this stat. This is not the total lenght
     /// We can drop old sequence elements
@@ -269,5 +269,3 @@ pub struct FractalDimStats {
     /// The number of nodes per layer this sequence touches
     pub weighted_layer_totals: Vec<f32>,
 }
-
-

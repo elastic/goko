@@ -21,7 +21,6 @@ use rand::distributions::{Distribution, Uniform};
 
 use super::categorical::*;
 
-
 /// Simple probability density function for where things go by count
 ///
 #[derive(Debug, Clone, Default)]
@@ -114,7 +113,7 @@ impl Dirichlet {
         self.add_child_pop(None, other.singleton_count);
     }
 
-    /// Computes KL(prior || posterior), where the prior is the distribution 
+    /// Computes KL(prior || posterior), where the prior is the distribution
     /// and the posterior is based on the evidence provided.
     pub fn posterior_kl_divergence(&self, other: &Categorical) -> Option<f64> {
         let my_total = self.total();

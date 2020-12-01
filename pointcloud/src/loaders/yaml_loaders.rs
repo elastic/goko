@@ -4,6 +4,7 @@ use std::fs;
 use yaml_rust::YamlLoader;
 
 use super::*;
+use crate::metrics::L2;
 use crate::{DefaultCloud, DefaultLabeledCloud};
 
 /// Given a yaml file on disk, it builds a point cloud. Minimal example below.
@@ -15,9 +16,9 @@ use crate::{DefaultCloud, DefaultLabeledCloud};
 /// data_dim: 784
 /// label_csv_index: 2
 /// ```
-pub fn labeled_ram_from_yaml<P: AsRef<Path>>(
+pub fn labeled_ram_from_yaml<P: AsRef<Path>, M: Metric<[f32]>>(
     path: P,
-) -> PointCloudResult<DefaultLabeledCloud> {
+) -> PointCloudResult<DefaultLabeledCloud<M>> {
     let label_set = labels_from_yaml(&path)?;
     let data_set = ram_from_yaml(&path)?;
 
@@ -33,9 +34,9 @@ pub fn labeled_ram_from_yaml<P: AsRef<Path>>(
 /// data_dim: 784
 /// label_dim: 10
 /// ```
-pub fn vec_labeled_ram_from_yaml<P: AsRef<Path>>(
+pub fn vec_labeled_ram_from_yaml<P: AsRef<Path>, M: Metric<[f32]>>(
     path: P,
-) -> PointCloudResult<SimpleLabeledCloud<DataRamL2, VecLabels>> {
+) -> PointCloudResult<SimpleLabeledCloud<DataRam<M>, VecLabels>> {
     let config = fs::read_to_string(&path)
         .unwrap_or_else(|_| panic!("Unable to read config file {:?}", &path.as_ref()));
 
@@ -62,7 +63,7 @@ pub fn vec_labeled_ram_from_yaml<P: AsRef<Path>>(
         .as_i64()
         .expect("Unable to read the 'labels_dim'") as usize;
 
-    let label_set = convert_glued_memmap_to_ram(open_memmaps(labels_dim, labels_path)?)
+    let label_set = convert_glued_memmap_to_ram::<L2>(open_memmaps(labels_dim, labels_path)?)
         .convert_to_labels();
     let data_set = convert_glued_memmap_to_ram(open_memmaps(data_dim, data_paths)?);
 
@@ -76,7 +77,7 @@ pub fn vec_labeled_ram_from_yaml<P: AsRef<Path>>(
 /// count: NUMBER_OF_DATA_POINTS
 /// data_dim: 784
 /// ```
-pub fn ram_from_yaml<P: AsRef<Path>>(path: P) -> PointCloudResult<DefaultCloud> {
+pub fn ram_from_yaml<P: AsRef<Path>, M: Metric<[f32]>>(path: P) -> PointCloudResult<DataRam<M>> {
     let config = fs::read_to_string(&path)
         .unwrap_or_else(|_| panic!("Unable to read config file {:?}", &path.as_ref()));
 
@@ -132,7 +133,7 @@ pub fn labels_from_yaml<P: AsRef<Path>>(path: P) -> PointCloudResult<SmallIntLab
             ) {
                 ("csv", Some(index), _) | ("gz", Some(index), _) => open_int_csv(&path, index),
                 ("dat", _, Some(dim)) => {
-                    let labels: VecLabels = DataMemmapL2::new(dim, &path)?.convert_to_labels();
+                    let labels: VecLabels = DataMemmap::<L2>::new(dim, &path)?.convert_to_labels();
 
                     match dim.cmp(&1) {
                         Ordering::Greater => Ok(labels.one_hot_to_int()),

@@ -9,20 +9,20 @@ use std::sync::Arc;
 /// Contains all points that this node covers, if the coverage is lower than the limit set in the parameters.
 #[derive(Debug, Clone)]
 pub struct CoverageIndexes {
-    pis: Arc<Vec<PointIndex>>,
+    pis: Arc<Vec<usize>>,
 }
 
 impl<D: PointCloud> NodePlugin<D> for CoverageIndexes {}
 
 impl CoverageIndexes {
     /// Returns all point indexes that the node covers
-    pub fn point_indexes(&self) -> &[PointIndex] {
+    pub fn point_indexes(&self) -> &[usize] {
         self.pis.as_ref()
     }
 }
 
 /// A plugin that helps gather all the indexes that the node covers into an array you can use.
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub struct GokoCoverageIndexes {
     /// The actual limit
     pub max: usize,

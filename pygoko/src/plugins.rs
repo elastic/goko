@@ -1,8 +1,8 @@
-use numpy::PyArray1;
-use pyo3::prelude::*;
 use goko::plugins::discrete::prelude::*;
 use goko::*;
+use numpy::PyArray1;
 use pointcloud::*;
+use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
 /*

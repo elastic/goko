@@ -1,10 +1,10 @@
 //! See the paper for how this works
 
-use crate::*;
-use rayon::iter::repeatn;
-use rand::thread_rng;
 use crate::plugins::discrete::tracker::*;
+use crate::*;
 use rand::prelude::*;
+use rand::thread_rng;
+use rayon::iter::repeatn;
 
 /// Trains a baseline by sampling randomly from the training set (used to create the tree)
 /// This baseline is _not_ realistic.

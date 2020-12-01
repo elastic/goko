@@ -17,11 +17,10 @@
 * under the License.
 */
 
-
-use std::path::Path;
 use goko::*;
 use pointcloud::*;
 use pointcloud::{data_sources::*, label_sources::*, loaders::*};
+use std::path::Path;
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -42,15 +41,18 @@ fn build_tree() -> CoverTreeWriter<SimpleLabeledCloud<DataRam<L2>, SmallIntLabel
     builder.build(Arc::new(point_cloud)).unwrap()
 }
 
-
 pub fn criterion_benchmark(c: &mut Criterion) {
     let mut ct = build_tree();
     let reader = ct.reader();
-    c.bench_function("Known Path 0", |b| b.iter(|| reader.known_path(black_box(0))));
+    c.bench_function("Known Path 0", |b| {
+        b.iter(|| reader.known_path(black_box(0)))
+    });
 
     let pointcloud = reader.point_cloud();
     let point = pointcloud.point(0).unwrap();
-    c.bench_function("Unknown Path 0", |b| b.iter(|| reader.path(black_box(point))));
+    c.bench_function("Unknown Path 0", |b| {
+        b.iter(|| reader.path(black_box(&point)))
+    });
 }
 
 criterion_group!(benches, criterion_benchmark);

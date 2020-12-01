@@ -42,7 +42,7 @@ struct BuilderNode {
     covered: CoveredData,
 }
 
-type NodeSplitResult<D> = GokoResult<(i32, PointIndex, CoverNode<D>)>;
+type NodeSplitResult<D> = GokoResult<(i32, usize, CoverNode<D>)>;
 
 impl BuilderNode {
     fn new<D: PointCloud>(
@@ -564,8 +564,8 @@ mod tests {
         let build_node = BuilderNode::new(&test_parameters, PartitionType::First).unwrap();
 
         let (node_sender, node_receiver): (
-            Sender<GokoResult<(i32, PointIndex, CoverNode<DefaultCloud<L2>>)>>,
-            Receiver<GokoResult<(i32, PointIndex, CoverNode<DefaultCloud<L2>>)>>,
+            Sender<GokoResult<(i32, usize, CoverNode<DefaultCloud<L2>>)>>,
+            Receiver<GokoResult<(i32, usize, CoverNode<DefaultCloud<L2>>)>>,
         ) = unbounded();
         let node_sender = Arc::new(node_sender);
 
@@ -601,8 +601,8 @@ mod tests {
         let build_node = BuilderNode::new(&test_parameters, PartitionType::Nearest).unwrap();
 
         let (node_sender, node_receiver): (
-            Sender<GokoResult<(i32, PointIndex, CoverNode<DefaultCloud<L2>>)>>,
-            Receiver<GokoResult<(i32, PointIndex, CoverNode<DefaultCloud<L2>>)>>,
+            Sender<GokoResult<(i32, usize, CoverNode<DefaultCloud<L2>>)>>,
+            Receiver<GokoResult<(i32, usize, CoverNode<DefaultCloud<L2>>)>>,
         ) = unbounded();
         let node_sender = Arc::new(node_sender);
 

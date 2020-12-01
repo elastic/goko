@@ -85,7 +85,7 @@ fn main() {
         BayesCategoricalTracker::new(prior_weight, observation_weight, window_size, ct.reader());
     let start = time::Instant::now();
 
-    let points: Vec<PointRef<'_>> = (0..test_set.len())
+    let points: Vec<&[f32]> = (0..test_set.len())
         .map(|i| test_set.point(i).unwrap())
         .collect();
     let bulk = BulkInterface::new(ct.reader());
