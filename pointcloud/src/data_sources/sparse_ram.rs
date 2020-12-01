@@ -1,9 +1,10 @@
 
-use crate::pc_errors::{PointCloudError, PointCloudResult};
+use crate::pc_errors::PointCloudResult;
 use std::marker::PhantomData;
-use std::convert::{TryInto, TryFrom};
+use std::convert::TryInto;
 
-use crate::metrics::{SparseRef,L2};
+use crate::points::*;
+use crate::metrics::*;
 
 use crate::base_traits::*;
 use crate::label_sources::VecLabels;
@@ -19,7 +20,7 @@ pub struct SparseDataRam<CoefField: std::fmt::Debug = f32, Index: std::fmt::Debu
     metric: PhantomData<M>,
 }
 
-impl<CoefField, Index> SparseDataRam<CoefField, Index>
+impl<CoefField, Index, M> SparseDataRam<CoefField, Index, M>
  where
  CoefField: std::fmt::Debug + 'static,
  Index: std::fmt::Debug + 'static {
@@ -36,8 +37,11 @@ impl<CoefField, Index> SparseDataRam<CoefField, Index>
 }
 
 
-impl PointCloud for SparseDataRam {
-    type PointRef = SparseRef<'a,f32,u32>;
+impl<M> PointCloud<RawSparse<f32, u32>> for SparseDataRam<f32,u32, M> 
+where 
+    M: Metric<RawSparse<f32, u32>,f32>,
+{
+    type PointRef<'a> = SparseRef<'a, f32, u32>;
     type Field = f32;
     type Metric = L2;
 
@@ -58,18 +62,13 @@ impl PointCloud for SparseDataRam {
        (0..self.len()).collect()
     }
     /// Gets a point from this dataset
-    fn point(&'a self, pn: usize) -> PointCloudResult<SparseRef<'a,f32,u32>> {
+    fn point<'a,'b: 'a>(&'b self, pn: usize) -> PointCloudResult<Self::PointRef<'a>> {
         let lower_bound = self.row_index[pn].try_into();
         let upper_bound = self.row_index[pn + 1].try_into();
-        let dim = self.dim.try_into();
-        if let (Ok(lower_bound),Ok(upper_bound),Ok(dim)) = (lower_bound,upper_bound,dim) {
+        if let (Ok(lower_bound),Ok(upper_bound)) = (lower_bound,upper_bound) {
             let values = &self.values[lower_bound..upper_bound];
             let indexes = &self.col_index[lower_bound..upper_bound];
-            Ok(SparseRef {
-                dim,
-                values,
-                indexes,
-            })
+            Ok(SparseRef::new(self.dim,values,indexes))
         } else {
             panic!("Could not covert a usize into a sparse dimension");
         }

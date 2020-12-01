@@ -1,13 +1,25 @@
 use std::sync::Mutex;
-use std::ops::Deref;
 
 use rayon::prelude::*;
 use std::cmp::min;
 use std::fmt::Debug;
 
-use crate::metrics::Metric;
+use std::ops::Deref;
+
 use crate::pc_errors::*;
 use serde::{Deserialize, Serialize};
+
+pub trait PointRef<Field>: Send + Sync {
+    type DenseIter: Iterator<Item = Field>;
+
+    fn dense(&self) -> Vec<Field>;
+    fn dense_iter(&self) -> Self::DenseIter;
+}
+
+pub trait Metric<T: ?Sized,S>: Send + Sync + 'static {
+    fn dist(x: &T,y: &T) -> S;
+    fn norm(x: &T) -> S;
+}
 
 //use ndarray::{Array1, Array2};
 
@@ -17,9 +29,10 @@ fn chunk(data_dim: usize) -> usize {
 }
 
 /// Base trait for a point cloud
-pub trait PointCloud<'a, T: Send + Sync = &'a [f32]>: Send + Sync + 'static {
+pub trait PointCloud<T: ?Sized>: Send + Sync + 'static {
     /// Underlying metric this point cloud uses
-    type Field: PartialOrd + Send + Sync + Default + Copy + Clone;
+    type Field: PartialOrd + Send + Sync + Default + Copy;
+    type PointRef<'a>: Deref<Target = T> + PointRef<Self::Field>;
     type Metric: Metric<T,Self::Field>;
 
     /// The number of samples this cloud covers
@@ -31,7 +44,7 @@ pub trait PointCloud<'a, T: Send + Sync = &'a [f32]>: Send + Sync + 'static {
     /// Indexes used for access
     fn reference_indexes(&self) -> Vec<usize>;
     /// Gets a point from this dataset
-    fn point(&self, pn: usize) -> PointCloudResult<T>;
+    fn point<'a,'b:'a>(&'b self, i: usize) -> PointCloudResult<Self::PointRef<'a>>;
 
     /*
     /// Returns a dense array
@@ -89,11 +102,11 @@ pub trait PointCloud<'a, T: Send + Sync = &'a [f32]>: Send + Sync + 'static {
             for j in js.iter() {
                 if i < j && !indexes.contains(&(*i, *j)) {
                     let y = self.point(*j)?;
-                    vals.push(x.dist(&y));
+                    vals.push(Self::Metric::dist(&x,&y));
                     indexes.push((*i, *j));
                 } else if j < i && !indexes.contains(&(*j, *i)) {
                     let y = self.point(*j)?;
-                    vals.push(x.dist(&y));
+                    vals.push(Self::Metric::dist(&x,&y));
                     indexes.push((*j, *i));
                 }
             }
@@ -181,13 +194,13 @@ pub trait PointCloud<'a, T: Send + Sync = &'a [f32]>: Send + Sync + 'static {
         i: usize,
         indexes: &[usize],
     ) -> PointCloudResult<Vec<Self::Field>> {
-        self.distances_to_point(&self.point(i)?, indexes)
+        self.distances_to_point(&(self.point(i)?), indexes)
     }
 
     /// The main distance function. This paralizes if there are more than 100 points.
-    fn distances_to_point(
+    fn distances_to_point<'a,'b:'a>(
         &self,
-        x: &T,
+        x: &Self::PointRef<'a>,
         indexes: &[usize],
     ) -> PointCloudResult<Vec<Self::Field>> {
         let chunk = chunk(self.dim());
@@ -381,10 +394,11 @@ impl<D, L: LabelSet> SimpleLabeledCloud<D, L> {
     }
 }
 
-impl<'a,T: Send + Sync,D: PointCloud<'a,T>, L: LabelSet> PointCloud<'a,T> for SimpleLabeledCloud<D, L> {
+impl<T,D: PointCloud<T>, L: LabelSet> PointCloud<T> for SimpleLabeledCloud<D, L> {
     /// Underlying metric this point cloud uses
     type Field = D::Field;
     type Metric = D::Metric;
+    type PointRef<'a> = D::PointRef<'a>;
 
     #[inline]
     fn dim(&self) -> usize {
@@ -403,7 +417,7 @@ impl<'a,T: Send + Sync,D: PointCloud<'a,T>, L: LabelSet> PointCloud<'a,T> for Si
         self.data.reference_indexes()
     }
     #[inline]
-    fn point(&self, i: usize) -> PointCloudResult<T> {
+    fn point<'a,'b:'a>(&'b self, i: usize) -> PointCloudResult<Self::PointRef<'a>>{
         self.data.point(i)
     }
 }

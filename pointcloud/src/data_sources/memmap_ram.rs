@@ -25,7 +25,8 @@ use std::fs::OpenOptions;
 use std::marker::PhantomData;
 use std::path::Path;
 
-use crate::metrics::{Metric,L2, DensePointRef};
+use crate::metrics::*;
+use crate::points::*;
 
 use crate::base_traits::*;
 use crate::label_sources::VecLabels;
@@ -120,9 +121,10 @@ impl DataRam {
 
 macro_rules! make_point_cloud {
     ($name:ident) => {
-        impl<'a, M: Metric<DensePointRef<'a>,f32>> PointCloud<'a,DensePointRef<'a>> for $name<M> {
+        impl<M: Metric<[f32],f32>> PointCloud<[f32]> for $name<M> {
             type Field = f32;
             type Metric = M;
+            type PointRef<'a> = &'a [f32];
 
             #[inline]
             fn dim(&self) -> usize {
@@ -141,11 +143,11 @@ macro_rules! make_point_cloud {
                 (0..self.len()).map(|i| i as usize).collect()
             }
             #[inline]
-            fn point(&self, i: usize) -> PointCloudResult<DensePointRef> {
+            fn point<'a, 'b: 'a>(&'b self, i: usize) -> PointCloudResult<&'a [f32]> {
                 match self.data
                     .get(self.dim * (i as usize)..(self.dim * (i as usize) + self.dim)) {
                     None => Err(PointCloudError::data_access(i as usize, self.name.clone())),
-                    Some(x) => Ok(DensePointRef{values:x.as_ref()}),
+                    Some(x) => Ok(x),
                 }
             }
         }
@@ -228,7 +230,7 @@ pub mod tests {
         let pc = build_ram_fixed_test(5, 5);
 
         let point = pc.point(1).unwrap();
-        for d in point {
+        for d in point.iter() {
             assert_approx_eq!(1.0, d);
         }
     }
@@ -259,9 +261,9 @@ pub mod tests {
         let pc = build_ram_fixed_test(5, 5);
 
         let indexes = [1];
-        let point = vec![0.0; 5];
+        let point = vec![0.0f32; 5];
 
-        let dists = pc.distances_to_point(&point, &indexes).unwrap();
+        let dists = pc.distances_to_point(&&point[..], &indexes).unwrap();
         for d in dists {
             assert_approx_eq!(5.0f32.sqrt(), d);
         }

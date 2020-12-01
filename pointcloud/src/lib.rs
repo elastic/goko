@@ -39,6 +39,8 @@ mod base_traits;
 pub use base_traits::*;
 pub mod metrics;
 
+pub mod points;
+
 pub mod data_sources;
 
 //pub mod glued_data_cloud;
