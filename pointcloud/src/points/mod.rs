@@ -2,7 +2,6 @@
 //! Abstracts data access over several files and glues metadata files to vector data files
 
 use crate::PointRef;
-use std::convert::AsRef;
 use std::convert::{TryFrom, TryInto};
 use std::marker::PhantomData;
 use std::ops::Deref;

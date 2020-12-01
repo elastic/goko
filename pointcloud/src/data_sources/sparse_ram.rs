@@ -2,10 +2,9 @@ use crate::pc_errors::PointCloudResult;
 use std::convert::TryInto;
 use std::marker::PhantomData;
 
+use crate::base_traits::*;
 use crate::metrics::*;
 use crate::points::*;
-
-use crate::base_traits::*;
 
 /// The data stored in ram.
 #[derive(Debug)]
