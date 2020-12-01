@@ -43,7 +43,7 @@ pub mod points;
 
 pub mod data_sources;
 
-//pub mod glued_data_cloud;
+pub mod glued_data_cloud;
 
 pub mod label_sources;
 pub mod summaries;

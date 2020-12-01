@@ -21,7 +21,7 @@ pub trait Metric<T: ?Sized,S>: Send + Sync + 'static {
     fn norm(x: &T) -> S;
 }
 
-//use ndarray::{Array1, Array2};
+use ndarray::{Array1, Array2};
 
 #[inline]
 fn chunk(data_dim: usize) -> usize {
@@ -29,11 +29,17 @@ fn chunk(data_dim: usize) -> usize {
 }
 
 /// Base trait for a point cloud
-pub trait PointCloud<T: ?Sized>: Send + Sync + 'static {
-    /// Underlying metric this point cloud uses
-    type Field: PartialOrd + Send + Sync + Default + Copy;
-    type PointRef<'a>: Deref<Target = T> + PointRef<Self::Field>;
-    type Metric: Metric<T,Self::Field>;
+pub trait PointCloud: Send + Sync + 'static {
+    ///
+    type Field: Send + Sync + Default + Copy;
+    /// The derefrenced, raw point. Think [f32]
+    type Point: ?Sized;
+    /// A reference to a point. Think &'a [f32]
+    /// 
+    /// It might be better to move this to the `point` function, but this way we can rely on it for other things.
+    type PointRef<'a>: Deref<Target = Self::Point> + PointRef<Self::Field>;
+    /// The metric this pointcloud is bound to. Think L2
+    type Metric: Metric<Self::Point,Self::Field>;
 
     /// The number of samples this cloud covers
     fn len(&self) -> usize;
@@ -46,18 +52,18 @@ pub trait PointCloud<T: ?Sized>: Send + Sync + 'static {
     /// Gets a point from this dataset
     fn point<'a,'b:'a>(&'b self, i: usize) -> PointCloudResult<Self::PointRef<'a>>;
 
-    /*
+
     /// Returns a dense array
-    fn point_dense_array(&self, index: usize) -> PointCloudResult<Array1<f32>> {
+    fn point_dense_array(&self, index: usize) -> PointCloudResult<Array1<Self::Field>> {
         let pref = self.point(index)?;
-        let vals: Vec<f32> = pref.dense_iter().collect();
+        let vals: Vec<Self::Field> = pref.dense_iter().collect();
         Ok(Array1::from_shape_vec((self.dim(),), vals).unwrap())
     }
 
     /// Returns a dense array
-    fn points_dense_matrix(&self, indexes: &[usize]) -> PointCloudResult<Array2<f32>> {
+    fn points_dense_matrix(&self, indexes: &[usize]) -> PointCloudResult<Array2<Self::Field>> {
         let dim = self.dim();
-        let mut data: Vec<f32> = Vec::with_capacity(dim * indexes.len());
+        let mut data: Vec<Self::Field> = Vec::with_capacity(dim * indexes.len());
         for pi in indexes {
             let pref = self.point(*pi)?;
             data.extend(pref.dense_iter());
@@ -65,24 +71,6 @@ pub trait PointCloud<T: ?Sized>: Send + Sync + 'static {
         Ok(Array2::from_shape_vec((indexes.len(), dim), data).unwrap())
     }
 
-    /// The main distance function. This paralizes if there are more than 100 points.
-    fn moment_subset(&self, moment: i32, indexes: &[usize]) -> PointCloudResult<Vec<f32>> {
-        let mut moment_vec: Vec<f32> = vec![f32::default(); self.dim()];
-        for i in indexes {
-            match self.point(*i) {
-                Ok(y) => {
-                    for (m, yy) in moment_vec.iter_mut().zip(y.dense_iter()) {
-                        *m += yy.powi(moment);
-                    }
-                },
-                Err(e) => {
-                    return Err(e);
-                }
-            }
-        }
-        Ok(moment_vec)
-    }
-    */
 
     /*
     /// The main distance function. This paralizes if there are more than 100 points.
@@ -194,13 +182,13 @@ pub trait PointCloud<T: ?Sized>: Send + Sync + 'static {
         i: usize,
         indexes: &[usize],
     ) -> PointCloudResult<Vec<Self::Field>> {
-        self.distances_to_point(&(self.point(i)?), indexes)
+        self.distances_to_point(self.point(i)?, indexes)
     }
 
     /// The main distance function. This paralizes if there are more than 100 points.
     fn distances_to_point<'a,'b:'a>(
         &self,
-        x: &Self::PointRef<'a>,
+        x: Self::PointRef<'a>,
         indexes: &[usize],
     ) -> PointCloudResult<Vec<Self::Field>> {
         let chunk = chunk(self.dim());
@@ -236,6 +224,60 @@ pub trait PointCloud<T: ?Sized>: Send + Sync + 'static {
                 })
                 .collect()
         }
+    }
+
+    fn moment1(&self, indexes: &[usize]) -> PointCloudResult<Vec<Self::Field>>
+    where Self::Field: std::ops::AddAssign {
+        let mut moment_vec: Vec<Self::Field> = vec![Self::Field::default(); self.dim()];
+        for i in indexes {
+            match self.point(*i) {
+                Ok(y) => {
+                    for (m, yy) in moment_vec.iter_mut().zip(y.dense_iter()) {
+                        *m += yy;
+                    }
+                },
+                Err(e) => {
+                    return Err(e);
+                }
+            }
+        }
+        Ok(moment_vec)
+    }
+
+    fn moment2(&self, indexes: &[usize]) -> PointCloudResult<Vec<Self::Field>>
+    where Self::Field: std::ops::Mul<Output = Self::Field> + std::ops::AddAssign {
+        let mut moment_vec: Vec<Self::Field> = vec![Self::Field::default(); self.dim()];
+        for i in indexes {
+            match self.point(*i) {
+                Ok(y) => {
+                    for (m, yy) in moment_vec.iter_mut().zip(y.dense_iter()) {
+                        *m += yy*yy;
+                    }
+                },
+                Err(e) => {
+                    return Err(e);
+                }
+            }
+        }
+        Ok(moment_vec)
+    }
+
+    fn moment_subset(&self, moment: i32, indexes: &[usize]) -> PointCloudResult<Vec<f64>>
+    where Self::Field: Into<f64> {
+        let mut moment_vec: Vec<f64> = vec![f64::default(); self.dim()];
+        for i in indexes {
+            match self.point(*i) {
+                Ok(y) => {
+                    for (m, yy) in moment_vec.iter_mut().zip(y.dense_iter()) {
+                        *m += yy.into().powi(moment);
+                    }
+                },
+                Err(e) => {
+                    return Err(e);
+                }
+            }
+        }
+        Ok(moment_vec)
     }
 }
 
@@ -394,10 +436,11 @@ impl<D, L: LabelSet> SimpleLabeledCloud<D, L> {
     }
 }
 
-impl<T,D: PointCloud<T>, L: LabelSet> PointCloud<T> for SimpleLabeledCloud<D, L> {
+impl<D: PointCloud, L: LabelSet> PointCloud for SimpleLabeledCloud<D, L> {
     /// Underlying metric this point cloud uses
-    type Field = D::Field;
     type Metric = D::Metric;
+    type Point = D::Point;
+    type Field = D::Field;
     type PointRef<'a> = D::PointRef<'a>;
 
     #[inline]

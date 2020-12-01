@@ -37,13 +37,14 @@ impl<CoefField, Index, M> SparseDataRam<CoefField, Index, M>
 }
 
 
-impl<M> PointCloud<RawSparse<f32, u32>> for SparseDataRam<f32,u32, M> 
+impl<M> PointCloud for SparseDataRam<f32,u32, M> 
 where 
     M: Metric<RawSparse<f32, u32>,f32>,
 {
     type PointRef<'a> = SparseRef<'a, f32, u32>;
-    type Field = f32;
+    type Point = RawSparse<f32, u32>;
     type Metric = L2;
+    type Field = f32;
 
     /// The number of samples this cloud covers
     fn len(&self) -> usize {

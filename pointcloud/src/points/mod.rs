@@ -7,39 +7,6 @@ use std::convert::AsRef;
 use std::marker::PhantomData;
 use crate::PointRef;
 
-pub struct DensePointRef<'a,T> {
-    pub values: &'a [T],
-}
-
-
-impl<'a, T> Deref for DensePointRef<'a,T> {
-    type Target = [T];
-    fn deref(&self) -> &Self::Target {
-        &self.values[..]
-    }
-}
-
-
-impl<'a, T, S: AsRef<[T]>> From<&'a S> for DensePointRef<'a,T> {
-    fn from(arr: &'a S) -> Self {
-        DensePointRef {
-            values: arr.as_ref(),
-        }
-    }
-}
-
-impl<'a,T> PointRef<T> for DensePointRef<'a, T>
-    where
-    T: Send + Sync + Copy + 'static {
-    type DenseIter =  std::iter::Copied<std::slice::Iter<'a,T>>;
-    fn dense(&self) -> Vec<T> {
-        Vec::from(self.values)
-    }
-    fn dense_iter(&self) -> Self::DenseIter {
-        self.values.iter().copied()
-    }
-}
-
 
 impl<'a,T> PointRef<T> for &'a [T]
     where
@@ -122,6 +89,12 @@ pub struct RawSparse<T, S> {
     len: usize,
 }
 
+#[derive(Debug)]
+pub struct SparseRef<'a, T, S> {
+    raw: RawSparse<T,S>,
+    lifetime: PhantomData<&'a T>,
+}
+
 unsafe impl<T: Send, S: Send> Send for RawSparse<T,S> {}
 unsafe impl<T: Sync, S: Sync> Sync for RawSparse<T,S> {}
 
@@ -139,13 +112,8 @@ impl<T: std::fmt::Debug, S: std::fmt::Debug + TryInto<usize>> RawSparse<T,S> {
     }
 }
 
-#[derive(Debug)]
-pub struct SparseRef<'a, T: std::fmt::Debug, S: std::fmt::Debug> {
-    raw: RawSparse<T,S>,
-    lifetime: PhantomData<&'a T>,
-}
 
-impl<'a, T: std::fmt::Debug, S: std::fmt::Debug + TryInto<usize>> SparseRef<'a,T,S> {
+impl<'a, T, S: TryInto<usize>> SparseRef<'a,T,S> {
     pub fn new<'b>(dim:usize,values: &'b [T], indexes: &'b [S]) -> SparseRef<'b,T,S> {
         let len = values.len();
         assert_eq!(indexes.len(),len,"Need the indexes and values to be of identical len");
@@ -177,7 +145,7 @@ impl<'a, T: std::fmt::Debug, S: std::fmt::Debug + TryInto<usize>> SparseRef<'a,T
 }
 
 
-impl<'a, T: std::fmt::Debug, S: std::fmt::Debug> Deref for SparseRef<'a,T,S> {
+impl<'a, T, S> Deref for SparseRef<'a,T,S> {
     type Target = RawSparse<T,S>;
     fn deref(&self) -> &Self::Target {
         &self.raw

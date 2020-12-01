@@ -26,7 +26,6 @@ use std::marker::PhantomData;
 use std::path::Path;
 
 use crate::metrics::*;
-use crate::points::*;
 
 use crate::base_traits::*;
 use crate::label_sources::VecLabels;
@@ -51,9 +50,9 @@ pub struct DataRam<M = L2> {
     metric: PhantomData<M>,
 }
 
-impl DataMemmap {
+impl<M> DataMemmap<M> {
     /// Creates a new one from a path. The name is the path.
-    pub fn new(dim: usize, path: &Path) -> PointCloudResult<DataMemmap> {
+    pub fn new(dim: usize, path: &Path) -> PointCloudResult<DataMemmap<M>> {
         let name = path.to_string_lossy().to_string();
         if !path.exists() {
             panic!("data file {:?} does not exist", path);
@@ -93,9 +92,9 @@ impl DataMemmap {
     }
 }
 
-impl DataRam {
+impl<M> DataRam<M> {
     /// Consumes your box and dimension and gives a dimensioned box.
-    pub fn new(data: Vec<f32>, dim: usize) -> Result<DataRam, PointCloudError> {
+    pub fn new(data: Vec<f32>, dim: usize) -> Result<DataRam<M>, PointCloudError> {
         assert!(data.len() % dim == 0);
         let name = "RAM".to_string();
         Ok(DataRam {
@@ -121,9 +120,10 @@ impl DataRam {
 
 macro_rules! make_point_cloud {
     ($name:ident) => {
-        impl<M: Metric<[f32],f32>> PointCloud<[f32]> for $name<M> {
-            type Field = f32;
+        impl<M: Metric<[f32],f32>> PointCloud for $name<M> {
             type Metric = M;
+            type Field = f32;
+            type Point = [f32];
             type PointRef<'a> = &'a [f32];
 
             #[inline]

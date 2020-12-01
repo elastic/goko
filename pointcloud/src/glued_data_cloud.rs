@@ -75,15 +75,16 @@ impl<D> HashGluedCloud<D> {
     }
 }
 
-impl<Point, Field, D: PointCloud<Point, Field>> PointCloud<Point, Field> for HashGluedCloud<D> 
-where
-    Point: ?Sized + Send + Sync,
-    Field: PartialOrd + Send + Sync + Default + Copy + Clone {
+impl<D: PointCloud> PointCloud for HashGluedCloud<D> {
     type Metric = D::Metric;
+    type Point = D::Point;
+    type Field = D::Field;
+    type PointRef<'a> = D::PointRef<'a>;
+
     /// Returns a slice corresponding to the point in question. Used for rarely referenced points,
     /// like outliers or leaves.
-    fn point(&self, pn: usize) -> PointCloudResult<&Point> {
-        let (i, j) = self.get_address(pn)?;
+    fn point<'a,'b:'a>(&'b self, pi: usize) -> PointCloudResult<Self::PointRef<'a>> {
+        let (i, j) = self.get_address(pi)?;
         self.data_sources[i].point(j)
     }
 
@@ -294,7 +295,7 @@ mod tests {
         let indexes = [1, 3, 5, 7, 9];
         let point = vec![0.0; 5];
 
-        let dists = pc.distances_to_point(&point, &indexes).unwrap();
+        let dists = pc.distances_to_point(&point[..], &indexes).unwrap();
         for d in dists {
             assert_approx_eq!(3.0f32.sqrt(), d);
         }
