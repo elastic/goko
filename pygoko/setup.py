@@ -1,11 +1,11 @@
 import os
-import sys
 
 from setuptools import setup
 from setuptools.command.test import test as TestCommand
 from setuptools.command.sdist import sdist as SdistCommand
 
 from setuptools_rust import RustExtension
+
 
 class CargoModifiedSdist(SdistCommand):
     """Modifies Cargo.toml to use an absolute rather than a relative path
@@ -51,6 +51,7 @@ class PyTest(TestCommand):
 
         subprocess.check_call(["pytest", "tests"])
 
+
 setup_requires = ["setuptools-rust>=0.10.1", "wheel"]
 install_requires = []
 tests_require = install_requires + ["pytest", "pytest-benchmark"]
@@ -68,7 +69,9 @@ setup(
         "Operating System :: MacOS :: MacOS X",
     ],
     packages=["pygoko"],
-    rust_extensions=[RustExtension("pygoko.pygoko", "Cargo.toml", debug=False)],
+    rust_extensions=[
+        RustExtension("pygoko.pygoko", "Cargo.toml", debug=False),
+    ],
     install_requires=install_requires,
     tests_require=tests_require,
     setup_requires=setup_requires,

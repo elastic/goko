@@ -96,7 +96,7 @@ impl<D: PointCloud> BulkInterface<D> {
     }
 }
 
-impl<'b, D: PointCloud<PointRef = &'b [f32]>> BulkInterface<D> {
+impl<D: PointCloud<Point = [f32]>> BulkInterface<D> {
     /// Applies the passed in fn to the passed in indexes and collects the result in a vector. Core function for this struct.
     pub fn array_map_with_reader<'a, F, T>(&self, points: ArrayView2<'a, f32>, f: F) -> Vec<T>
     where

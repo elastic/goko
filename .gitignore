@@ -9,3 +9,4 @@ dist
 __pycache__
 add_license.py
 .DS_store
+.vscode

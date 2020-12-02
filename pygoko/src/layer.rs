@@ -13,8 +13,8 @@ use crate::node::*;
 
 #[pyclass(unsendable)]
 pub struct IterLayers {
-    pub parameters: Arc<CoverTreeParameters<DefaultLabeledCloud<L1>>>,
-    pub tree: CoverTreeReader<DefaultLabeledCloud<L1>>,
+    pub parameters: Arc<CoverTreeParameters<DefaultLabeledCloud<L2>>>,
+    pub tree: CoverTreeReader<DefaultLabeledCloud<L2>>,
     pub scale_indexes: Vec<i32>,
     pub index: usize,
 }
@@ -47,13 +47,13 @@ impl PyIterProtocol for IterLayers {
 
 #[pyclass(unsendable)]
 pub struct PyLayer {
-    pub parameters: Arc<CoverTreeParameters<DefaultLabeledCloud<L1>>>,
-    pub tree: CoverTreeReader<DefaultLabeledCloud<L1>>,
+    pub parameters: Arc<CoverTreeParameters<DefaultLabeledCloud<L2>>>,
+    pub tree: CoverTreeReader<DefaultLabeledCloud<L2>>,
     pub scale_index: i32,
 }
 
 impl PyLayer {
-    fn layer(&self) -> &CoverLayerReader<DefaultLabeledCloud<L1>> {
+    fn layer(&self) -> &CoverLayerReader<DefaultLabeledCloud<L2>> {
         self.tree.layer(self.scale_index)
     }
 }
@@ -98,7 +98,6 @@ impl PyLayer {
     }
 
     pub fn centers(&self) -> PyResult<(Py<PyArray1<usize>>, Py<PyArray2<f32>>)> {
-        let dim = self.parameters.point_cloud.dim();
         let mut centers =
             Vec::with_capacity(self.layer().len() * self.parameters.point_cloud.dim());
         let mut centers_indexes = Vec::with_capacity(self.layer().len());
@@ -109,7 +108,7 @@ impl PyLayer {
                     .point_cloud
                     .point(*pi)
                     .unwrap()
-                    .dense_iter(dim),
+                    .dense_iter(),
             );
         });
         let py_center_indexes = Array::from(centers_indexes);
@@ -138,7 +137,7 @@ impl PyLayer {
                         .point_cloud
                         .point(nested_address.1)
                         .unwrap()
-                        .dense_iter(dim),
+                        .dense_iter(),
                 );
                 for na in child_addresses {
                     centers.extend(
@@ -146,7 +145,7 @@ impl PyLayer {
                             .point_cloud
                             .point(na.1)
                             .unwrap()
-                            .dense_iter(dim),
+                            .dense_iter(),
                     );
                 }
                 let py_centers = Array2::from_shape_vec((count, dim), centers).unwrap();
@@ -166,7 +165,7 @@ impl PyLayer {
                         .point_cloud
                         .point(*pi)
                         .unwrap()
-                        .dense_iter(dim),
+                        .dense_iter(),
                 );
             }
             let py_centers = Array2::from_shape_vec((singletons.len(), dim), centers).unwrap();

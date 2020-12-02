@@ -16,11 +16,11 @@
 * specific language governing permissions and limitations
 * under the License.
 */
-
 use crate::errors::GokoResult;
 use pointcloud::*;
 use rand::seq::SliceRandom;
-use rand::{thread_rng, Rng};
+use rand::rngs::SmallRng;
+use rand::Rng;
 use std::cmp::Ordering;
 use std::sync::Arc;
 
@@ -76,8 +76,8 @@ impl UncoveredData {
         &mut self,
         radius: f32,
         point_cloud: &Arc<D>,
+        rng: &mut SmallRng,
     ) -> GokoResult<FirstCoveredData> {
-        let mut rng = thread_rng();
         let new_center: usize = rng.gen_range(0, self.coverage.len());
         let center_index = self.coverage.remove(new_center);
         let dists = point_cloud.distances_to_point_index(center_index, &self.coverage)?;
@@ -205,9 +205,9 @@ impl NearestCoveredData {
         &mut self,
         radius: f32,
         point_cloud: &Arc<D>,
+        rng: &mut SmallRng,
     ) -> GokoResult<()> {
         let mut coverage: Vec<bool> = self.center_dists.iter().map(|d| d < &radius).collect();
-        let mut rng = thread_rng();
 
         while coverage.iter().any(|b| !b) {
             let uncovered_indexes: Vec<usize> = self
@@ -217,7 +217,7 @@ impl NearestCoveredData {
                 .filter(|(_, b)| !**b)
                 .map(|(pi, _)| *pi)
                 .collect();
-            let center_index = *uncovered_indexes.choose(&mut rng).unwrap();
+            let center_index = *uncovered_indexes.choose(rng).unwrap();
             let new_dists =
                 point_cloud.distances_to_point_index(center_index, &self.point_indexes)?;
             coverage
@@ -280,8 +280,9 @@ impl NearestCoveredData {
         mut self,
         radius: f32,
         point_cloud: &Arc<D>,
+        rng: &mut SmallRng,
     ) -> GokoResult<(NearestCoveredData, Vec<NearestCoveredData>)> {
-        self.cover_thyself(radius, point_cloud)?;
+        self.cover_thyself(radius, point_cloud,rng)?;
         Ok(self.assign_to_nearest())
     }
 
@@ -305,6 +306,7 @@ impl NearestCoveredData {
 mod tests {
     use super::*;
     use std::sync::Arc;
+    use rand::SeedableRng;
 
     #[test]
     fn splits_correctly_1() {
@@ -340,7 +342,8 @@ mod tests {
         let mut cache = UncoveredData {
             coverage: (0..19 as usize).collect(),
         };
-        let close = cache.pick_center(1.0, &point_cloud).unwrap();
+        let mut small_rng = SmallRng::seed_from_u64(0);
+        let close = cache.pick_center(1.0, &point_cloud, &mut small_rng).unwrap();
 
         assert!(!close.coverage.contains(&close.center_index));
         assert!(!cache.coverage.contains(&close.center_index));
@@ -398,7 +401,8 @@ mod tests {
         let point_cloud = Arc::new(DefaultLabeledCloud::<L2>::new_simple(data, 1, labels));
 
         let mut cache = NearestCoveredData::new(&point_cloud).unwrap();
-        cache.cover_thyself(1.0, &point_cloud).unwrap();
+        let mut small_rng = SmallRng::seed_from_u64(0);
+        cache.cover_thyself(1.0, &point_cloud, &mut small_rng).unwrap();
 
         assert_eq!(1, cache.dists.len());
         assert_eq!(4, cache.center_dists.len());

@@ -5,7 +5,7 @@ use yaml_rust::YamlLoader;
 
 use super::*;
 use crate::metrics::L2;
-use crate::{DefaultCloud, DefaultLabeledCloud};
+use crate::DefaultLabeledCloud;
 
 /// Given a yaml file on disk, it builds a point cloud. Minimal example below.
 /// ```yaml

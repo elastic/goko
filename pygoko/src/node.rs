@@ -14,9 +14,9 @@ use pyo3::types::PyDict;
 
 #[pyclass(unsendable)]
 pub struct IterLayerNode {
-    pub parameters: Arc<CoverTreeParameters<DefaultLabeledCloud<L1>>>,
+    pub parameters: Arc<CoverTreeParameters<DefaultLabeledCloud<L2>>>,
     pub addresses: Vec<NodeAddress>,
-    pub tree: CoverTreeReader<DefaultLabeledCloud<L1>>,
+    pub tree: CoverTreeReader<DefaultLabeledCloud<L2>>,
     pub index: usize,
 }
 
@@ -49,9 +49,9 @@ impl PyIterProtocol for IterLayerNode {
 
 #[pyclass(unsendable)]
 pub struct PyNode {
-    pub parameters: Arc<CoverTreeParameters<DefaultLabeledCloud<L1>>>,
+    pub parameters: Arc<CoverTreeParameters<DefaultLabeledCloud<L2>>>,
     pub address: NodeAddress,
-    pub tree: CoverTreeReader<DefaultLabeledCloud<L1>>,
+    pub tree: CoverTreeReader<DefaultLabeledCloud<L2>>,
 }
 
 #[pymethods]
@@ -117,13 +117,13 @@ impl PyNode {
         self.tree.get_node_and(self.address, |n| {
             n.singletons().iter().for_each(|pi| {
                 if let Ok(p) = self.parameters.point_cloud.point(*pi) {
-                    ret_matrix.extend(p.dense_iter(dim));
+                    ret_matrix.extend(p.dense_iter());
                 }
             });
 
             if n.is_leaf() {
                 if let Ok(p) = self.parameters.point_cloud.point(*n.center_index()) {
-                    ret_matrix.extend(p.dense_iter(dim));
+                    ret_matrix.extend(p.dense_iter());
                 }
             }
         });

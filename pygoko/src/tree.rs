@@ -40,8 +40,8 @@ use goko::plugins::gaussians::*;
 #[pyclass(unsendable)]
 pub struct CoverTree {
     builder: Option<CoverTreeBuilder>,
-    temp_point_cloud: Option<Arc<DefaultLabeledCloud<L1>>>,
-    writer: Option<CoverTreeWriter<DefaultLabeledCloud<L1>>>,
+    temp_point_cloud: Option<Arc<DefaultLabeledCloud<L2>>>,
+    writer: Option<CoverTreeWriter<DefaultLabeledCloud<L2>>>,
     metric: String,
 }
 
@@ -53,7 +53,7 @@ impl CoverTree {
             builder: Some(CoverTreeBuilder::new()),
             temp_point_cloud: None,
             writer: None,
-            metric: "DefaultLabeledCloud<L1>".to_string(),
+            metric: "DefaultLabeledCloud<L2>".to_string(),
         })
     }
     pub fn set_scale_base(&mut self, x: f32) {
@@ -90,7 +90,7 @@ impl CoverTree {
 
     pub fn load_yaml_config(&mut self, file_name: String) -> PyResult<()> {
         let path = Path::new(&file_name);
-        let point_cloud = Arc::new(labeled_ram_from_yaml::<_, L1>(&path).unwrap());
+        let point_cloud = Arc::new(labeled_ram_from_yaml::<_, L2>(&path).unwrap());
         let builder = CoverTreeBuilder::from_yaml(&path);
         self.builder = Some(builder);
         self.temp_point_cloud = Some(point_cloud);
@@ -113,7 +113,7 @@ impl CoverTree {
                 Some(labels) => Vec::from(labels.readonly().as_slice().unwrap()),
                 None => vec![0; len],
             };
-            Arc::new(DefaultLabeledCloud::<L1>::new_simple(
+            Arc::new(DefaultLabeledCloud::<L2>::new_simple(
                 Vec::from(data.readonly().as_slice().unwrap()),
                 data_dim,
                 my_labels,
@@ -151,7 +151,7 @@ impl CoverTree {
             Err(_) => None,
             Ok(point) => {
                 let py_point =
-                    Array1::from_shape_vec((dim,), point.dense_iter(dim).collect()).unwrap();
+                    Array1::from_shape_vec((dim,), point.dense_iter().collect()).unwrap();
                 let gil = GILGuard::acquire();
                 let py = gil.python();
                 Some(py_point.into_pyarray(py).to_owned())
@@ -214,13 +214,13 @@ impl CoverTree {
 
     pub fn knn(&self, point: &PyArray1<f32>, k: usize) -> Vec<(f32, usize)> {
         let reader = self.writer.as_ref().unwrap().reader();
-        reader.knn(point.readonly().as_slice().unwrap(), k).unwrap()
+        reader.knn(&point.readonly().as_slice().unwrap(), k).unwrap()
     }
 
     pub fn routing_knn(&self, point: &PyArray1<f32>, k: usize) -> Vec<(f32, usize)> {
         let reader = self.writer.as_ref().unwrap().reader();
         reader
-            .routing_knn(point.readonly().as_slice().unwrap(), k)
+            .routing_knn(&point.readonly().as_slice().unwrap(), k)
             .unwrap()
     }
 
@@ -286,7 +286,7 @@ impl CoverTree {
 
     pub fn path(&self, point: &PyArray1<f32>) -> Vec<(f32, (i32, usize))> {
         let reader = self.writer.as_ref().unwrap().reader();
-        reader.path(point.readonly().as_slice().unwrap()).unwrap()
+        reader.path(&point.readonly().as_slice().unwrap()).unwrap()
     }
 
     pub fn sample(&self) -> PyResult<(Py<PyArray1<f32>>, Option<PyObject>)> {

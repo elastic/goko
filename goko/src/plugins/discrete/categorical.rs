@@ -90,7 +90,7 @@ impl Categorical {
     }
 
     /// Pass none if you want to test for a singleton, returns 0 if
-    fn ln_pdf(&self, loc: Option<&NodeAddress>) -> Option<f64> {
+    pub fn ln_pdf(&self, loc: Option<&NodeAddress>) -> Option<f64> {
         let total = self.total();
         if total > 0.0 {
             let ax = match loc {
@@ -107,7 +107,8 @@ impl Categorical {
         }
     }
 
-    fn sample<R: Rng>(&self, rng: &mut R) -> Option<NodeAddress> {
+    /// Samples from the given categorical distribution
+    pub fn sample<R: Rng>(&self, rng: &mut R) -> Option<NodeAddress> {
         let sum = self.total() as usize;
         let uniform = Uniform::from(0..sum);
         let sample = uniform.sample(rng) as f64;
@@ -125,7 +126,7 @@ impl Categorical {
     /// Computes the KL divergence of two bucket probs.
     /// KL(self || other)
     /// Returns None if the support of the self is not a subset of the support of the other
-    fn kl_divergence(&self, other: &Categorical) -> Option<f64> {
+    pub fn kl_divergence(&self, other: &Categorical) -> Option<f64> {
         let my_total = self.total();
         let other_total = other.total();
         if my_total == 0.0 || other_total == 0.0 {

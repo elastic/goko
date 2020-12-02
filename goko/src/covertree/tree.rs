@@ -83,6 +83,10 @@ pub struct CoverTreeParameters<D: PointCloud> {
     pub point_cloud: Arc<D>,
     /// This should be replaced by a logging solution
     pub verbosity: u32,
+    /// The seed to use for deterministic trees. This is xor-ed with the point index to create a seed for `rand::rngs::SmallRng`.
+    /// 
+    /// Pass in None if you want to use the host os's entropy instead. 
+    pub rng_seed: Option<u64>,
     /// This is where the base plugins are are stored.
     pub plugins: RwLock<TreePluginSet>,
 }
@@ -594,6 +598,7 @@ impl<D: PointCloud> CoverTreeWriter<D> {
             verbosity: 2,
             partition_type,
             plugins: RwLock::new(TreePluginSet::new()),
+            rng_seed: None,
         });
         let root_address = (
             cover_proto.get_root_scale(),
@@ -699,6 +704,7 @@ pub(crate) mod tests {
             use_singletons: true,
             partition_type: PartitionType::Nearest,
             verbosity: 0,
+            rng_seed: Some(0),
         };
         builder.build(Arc::new(point_cloud)).unwrap()
     }
@@ -745,6 +751,7 @@ pub(crate) mod tests {
             use_singletons: false,
             partition_type: PartitionType::Nearest,
             verbosity: 0,
+            rng_seed: Some(0),
         };
         let tree = builder.build(Arc::new(point_cloud)).unwrap();
         let reader = tree.reader();
@@ -847,6 +854,7 @@ pub(crate) mod tests {
             use_singletons: false,
             partition_type: PartitionType::Nearest,
             verbosity: 0,
+            rng_seed: Some(0),
         };
         let mut tree = builder.build(Arc::new(point_cloud)).unwrap();
         tree.generate_summaries();
@@ -877,6 +885,7 @@ pub(crate) mod tests {
             use_singletons: false,
             partition_type: PartitionType::Nearest,
             verbosity: 0,
+            rng_seed: Some(0),
         };
         let tree = builder.build(Arc::new(point_cloud)).unwrap();
         let reader = tree.reader();
@@ -901,6 +910,7 @@ pub(crate) mod tests {
             use_singletons: false,
             partition_type: PartitionType::Nearest,
             verbosity: 0,
+            rng_seed: Some(0),
         };
         let tree = builder.build(Arc::clone(&point_cloud)).unwrap();
         let reader = tree.reader();

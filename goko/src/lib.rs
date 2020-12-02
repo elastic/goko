@@ -53,6 +53,8 @@
 #[macro_use]
 extern crate smallvec;
 
+extern crate rand;
+
 use rayon::prelude::*;
 #[cfg(test)]
 #[macro_use]
