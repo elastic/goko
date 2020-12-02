@@ -129,7 +129,7 @@ impl PyNode {
         });
 
         let ret_matrix = Array2::from_shape_vec((len, dim), ret_matrix).unwrap();
-        let gil = GILGuard::acquire();
+        let gil = pyo3::Python::acquire_gil();
         let py = gil.python();
         Ok(ret_matrix.into_pyarray(py).to_owned())
     }
@@ -142,7 +142,7 @@ impl PyNode {
 
     pub fn cover_mean(&self) -> PyResult<Option<Py<PyArray1<f32>>>> {
         let dim = self.parameters.point_cloud.dim();
-        let gil = GILGuard::acquire();
+        let gil = pyo3::Python::acquire_gil();
         let py = gil.python();
         let mean = self
             .tree
@@ -164,13 +164,14 @@ impl PyNode {
             .get_node_plugin_and::<DiagGaussian, _, _>(self.address, |p| p.var())
             .unwrap();
         let py_mean = Array1::from_shape_vec((dim,), var).unwrap();
-        let gil = GILGuard::acquire();
+        let gil = pyo3::Python::acquire_gil();
         let py = gil.python();
         Ok(py_mean.into_pyarray(py).to_owned())
     }
 
+    /*
     pub fn get_singular_values(&self) -> PyResult<Option<Py<PyArray1<f32>>>> {
-        let gil = GILGuard::acquire();
+        let gil = pyo3::Python::acquire_gil();
         let py = gil.python();
         Ok(self
             .tree
@@ -178,9 +179,10 @@ impl PyNode {
                 p.singular_vals.clone().into_pyarray(py).to_owned()
             }))
     }
+    */
 
     pub fn label_summary(&self) -> PyResult<Option<PyObject>> {
-        let gil = GILGuard::acquire();
+        let gil = pyo3::Python::acquire_gil();
         let py = gil.python();
         let dict = PyDict::new(py);
         match self.tree.get_node_label_summary(self.address) {

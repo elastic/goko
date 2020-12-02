@@ -203,12 +203,12 @@ impl<D: PointCloud> GokoPlugin<D> for GokoDiagGaussian {
         let moment1 = my_tree
             .parameters()
             .point_cloud
-            .moment_subset(1, my_node.singletons())
+            .moment_1(my_node.singletons())
             .unwrap();
         let moment2 = my_tree
             .parameters()
             .point_cloud
-            .moment_subset(2, my_node.singletons())
+            .moment_2(my_node.singletons())
             .unwrap();
         let count = my_node.singletons_len();
         let mut my_dg = DiagGaussian {

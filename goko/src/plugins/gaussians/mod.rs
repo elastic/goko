@@ -10,8 +10,14 @@ use std::fmt::Debug;
 mod diag_gaussian;
 pub use diag_gaussian::*;
 
+/*
+There's an issue with rust-numpy and ndarray causing the linear algebra package for ndarray to fail. 
+
+Temporary removal
+
 mod svd_gaussian;
 pub use svd_gaussian::*;
+*/
 
 use pointcloud::PointRef;
 

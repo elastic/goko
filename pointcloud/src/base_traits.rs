@@ -9,16 +9,31 @@ use std::ops::Deref;
 use crate::pc_errors::*;
 use serde::{Deserialize, Serialize};
 
+/// A trait to ensure that we can create matrices and statiscial vectors from your point reference.
+/// 
+/// See [`crate::points`] for some pre-baked implementations. 
 pub trait PointRef: Send + Sync {
+    /// The iterator type for this reference.
     type DenseIter: Iterator<Item = f32>;
 
-    fn dense(&self) -> Vec<f32>;
+    /// provided because this could be faster than iteration (for example a memcpy).
+    fn dense(&self) -> Vec<f32> {
+        self.dense_iter().collect()
+    }
+
+    /// The actual call to the dense iterator that [`PointCloud`] uses.
     fn dense_iter(&self) -> Self::DenseIter;
 }
 
+/// Metric trait. Done as a trait so that it's easy to switch out.
+/// 
+/// Use a specific T. Don't implement it for a generic [S], but for [f32] or [u8], as you can use SIMD.
+/// This library uses `packed_simd`. 
 pub trait Metric<T: ?Sized>: Send + Sync + 'static {
+    /// Distance calculator. Optimize the hell out of this if you're implementing it.
     fn dist(x: &T, y: &T) -> f32;
-    fn norm(x: &T) -> f32;
+    // Implemented, but the system that uses this isn't yet.
+    //fn norm(x: &RawSparse<f32, u32>) -> f32
 }
 
 use ndarray::{Array1, Array2};
@@ -215,7 +230,8 @@ pub trait PointCloud: Send + Sync + 'static {
         }
     }
 
-    fn moment1(&self, indexes: &[usize]) -> PointCloudResult<Vec<f32>>
+    /// The first moment of the specified vectors. See [wikipedia](https://en.wikipedia.org/wiki/Moment_(mathematics)).
+    fn moment_1(&self, indexes: &[usize]) -> PointCloudResult<Vec<f32>>
     where
         f32: std::ops::AddAssign,
     {
@@ -235,7 +251,8 @@ pub trait PointCloud: Send + Sync + 'static {
         Ok(moment_vec)
     }
 
-    fn moment2(&self, indexes: &[usize]) -> PointCloudResult<Vec<f32>>
+    /// The second moment of the specified vectors. See [wikipedia](https://en.wikipedia.org/wiki/Moment_(mathematics)).
+    fn moment_2(&self, indexes: &[usize]) -> PointCloudResult<Vec<f32>>
     where
         f32: std::ops::Mul<Output = f32> + std::ops::AddAssign,
     {
@@ -245,23 +262,6 @@ pub trait PointCloud: Send + Sync + 'static {
                 Ok(y) => {
                     for (m, yy) in moment_vec.iter_mut().zip(y.dense_iter()) {
                         *m += yy * yy;
-                    }
-                }
-                Err(e) => {
-                    return Err(e);
-                }
-            }
-        }
-        Ok(moment_vec)
-    }
-
-    fn moment_subset(&self, moment: i32, indexes: &[usize]) -> PointCloudResult<Vec<f32>> {
-        let mut moment_vec: Vec<f32> = vec![f32::default(); self.dim()];
-        for i in indexes {
-            match self.point(*i) {
-                Ok(y) => {
-                    for (m, yy) in moment_vec.iter_mut().zip(y.dense_iter()) {
-                        *m += yy.powi(moment);
                     }
                 }
                 Err(e) => {

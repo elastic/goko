@@ -135,6 +135,7 @@ impl CoverTree {
         Ok(())
     }
 
+    /*
     pub fn attach_svds(&mut self, min_point_count: usize, max_point_count: usize, tau: f32) {
         let writer = self.writer.as_mut().unwrap();
         writer.add_plugin::<GokoSvdGaussian>(GokoSvdGaussian::new(
@@ -143,6 +144,7 @@ impl CoverTree {
             tau,
         ));
     }
+    */
 
     pub fn data_point(&self, point_index: usize) -> PyResult<Option<Py<PyArray1<f32>>>> {
         let reader = self.writer.as_ref().unwrap().reader();
@@ -152,7 +154,7 @@ impl CoverTree {
             Ok(point) => {
                 let py_point =
                     Array1::from_shape_vec((dim,), point.dense_iter().collect()).unwrap();
-                let gil = GILGuard::acquire();
+                let gil = pyo3::Python::acquire_gil();
                 let py = gil.python();
                 Some(py_point.into_pyarray(py).to_owned())
             }
@@ -300,7 +302,7 @@ impl CoverTree {
         {
             parent_addr = pat;
         }
-        let gil = GILGuard::acquire();
+        let gil = pyo3::Python::acquire_gil();
         let py = gil.python();
         let vec = reader
             .get_node_plugin_and::<DiagGaussian, _, _>(parent_addr, |p| p.sample(&mut rng))

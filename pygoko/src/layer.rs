@@ -117,7 +117,7 @@ impl PyLayer {
             centers,
         )
         .unwrap();
-        let gil = GILGuard::acquire();
+        let gil = pyo3::Python::acquire_gil();
         let py = gil.python();
         Ok((
             py_center_indexes.into_pyarray(py).to_owned(),
@@ -149,7 +149,7 @@ impl PyLayer {
                     );
                 }
                 let py_centers = Array2::from_shape_vec((count, dim), centers).unwrap();
-                let gil = GILGuard::acquire();
+                let gil = pyo3::Python::acquire_gil();
                 let py = gil.python();
                 py_centers.into_pyarray(py).to_owned()
             }))
@@ -169,7 +169,7 @@ impl PyLayer {
                 );
             }
             let py_centers = Array2::from_shape_vec((singletons.len(), dim), centers).unwrap();
-            let gil = GILGuard::acquire();
+            let gil = pyo3::Python::acquire_gil();
             let py = gil.python();
             py_centers.into_pyarray(py).to_owned()
         }))

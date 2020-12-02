@@ -17,7 +17,7 @@ impl<'a> PointRef for &'a [f32] {
 }
 
 #[derive(Debug)]
-/// Enables iterating thru a sparse vector, like a dense vector without allocating anythin
+/// Enables iterating thru a sparse vector, like a dense vector without allocating anything
 pub struct SparseDenseIter<'a, T: std::fmt::Debug, S: std::fmt::Debug> {
     raw: RawSparse<T, S>,
     index: usize,
@@ -65,6 +65,9 @@ where
 }
 
 #[derive(Debug)]
+/// The core element of the sparse reference. This has no lifetime information, and you should not build it directly.
+/// SparseRef derefences into this, which as the derefrence is borrowed, has a strictly shorter lifespan, and doesn't 
+/// implement clone or copy, is safe. 
 pub struct RawSparse<T, S> {
     dim: usize,
     values_ptr: *const T,
@@ -73,6 +76,7 @@ pub struct RawSparse<T, S> {
 }
 
 #[derive(Debug)]
+/// A sparse refrence to a pair of buffers, one for indexes and one for the data.
 pub struct SparseRef<'a, T, S> {
     raw: RawSparse<T, S>,
     lifetime: PhantomData<&'a T>,
@@ -82,20 +86,21 @@ unsafe impl<T: Send, S: Send> Send for RawSparse<T, S> {}
 unsafe impl<T: Sync, S: Sync> Sync for RawSparse<T, S> {}
 
 impl<T: std::fmt::Debug, S: std::fmt::Debug + TryInto<usize>> RawSparse<T, S> {
-    pub fn indexes<'a>(&'a self) -> &'a [S] {
+    pub(crate) fn indexes<'a>(&'a self) -> &'a [S] {
         unsafe { std::slice::from_raw_parts::<'a>(self.indexes_ptr, self.len) }
     }
 
-    pub fn values<'a>(&'a self) -> &'a [T] {
+    pub(crate) fn values<'a>(&'a self) -> &'a [T] {
         unsafe { std::slice::from_raw_parts::<'a>(self.values_ptr, self.len) }
     }
 
-    pub fn dim(&self) -> usize {
+    pub(crate) fn dim(&self) -> usize {
         self.dim
     }
 }
 
 impl<'a, T, S: TryInto<usize>> SparseRef<'a, T, S> {
+    /// Creates a new sparse vector reference from a pair of slices.
     pub fn new<'b>(dim: usize, values: &'b [T], indexes: &'b [S]) -> SparseRef<'b, T, S> {
         let len = values.len();
         assert_eq!(
@@ -117,14 +122,17 @@ impl<'a, T, S: TryInto<usize>> SparseRef<'a, T, S> {
         }
     }
 
+    /// The underlying indexes.
     pub fn indexes(&self) -> &'a [S] {
         unsafe { std::slice::from_raw_parts::<'a>(self.raw.indexes_ptr, self.raw.len) }
     }
 
+    /// The underlying values.
     pub fn values(&self) -> &'a [T] {
         unsafe { std::slice::from_raw_parts::<'a>(self.raw.values_ptr, self.raw.len) }
     }
 
+    /// The dimension of this point. 
     pub fn dim(&self) -> usize {
         self.raw.dim
     }
