@@ -346,16 +346,20 @@ impl CoverTree {
 
     pub fn kl_div_dirichlet_baseline(
         &self,
-        prior_weight: f64,
-        observation_weight: f64,
         sequence_len: usize,
         num_sequences: usize,
         sample_rate: usize,
+        prior_weight: Option<f64>,
+        observation_weight: Option<f64>,
     ) -> PyKLDivergenceBaseline {
         let reader = self.writer.as_ref().unwrap().reader();
         let mut trainer = DirichletBaseline::default();
-        trainer.set_prior_weight(prior_weight);
-        trainer.set_observation_weight(observation_weight);
+        if let Some(prior_weight) = prior_weight {
+            trainer.set_prior_weight(prior_weight);
+        }
+        if let Some(observation_weight ) = observation_weight {
+            trainer.set_observation_weight(observation_weight);
+        }
         trainer.set_sequence_len(sequence_len);
         trainer.set_num_sequences(num_sequences);
         trainer.set_sample_rate(sample_rate);
