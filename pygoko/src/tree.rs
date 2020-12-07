@@ -328,15 +328,16 @@ impl CoverTree {
 
     pub fn kl_div_dirichlet(
         &self,
-        prior_weight: f64,
-        observation_weight: f64,
         size: u64,
+        prior_weight: Option<f64>,
+        observation_weight: Option<f64>,
     ) -> PyBayesCategoricalTracker {
         let writer = self.writer.as_ref().unwrap();
+        
         PyBayesCategoricalTracker {
             hkl: BayesCategoricalTracker::new(
-                prior_weight,
-                observation_weight,
+                prior_weight.unwrap_or(1.0),
+                observation_weight.unwrap_or(1.0),
                 size as usize,
                 writer.reader(),
             ),
@@ -354,12 +355,8 @@ impl CoverTree {
     ) -> PyKLDivergenceBaseline {
         let reader = self.writer.as_ref().unwrap().reader();
         let mut trainer = DirichletBaseline::default();
-        if let Some(prior_weight) = prior_weight {
-            trainer.set_prior_weight(prior_weight);
-        }
-        if let Some(observation_weight ) = observation_weight {
-            trainer.set_observation_weight(observation_weight);
-        }
+        trainer.set_prior_weight(prior_weight.unwrap_or(1.0));
+        trainer.set_observation_weight(observation_weight.unwrap_or(1.0));
         trainer.set_sequence_len(sequence_len);
         trainer.set_num_sequences(num_sequences);
         trainer.set_sample_rate(sample_rate);
@@ -367,3 +364,4 @@ impl CoverTree {
         PyKLDivergenceBaseline { baseline }
     }
 }
+
