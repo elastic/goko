@@ -11,3 +11,4 @@ add_license.py
 .DS_store
 .vscode
 .ipynb_checkpoints
+graphistry_creds.json
