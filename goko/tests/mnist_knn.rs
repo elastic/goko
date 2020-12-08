@@ -80,7 +80,7 @@ fn test_path(ct_reader: &CoverTreeReader<DefaultLabeledCloud<L2>>, query_index: 
 
     let trace = ct_reader
         .path(
-            ct_reader
+            &ct_reader
                 .parameters()
                 .point_cloud
                 .point(query_index)
@@ -103,7 +103,7 @@ fn run_knn_query() {
         save_tree(Path::new("../data/mnist.tree"), &ct).unwrap();
         let ct_reader = ct.reader();
         let zeros = [0.0; 784];
-        let query = ct_reader.knn(&zeros[..], 5).unwrap();
+        let query = ct_reader.knn(&zeros.as_ref(), 5).unwrap();
         println!("{:#?}", query);
         println!("Expected: (array([3.56982747, 3.65066243, 3.83593169, 3.84857365, 3.86859321]), array([17664, 21618, 51468,  8080, 37920]))");
         assert_eq!(query[0].1, 17664);

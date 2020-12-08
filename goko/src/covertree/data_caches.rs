@@ -16,11 +16,11 @@
 * specific language governing permissions and limitations
 * under the License.
 */
-
 use crate::errors::GokoResult;
 use pointcloud::*;
 use rand::seq::SliceRandom;
-use rand::{thread_rng, Rng};
+use rand::rngs::SmallRng;
+use rand::Rng;
 use std::cmp::Ordering;
 use std::sync::Arc;
 
@@ -37,7 +37,7 @@ impl CoveredData {
             Self::NearestCoveredData(a) => a.max_distance(),
         }
     }
-    pub(crate) fn into_indexes(self) -> Vec<PointIndex> {
+    pub(crate) fn into_indexes(self) -> Vec<usize> {
         match self {
             Self::FirstCoveredData(a) => a.into_indexes(),
             Self::NearestCoveredData(a) => a.into_indexes(),
@@ -51,7 +51,7 @@ impl CoveredData {
         }
     }
 
-    pub(crate) fn center_index(&self) -> PointIndex {
+    pub(crate) fn center_index(&self) -> usize {
         match &self {
             Self::FirstCoveredData(a) => a.center_index,
             Self::NearestCoveredData(a) => a.center_index,
@@ -62,13 +62,13 @@ impl CoveredData {
 #[derive(Clone, Debug)]
 pub(crate) struct FirstCoveredData {
     dists: Vec<f32>,
-    coverage: Vec<PointIndex>,
-    pub(crate) center_index: PointIndex,
+    coverage: Vec<usize>,
+    pub(crate) center_index: usize,
 }
 
 #[derive(Debug, Clone)]
 pub(crate) struct UncoveredData {
-    coverage: Vec<PointIndex>,
+    coverage: Vec<usize>,
 }
 
 impl UncoveredData {
@@ -76,8 +76,8 @@ impl UncoveredData {
         &mut self,
         radius: f32,
         point_cloud: &Arc<D>,
+        rng: &mut SmallRng,
     ) -> GokoResult<FirstCoveredData> {
-        let mut rng = thread_rng();
         let new_center: usize = rng.gen_range(0, self.coverage.len());
         let center_index = self.coverage.remove(new_center);
         let dists = point_cloud.distances_to_point_index(center_index, &self.coverage)?;
@@ -160,7 +160,7 @@ impl FirstCoveredData {
         Ok((close, new_far))
     }
 
-    pub(crate) fn into_indexes(self) -> Vec<PointIndex> {
+    pub(crate) fn into_indexes(self) -> Vec<usize> {
         self.coverage
     }
 
@@ -178,11 +178,11 @@ impl FirstCoveredData {
 
 #[derive(Clone, Debug)]
 pub(crate) struct NearestCoveredData {
-    centers: Vec<PointIndex>,
+    centers: Vec<usize>,
     dists: Vec<Vec<f32>>,
-    point_indexes: Vec<PointIndex>,
+    point_indexes: Vec<usize>,
     center_dists: Vec<f32>,
-    pub(crate) center_index: PointIndex,
+    pub(crate) center_index: usize,
 }
 
 impl NearestCoveredData {
@@ -205,19 +205,19 @@ impl NearestCoveredData {
         &mut self,
         radius: f32,
         point_cloud: &Arc<D>,
+        rng: &mut SmallRng,
     ) -> GokoResult<()> {
         let mut coverage: Vec<bool> = self.center_dists.iter().map(|d| d < &radius).collect();
-        let mut rng = thread_rng();
 
         while coverage.iter().any(|b| !b) {
-            let uncovered_indexes: Vec<PointIndex> = self
+            let uncovered_indexes: Vec<usize> = self
                 .point_indexes
                 .iter()
                 .zip(&coverage)
                 .filter(|(_, b)| !**b)
                 .map(|(pi, _)| *pi)
                 .collect();
-            let center_index = *uncovered_indexes.choose(&mut rng).unwrap();
+            let center_index = *uncovered_indexes.choose(rng).unwrap();
             let new_dists =
                 point_cloud.distances_to_point_index(center_index, &self.point_indexes)?;
             coverage
@@ -231,7 +231,7 @@ impl NearestCoveredData {
         Ok(())
     }
 
-    fn add_point(&mut self, point_index: PointIndex, distance: f32) {
+    fn add_point(&mut self, point_index: usize, distance: f32) {
         if point_index != self.center_index {
             self.center_dists.push(distance);
             self.point_indexes.push(point_index);
@@ -280,12 +280,13 @@ impl NearestCoveredData {
         mut self,
         radius: f32,
         point_cloud: &Arc<D>,
+        rng: &mut SmallRng,
     ) -> GokoResult<(NearestCoveredData, Vec<NearestCoveredData>)> {
-        self.cover_thyself(radius, point_cloud)?;
+        self.cover_thyself(radius, point_cloud,rng)?;
         Ok(self.assign_to_nearest())
     }
 
-    pub(crate) fn into_indexes(self) -> Vec<PointIndex> {
+    pub(crate) fn into_indexes(self) -> Vec<usize> {
         self.point_indexes
     }
 
@@ -305,6 +306,7 @@ impl NearestCoveredData {
 mod tests {
     use super::*;
     use std::sync::Arc;
+    use rand::SeedableRng;
 
     #[test]
     fn splits_correctly_1() {
@@ -338,9 +340,10 @@ mod tests {
         let point_cloud = Arc::new(DefaultLabeledCloud::<L2>::new_simple(data, 1, labels));
 
         let mut cache = UncoveredData {
-            coverage: (0..19 as PointIndex).collect(),
+            coverage: (0..19 as usize).collect(),
         };
-        let close = cache.pick_center(1.0, &point_cloud).unwrap();
+        let mut small_rng = SmallRng::seed_from_u64(0);
+        let close = cache.pick_center(1.0, &point_cloud, &mut small_rng).unwrap();
 
         assert!(!close.coverage.contains(&close.center_index));
         assert!(!cache.coverage.contains(&close.center_index));
@@ -398,7 +401,8 @@ mod tests {
         let point_cloud = Arc::new(DefaultLabeledCloud::<L2>::new_simple(data, 1, labels));
 
         let mut cache = NearestCoveredData::new(&point_cloud).unwrap();
-        cache.cover_thyself(1.0, &point_cloud).unwrap();
+        let mut small_rng = SmallRng::seed_from_u64(0);
+        cache.cover_thyself(1.0, &point_cloud, &mut small_rng).unwrap();
 
         assert_eq!(1, cache.dists.len());
         assert_eq!(4, cache.center_dists.len());

@@ -4,10 +4,37 @@ use rayon::prelude::*;
 use std::cmp::min;
 use std::fmt::Debug;
 
-use crate::distances::*;
+use std::ops::Deref;
+
 use crate::pc_errors::*;
-use crate::*;
 use serde::{Deserialize, Serialize};
+
+/// A trait to ensure that we can create matrices and statiscial vectors from your point reference.
+/// 
+/// See [`crate::points`] for some pre-baked implementations. 
+pub trait PointRef: Send + Sync {
+    /// The iterator type for this reference.
+    type DenseIter: Iterator<Item = f32>;
+
+    /// provided because this could be faster than iteration (for example a memcpy).
+    fn dense(&self) -> Vec<f32> {
+        self.dense_iter().collect()
+    }
+
+    /// The actual call to the dense iterator that [`PointCloud`] uses.
+    fn dense_iter(&self) -> Self::DenseIter;
+}
+
+/// Metric trait. Done as a trait so that it's easy to switch out.
+/// 
+/// Use a specific T. Don't implement it for a generic [S], but for [f32] or [u8], as you can use SIMD.
+/// This library uses `packed_simd`. 
+pub trait Metric<T: ?Sized>: Send + Sync + 'static {
+    /// Distance calculator. Optimize the hell out of this if you're implementing it.
+    fn dist(x: &T, y: &T) -> f32;
+    // Implemented, but the system that uses this isn't yet.
+    //fn norm(x: &RawSparse<f32, u32>) -> f32
+}
 
 use ndarray::{Array1, Array2};
 
@@ -17,9 +44,15 @@ fn chunk(data_dim: usize) -> usize {
 }
 
 /// Base trait for a point cloud
-pub trait PointCloud: Debug + Send + Sync + 'static {
-    /// Underlying metric this point cloud uses
-    type Metric: Metric;
+pub trait PointCloud: Send + Sync + 'static {
+    /// The derefrenced, raw point. Think [f32]
+    type Point: ?Sized;
+    /// A reference to a point. Think &'a [f32]
+    ///
+    /// It might be better to move this to the `point` function, but this way we can rely on it for other things.
+    type PointRef<'a>: Deref<Target = Self::Point> + PointRef;
+    /// The metric this pointcloud is bound to. Think L2
+    type Metric: Metric<Self::Point>;
 
     /// The number of samples this cloud covers
     fn len(&self) -> usize;
@@ -28,184 +61,51 @@ pub trait PointCloud: Debug + Send + Sync + 'static {
     /// The dimension of the underlying data
     fn dim(&self) -> usize;
     /// Indexes used for access
-    fn reference_indexes(&self) -> Vec<PointIndex>;
+    fn reference_indexes(&self) -> Vec<usize>;
     /// Gets a point from this dataset
-    fn point(&self, pn: PointIndex) -> PointCloudResult<PointRef>;
+    fn point<'a, 'b: 'a>(&'b self, i: usize) -> PointCloudResult<Self::PointRef<'a>>;
 
     /// Returns a dense array
-    fn point_dense_array(&self, index: PointIndex) -> PointCloudResult<Array1<f32>> {
+    fn point_dense_array(&self, index: usize) -> PointCloudResult<Array1<f32>> {
         let pref = self.point(index)?;
-        let vals: Vec<f32> = if let PointRef::Dense(vals) = pref {
-            vals.to_vec()
-        } else {
-            pref.dense_iter(self.dim()).collect()
-        };
+        let vals: Vec<f32> = pref.dense_iter().collect();
         Ok(Array1::from_shape_vec((self.dim(),), vals).unwrap())
     }
 
     /// Returns a dense array
-    fn points_dense_matrix(&self, indexes: &[PointIndex]) -> PointCloudResult<Array2<f32>> {
+    fn points_dense_matrix(&self, indexes: &[usize]) -> PointCloudResult<Array2<f32>> {
         let dim = self.dim();
-        let mut data = Vec::with_capacity(dim * indexes.len());
+        let mut data: Vec<f32> = Vec::with_capacity(dim * indexes.len());
         for pi in indexes {
             let pref = self.point(*pi)?;
-            if let PointRef::Dense(vals) = pref {
-                data.extend(vals);
-            } else {
-                data.extend(pref.dense_iter(dim));
-            };
+            data.extend(pref.dense_iter());
         }
-
         Ok(Array2::from_shape_vec((indexes.len(), dim), data).unwrap())
     }
 
-    /// The main distance function. This paralizes if there are more than 100 points.
-    fn distances_to_point_indices(
-        &self,
-        is: &[PointIndex],
-        js: &[PointIndex],
-    ) -> PointCloudResult<Vec<f32>> {
-        let chunk = chunk(self.dim());
-        let mut dists: Vec<f32> = vec![0.0; is.len() * js.len()];
-        if is.len() * js.len() > chunk {
-            let dist_iter = dists.par_chunks_mut(js.len());
-            let indexes_iter = is.par_iter().map(|i| (i, js));
-            let error: Mutex<Result<(), PointCloudError>> = Mutex::new(Ok(()));
-            dist_iter
-                .zip(indexes_iter)
-                .for_each(|(chunk_dists, (i, chunk_indexes))| {
-                    match self.point(*i) {
-                        Ok(x) => {
-                            for (d, j) in chunk_dists.iter_mut().zip(chunk_indexes) {
-                                match self
-                                    .point(*j)
-                                    .map(|y| (Self::Metric::dist)(&x, &y))
-                                    .flatten()
-                                {
-                                    Ok(dist) => *d = dist,
-                                    Err(e) => {
-                                        *error.lock().unwrap() = Err(e);
-                                    }
-                                }
-                            }
-                        }
-                        Err(e) => {
-                            *error.lock().unwrap() = Err(e);
-                        }
-                    };
-                });
-            (error.into_inner().unwrap())?;
-        } else {
-            for (k, i) in is.iter().enumerate() {
-                let x = self.point(*i)?;
-                for (l, j) in js.iter().enumerate() {
-                    let y = self.point(*j)?;
-                    dists[k * js.len() + l] = (Self::Metric::dist)(&x, &y)?;
-                }
-            }
-        }
-        Ok(dists)
-    }
-
-    /// The main distance function. This paralizes if there are more than 100 points.
-    fn distances_to_point_index(
-        &self,
-        i: PointIndex,
-        indexes: &[PointIndex],
-    ) -> PointCloudResult<Vec<f32>> {
-        self.distances_to_point(&self.point(i)?, indexes)
-    }
-
-    /// The main distance function. This paralizes if there are more than 100 points.
-    fn distances_to_point<'a, T: Into<PointRef<'a>>>(
-        &self,
-        point: T,
-        indexes: &[PointIndex],
-    ) -> PointCloudResult<Vec<f32>> {
-        let chunk = chunk(self.dim());
-        let len = indexes.len();
-        let x: PointRef<'a> = point.into();
-        if len > chunk * 3 {
-            let mut dists: Vec<f32> = vec![0.0; len];
-            let dist_iter = dists.par_chunks_mut(chunk);
-            let indexes_iter = indexes.par_chunks(chunk);
-            let error: Mutex<Result<(), PointCloudError>> = Mutex::new(Ok(()));
-            dist_iter
-                .zip(indexes_iter)
-                .for_each(|(chunk_dists, chunk_indexes)| {
-                    for (d, i) in chunk_dists.iter_mut().zip(chunk_indexes) {
-                        match self
-                            .point(*i)
-                            .map(|y| (Self::Metric::dist)(&x, &y))
-                            .flatten()
-                        {
-                            Ok(dist) => *d = dist,
-                            Err(e) => {
-                                *error.lock().unwrap() = Err(e);
-                            }
-                        }
-                    }
-                });
-            (error.into_inner().unwrap())?;
-            Ok(dists)
-        } else {
-            indexes
-                .iter()
-                .map(|i| {
-                    let y = self.point(*i)?;
-                    (Self::Metric::dist)(&x, &y)
-                })
-                .collect()
-        }
-    }
-
-    /// The main distance function. This paralizes if there are more than 100 points.
-    fn moment_subset(&self, moment: i32, indexes: &[PointIndex]) -> PointCloudResult<Vec<f32>> {
-        let mut moment_vec: Vec<f32> = vec![0.0; self.dim()];
-        for i in indexes {
-            match self.point(*i) {
-                Ok(y) => match y {
-                    PointRef::Dense(y_vals) => {
-                        for (m, yy) in moment_vec.iter_mut().zip(y_vals) {
-                            *m += yy.powi(moment);
-                        }
-                    }
-                    PointRef::Sparse(y_vals, y_inds) => {
-                        for (i, v) in y_inds.iter().zip(y_vals) {
-                            moment_vec[*i as usize] += v.powi(moment);
-                        }
-                    }
-                },
-                Err(e) => {
-                    return Err(e);
-                }
-            }
-        }
-        Ok(moment_vec)
-    }
-
+    /*
     /// The main distance function. This paralizes if there are more than 100 points.
     fn partial_adjacency_matrix(
         &self,
-        is: &[PointIndex],
-        js: &[PointIndex],
+        is: &[usize],
+        js: &[usize],
     ) -> PointCloudResult<AdjMatrix> {
         if !is.is_sorted() || !js.is_sorted() {
             return Err(PointCloudError::NotSorted);
         }
 
         let mut vals: Vec<f32> = Vec::new();
-        let mut indexes: Vec<(PointIndex, PointIndex)> = Vec::new();
+        let mut indexes: Vec<(usize, usize)> = Vec::new();
         for i in is.iter() {
             let x = self.point(*i)?;
             for j in js.iter() {
                 if i < j && !indexes.contains(&(*i, *j)) {
                     let y = self.point(*j)?;
-                    vals.push((Self::Metric::dist)(&x, &y)?);
+                    vals.push(Self::Metric::dist(&x,&y));
                     indexes.push((*i, *j));
                 } else if j < i && !indexes.contains(&(*j, *i)) {
                     let y = self.point(*j)?;
-                    vals.push((Self::Metric::dist)(&x, &y)?);
+                    vals.push(Self::Metric::dist(&x,&y));
                     indexes.push((*j, *i));
                 }
             }
@@ -214,7 +114,7 @@ pub trait PointCloud: Debug + Send + Sync + 'static {
     }
 
     /// Returns a sparse adj matrix for the given points.
-    fn adjacency_matrix(&self, mut indexes: &[PointIndex]) -> PointCloudResult<AdjMatrix> {
+    fn adjacency_matrix(&self, mut indexes: &[usize]) -> PointCloudResult<AdjMatrix> {
         if !indexes.is_sorted() {
             return Err(PointCloudError::NotSorted);
         }
@@ -236,6 +136,141 @@ pub trait PointCloud: Debug + Send + Sync + 'static {
             indexes: ret_indexes,
         })
     }
+    */
+
+    /*
+    /// The main distance function. This paralizes if there are more than 100 points.
+    fn distances_to_point_indices(
+        &self,
+        is: &[usize],
+        js: &[usize],
+    ) -> PointCloudResult<Vec<f32>> {
+        let chunk = chunk(self.dim());
+        let mut dists: Vec<f32> = vec![f32::default(); is.len() * js.len()];
+        if is.len() * js.len() > chunk {
+            let dist_iter = dists.par_chunks_mut(js.len());
+            let indexes_iter = is.par_iter().map(|i| (i, js));
+            let error: Mutex<Result<(), PointCloudError>> = Mutex::new(Ok(()));
+            dist_iter
+                .zip(indexes_iter)
+                .for_each(|(chunk_dists, (i, chunk_indexes))| {
+                    match &self.point(*i) {
+                        Ok(x) => {
+                            for (d, j) in chunk_dists.iter_mut().zip(chunk_indexes) {
+                                match self
+                                    .point(*j)
+                                    .map(|y| Self::Metric::dist(&x,&y))
+                                {
+                                    Ok(dist) => *d = dist,
+                                    Err(e) => {
+                                        *error.lock().unwrap() = Err(e);
+                                    }
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            *error.lock().unwrap() = Err(e);
+                        }
+                    };
+                });
+            (error.into_inner().unwrap())?;
+        } else {
+            for (k, i) in is.iter().enumerate() {
+                let x = self.point(*i)?;
+                for (l, j) in js.iter().enumerate() {
+                    let y = self.point(*j)?;
+                    dists[k * js.len() + l] = Self::Metric::dist(&x,&y);
+                }
+            }
+        }
+        Ok(dists)
+    }
+    */
+
+    /// The main distance function. This paralizes if there are more than 100 points.
+    fn distances_to_point_index(&self, i: usize, indexes: &[usize]) -> PointCloudResult<Vec<f32>> {
+        self.distances_to_point(&self.point(i)?, indexes)
+    }
+
+    /// The main distance function. This paralizes if there are more than 100 points.
+    fn distances_to_point<'a, 'b: 'a>(
+        &self,
+        x: &Self::PointRef<'a>,
+        indexes: &[usize],
+    ) -> PointCloudResult<Vec<f32>> {
+        let chunk = chunk(self.dim());
+        let len = indexes.len();
+        if len > chunk * 3 {
+            let mut dists: Vec<f32> = vec![f32::default(); indexes.len()];
+            let dist_iter = dists.par_chunks_mut(chunk);
+            let indexes_iter = indexes.par_chunks(chunk);
+            let error: Mutex<Result<(), PointCloudError>> = Mutex::new(Ok(()));
+            dist_iter
+                .zip(indexes_iter)
+                .for_each(|(chunk_dists, chunk_indexes)| {
+                    for (d, i) in chunk_dists.iter_mut().zip(chunk_indexes) {
+                        match self.point(*i).map(|y| Self::Metric::dist(&x, &y)) {
+                            Ok(dist) => *d = dist,
+                            Err(e) => {
+                                *error.lock().unwrap() = Err(e);
+                            }
+                        }
+                    }
+                });
+            (error.into_inner().unwrap())?;
+            Ok(dists)
+        } else {
+            indexes
+                .iter()
+                .map(|i| {
+                    let y = self.point(*i)?;
+                    Ok(Self::Metric::dist(&x, &y))
+                })
+                .collect()
+        }
+    }
+
+    /// The first moment of the specified vectors. See [wikipedia](https://en.wikipedia.org/wiki/Moment_(mathematics)).
+    fn moment_1(&self, indexes: &[usize]) -> PointCloudResult<Vec<f32>>
+    where
+        f32: std::ops::AddAssign,
+    {
+        let mut moment_vec: Vec<f32> = vec![f32::default(); self.dim()];
+        for i in indexes {
+            match self.point(*i) {
+                Ok(y) => {
+                    for (m, yy) in moment_vec.iter_mut().zip(y.dense_iter()) {
+                        *m += yy;
+                    }
+                }
+                Err(e) => {
+                    return Err(e);
+                }
+            }
+        }
+        Ok(moment_vec)
+    }
+
+    /// The second moment of the specified vectors. See [wikipedia](https://en.wikipedia.org/wiki/Moment_(mathematics)).
+    fn moment_2(&self, indexes: &[usize]) -> PointCloudResult<Vec<f32>>
+    where
+        f32: std::ops::Mul<Output = f32> + std::ops::AddAssign,
+    {
+        let mut moment_vec: Vec<f32> = vec![f32::default(); self.dim()];
+        for i in indexes {
+            match self.point(*i) {
+                Ok(y) => {
+                    for (m, yy) in moment_vec.iter_mut().zip(y.dense_iter()) {
+                        *m += yy * yy;
+                    }
+                }
+                Err(e) => {
+                    return Err(e);
+                }
+            }
+        }
+        Ok(moment_vec)
+    }
 }
 
 /// A sparse adjacency matrix.
@@ -244,13 +279,13 @@ pub struct AdjMatrix {
     /// The distances between the respective points, same order as indexes
     pub vals: Vec<f32>,
     /// The pairs of indexes for the distances in vals
-    pub indexes: Vec<(PointIndex, PointIndex)>,
+    pub indexes: Vec<(usize, usize)>,
 }
 
 impl AdjMatrix {
     /// This gets by passing the smaller of the two indexes as the first element of
     /// the pair and the larger as the second.
-    pub fn get(&self, i: PointIndex, j: PointIndex) -> Option<f32> {
+    pub fn get(&self, i: usize, j: usize) -> Option<f32> {
         if i == j {
             Some(0.0)
         } else {
@@ -301,28 +336,22 @@ pub trait LabelSet: Debug + Send + Sync + 'static {
     fn is_empty(&self) -> bool;
     /// Grabs a label reference. Supports errors (the label could be remote),
     /// and partially labeled datasets with the option.
-    fn label(&self, pn: PointIndex) -> PointCloudResult<Option<&Self::Label>>;
+    fn label(&self, pn: usize) -> PointCloudResult<Option<&Self::Label>>;
     /// Grabs a label summary of a set of indexes.
-    fn label_summary(
-        &self,
-        pns: &[PointIndex],
-    ) -> PointCloudResult<SummaryCounter<Self::LabelSummary>>;
+    fn label_summary(&self, pns: &[usize]) -> PointCloudResult<SummaryCounter<Self::LabelSummary>>;
 }
 
 /// A point cloud that is labeled
-pub trait LabeledCloud: PointCloud {
+pub trait LabeledCloud {
     /// Underlying type.
     type Label: ?Sized;
     /// Summary of a set of labels
     type LabelSummary: Summary<Label = Self::Label>;
     /// Grabs a label reference. Supports errors (the label could be remote),
     /// and partially labeled datasets with the option.
-    fn label(&self, pn: PointIndex) -> PointCloudResult<Option<&Self::Label>>;
+    fn label(&self, pn: usize) -> PointCloudResult<Option<&Self::Label>>;
     /// Grabs a label summary of a set of indexes.
-    fn label_summary(
-        &self,
-        pns: &[PointIndex],
-    ) -> PointCloudResult<SummaryCounter<Self::LabelSummary>>;
+    fn label_summary(&self, pns: &[usize]) -> PointCloudResult<SummaryCounter<Self::LabelSummary>>;
 }
 
 /// Simply shoves together a point cloud and a label set, for a modular label system
@@ -380,12 +409,12 @@ impl<S: Summary> SummaryCounter<S> {
 
 /// Simply shoves together a point cloud and a label set, for a modular label system
 #[derive(Debug)]
-pub struct SimpleLabeledCloud<D: PointCloud, L: LabelSet> {
+pub struct SimpleLabeledCloud<D, L> {
     data: D,
     labels: L,
 }
 
-impl<D: PointCloud, L: LabelSet> SimpleLabeledCloud<D, L> {
+impl<D, L: LabelSet> SimpleLabeledCloud<D, L> {
     /// Creates a new one
     pub fn new(data: D, labels: L) -> Self {
         SimpleLabeledCloud { data, labels }
@@ -393,7 +422,10 @@ impl<D: PointCloud, L: LabelSet> SimpleLabeledCloud<D, L> {
 }
 
 impl<D: PointCloud, L: LabelSet> PointCloud for SimpleLabeledCloud<D, L> {
+    /// Underlying metric this point cloud uses
     type Metric = D::Metric;
+    type Point = D::Point;
+    type PointRef<'a> = D::PointRef<'a>;
 
     #[inline]
     fn dim(&self) -> usize {
@@ -408,55 +440,49 @@ impl<D: PointCloud, L: LabelSet> PointCloud for SimpleLabeledCloud<D, L> {
         self.data.is_empty()
     }
     #[inline]
-    fn reference_indexes(&self) -> Vec<PointIndex> {
+    fn reference_indexes(&self) -> Vec<usize> {
         self.data.reference_indexes()
     }
     #[inline]
-    fn point(&self, i: PointIndex) -> PointCloudResult<PointRef> {
+    fn point<'a, 'b: 'a>(&'b self, i: usize) -> PointCloudResult<Self::PointRef<'a>> {
         self.data.point(i)
     }
 }
 
-impl<D: PointCloud, L: LabelSet> LabeledCloud for SimpleLabeledCloud<D, L> {
+impl<D, L: LabelSet> LabeledCloud for SimpleLabeledCloud<D, L> {
     type Label = L::Label;
     type LabelSummary = L::LabelSummary;
 
-    fn label(&self, pn: PointIndex) -> PointCloudResult<Option<&Self::Label>> {
+    fn label(&self, pn: usize) -> PointCloudResult<Option<&Self::Label>> {
         self.labels.label(pn)
     }
-    fn label_summary(
-        &self,
-        pns: &[PointIndex],
-    ) -> PointCloudResult<SummaryCounter<Self::LabelSummary>> {
+    fn label_summary(&self, pns: &[usize]) -> PointCloudResult<SummaryCounter<Self::LabelSummary>> {
         self.labels.label_summary(pns)
     }
 }
 
 /// Enables the points in the underlying cloud to be named with strings.
-pub trait NamedCloud: PointCloud {
-    /// Name type, could be a string or a 
-    type Name: Sized + Clone +  Eq;
+pub trait NamedCloud {
+    /// Name type, could be a string or a
+    type Name: Sized + Clone + Eq;
     /// Grabs the name of the point.
     /// Returns an error if the access errors out, and a None if the name is unknown
-    fn name(&self, pi: PointIndex) -> PointCloudResult<&Self::Name>;
+    fn name(&self, pi: usize) -> PointCloudResult<&Self::Name>;
     /// Converts a name to an index you can use
-    fn index(&self, pn: &Self::Name) -> PointCloudResult<&PointIndex>;
+    fn index(&self, pn: &Self::Name) -> PointCloudResult<&usize>;
     /// Gather's all valid known names
     fn names(&self) -> Vec<Self::Name>;
 }
 
 /// Allows for expensive metadata, this is identical to the label trait, but enables slower update
-pub trait MetaCloud: PointCloud {
+pub trait MetaCloud {
     /// Underlying metadata
     type Metadata: ?Sized;
     /// A summary of the underlying metadata
     type MetaSummary: Summary<Label = Self::Metadata>;
 
     /// Expensive metadata object for the sample
-    fn metadata(&self, pn: PointIndex) -> PointCloudResult<Option<&Self::Metadata>>;
+    fn metadata(&self, pn: usize) -> PointCloudResult<Option<&Self::Metadata>>;
     /// Expensive metadata summary over the samples
-    fn metasummary(
-        &self,
-        pns: &[PointIndex],
-    ) -> PointCloudResult<SummaryCounter<Self::MetaSummary>>;
+    fn metasummary(&self, pns: &[usize]) -> PointCloudResult<SummaryCounter<Self::MetaSummary>>;
 }

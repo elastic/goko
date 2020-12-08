@@ -10,13 +10,21 @@ use std::fmt::Debug;
 mod diag_gaussian;
 pub use diag_gaussian::*;
 
+/*
+There's an issue with rust-numpy and ndarray causing the linear algebra package for ndarray to fail. 
+
+Temporary removal
+
 mod svd_gaussian;
 pub use svd_gaussian::*;
+*/
+
+use pointcloud::PointRef;
 
 ///
 pub trait ContinousDistribution: Clone + 'static {
     /// Pass none if you want to test for a singleton, returns 0 if
-    fn ln_pdf(&self, point: &PointRef) -> Option<f64>;
+    fn ln_pdf<T: PointRef>(&self, point: &T) -> Option<f64>;
     /// Samples a point from this distribution
     fn sample<R: Rng>(&self, rng: &mut R) -> Vec<f32>;
 
@@ -30,5 +38,5 @@ pub trait ContinousDistribution: Clone + 'static {
 pub trait ContinousBayesianDistribution: ContinousDistribution + Clone + 'static {
     /// Adds an observation to the distribution.
     /// This currently shifts the underlying parameters of the distribution rather than be tracked.
-    fn add_observation(&mut self, point: &PointRef);
+    fn add_observation<T: PointRef>(&mut self, point: &T);
 }

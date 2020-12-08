@@ -4,7 +4,6 @@ This produces 2 gaussians, one that is fixed at 0, and the other that moves slow
 
 import numpy as np
 import pygoko
-import pandas as pd
 from collections import defaultdict
 import matplotlib.pyplot as plt
 

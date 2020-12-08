@@ -42,10 +42,9 @@ use crate::monomap::{MonoReadHandle, MonoWriteHandle};
 use crate::tree_file_format::*;
 use std::sync::{atomic, Arc, RwLock};
 
-use super::query_tools::{KnnQueryHeap, MultiscaleQueryHeap, RoutingQueryHeap};
+use super::query_tools::{KnnQueryHeap, RoutingQueryHeap};
 use crate::plugins::{GokoPlugin, TreePluginSet};
 use errors::{GokoError, GokoResult};
-use std::collections::HashMap;
 use std::iter::Iterator;
 use std::iter::Rev;
 use std::ops::Range;
@@ -84,6 +83,10 @@ pub struct CoverTreeParameters<D: PointCloud> {
     pub point_cloud: Arc<D>,
     /// This should be replaced by a logging solution
     pub verbosity: u32,
+    /// The seed to use for deterministic trees. This is xor-ed with the point index to create a seed for `rand::rngs::SmallRng`.
+    /// 
+    /// Pass in None if you want to use the host os's entropy instead. 
+    pub rng_seed: Option<u64>,
     /// This is where the base plugins are are stored.
     pub plugins: RwLock<TreePluginSet>,
 }
@@ -116,7 +119,7 @@ pub struct CoverTreeReader<D: PointCloud> {
     parameters: Arc<CoverTreeParameters<D>>,
     layers: Vec<CoverLayerReader<D>>,
     root_address: NodeAddress,
-    final_addresses: MonoReadHandle<PointIndex, NodeAddress>,
+    final_addresses: MonoReadHandle<usize, NodeAddress>,
 }
 
 impl<D: PointCloud> Clone for CoverTreeReader<D> {
@@ -135,7 +138,7 @@ impl<D: PointCloud + LabeledCloud> CoverTreeReader<D> {
     /// closure.
     pub fn get_node_label_summary(
         &self,
-        node_address: (i32, PointIndex),
+        node_address: (i32, usize),
     ) -> Option<Arc<SummaryCounter<D::LabelSummary>>> {
         self.layers[self.parameters.internal_index(node_address.0)]
             .get_node_and(node_address.1, |n| n.label_summary())
@@ -148,7 +151,7 @@ impl<D: PointCloud + MetaCloud> CoverTreeReader<D> {
     /// closure.
     pub fn get_node_metasummary(
         &self,
-        node_address: (i32, PointIndex),
+        node_address: (i32, usize),
     ) -> Option<Arc<SummaryCounter<D::MetaSummary>>> {
         self.layers[self.parameters.internal_index(node_address.0)]
             .get_node_and(node_address.1, |n| n.metasummary())
@@ -174,7 +177,7 @@ impl<D: PointCloud> CoverTreeReader<D> {
     }
 
     /// Read only access to the internals of a node.
-    pub fn get_node_and<F, T>(&self, node_address: (i32, PointIndex), f: F) -> Option<T>
+    pub fn get_node_and<F, T>(&self, node_address: (i32, usize), f: F) -> Option<T>
     where
         F: FnOnce(&CoverNode<D>) -> T,
     {
@@ -184,7 +187,7 @@ impl<D: PointCloud> CoverTreeReader<D> {
 
     /// Grabs all children indexes and allows you to query against them. Usually used at the tree level so that you
     /// can access the child nodes as they are not on this layer.
-    pub fn get_node_children_and<F, T>(&self, node_address: (i32, PointIndex), f: F) -> Option<T>
+    pub fn get_node_children_and<F, T>(&self, node_address: (i32, usize), f: F) -> Option<T>
     where
         F: FnOnce(NodeAddress, &[NodeAddress]) -> T,
     {
@@ -248,7 +251,7 @@ impl<D: PointCloud> CoverTreeReader<D> {
     /// closure.
     pub fn get_node_plugin_and<T: Send + Sync + 'static, F, S>(
         &self,
-        node_address: (i32, PointIndex),
+        node_address: (i32, usize),
         transform_fn: F,
     ) -> Option<S>
     where
@@ -276,16 +279,11 @@ impl<D: PointCloud> CoverTreeReader<D> {
     ///
     /// See `query_tools::KnnQueryHeap` for the pair of heaps and mechanisms for tracking the minimum distance and the current knn set.
     /// See the `nodes::CoverNode::singleton_knn` and `nodes::CoverNode::child_knn` for the brute force node based knn.
-    pub fn knn<'a, T: Into<PointRef<'a>>>(
-        &self,
-        point: T,
-        k: usize,
-    ) -> GokoResult<Vec<(f32, PointIndex)>> {
+    pub fn knn<'a>(&self, point: &D::PointRef<'a>, k: usize) -> GokoResult<Vec<(f32, usize)>> {
         let mut query_heap = KnnQueryHeap::new(k, self.parameters.scale_base);
-        let point: PointRef<'a> = point.into();
 
         let root_center = self.parameters.point_cloud.point(self.root_address.1)?;
-        let dist_to_root = D::Metric::dist(&root_center, point)?;
+        let dist_to_root = D::Metric::dist(&root_center, &point);
         query_heap.push_nodes(&[self.root_address], &[dist_to_root], None);
         self.greedy_knn_nodes(&point, &mut query_heap);
 
@@ -301,29 +299,23 @@ impl<D: PointCloud> CoverTreeReader<D> {
     }
 
     /// Same as knn, but only deals with non-singleton points
-    pub fn routing_knn<'a, T: Into<PointRef<'a>>>(
+    pub fn routing_knn<'a>(
         &self,
-        point: T,
+        point: &D::PointRef<'a>,
         k: usize,
-    ) -> GokoResult<Vec<(f32, PointIndex)>> {
+    ) -> GokoResult<Vec<(f32, usize)>> {
         let mut query_heap = KnnQueryHeap::new(k, self.parameters.scale_base);
-        let point: PointRef<'a> = point.into();
 
         let root_center = self.parameters.point_cloud.point(self.root_address.1)?;
-        let dist_to_root = D::Metric::dist(&root_center, point)?;
+        let dist_to_root = D::Metric::dist(&root_center, &point);
         query_heap.push_nodes(&[self.root_address], &[dist_to_root], None);
-        self.greedy_knn_nodes(&point, &mut query_heap);
+        self.greedy_knn_nodes(point, &mut query_heap);
 
-        while self.greedy_knn_nodes(&point, &mut query_heap) {}
+        while self.greedy_knn_nodes(point, &mut query_heap) {}
         Ok(query_heap.unpack())
     }
 
-    fn greedy_knn_nodes<'a, T: Into<PointRef<'a>>>(
-        &self,
-        point: T,
-        query_heap: &mut KnnQueryHeap,
-    ) -> bool {
-        let point: PointRef<'a> = point.into();
+    fn greedy_knn_nodes<'a>(&self, point: &D::PointRef<'a>, query_heap: &mut KnnQueryHeap) -> bool {
         let mut did_something = false;
         while let Some((dist, nearest_address)) =
             query_heap.closest_unvisited_child_covering_address()
@@ -343,57 +335,10 @@ impl<D: PointCloud> CoverTreeReader<D> {
         did_something
     }
 
-    /// # Multiscale KNN
-    ///
-    /// This tries to return the k closest node on each layer to the query point. It terminates
-    /// when the closest node is a leaf node.
-    ///
-    /// Todo: More Documentation, make this the k closest nodes on each layer.
-    pub fn multiscale_knn<'a, T: Into<PointRef<'a>>>(
-        &self,
-        point: T,
-        k: usize,
-    ) -> GokoResult<HashMap<i32, Vec<(f32, NodeAddress)>>> {
-        let mut query_heap = MultiscaleQueryHeap::new(k, self.parameters.scale_base);
-        let point: PointRef<'a> = point.into();
-        let root_center = self.parameters.point_cloud.point(self.root_address.1)?;
-        let dist_to_root = D::Metric::dist(&root_center, point)?;
-        query_heap.push_nodes(&[self.root_address], &[dist_to_root], None);
-        println!("========================");
-        println!("{:#?}", query_heap);
-        for (si, _) in self.layers() {
-            while let Some((q_dist, nearest_address)) = query_heap.pop_closest_unqueried(si) {
-                println!("========================");
-                println!("{:#?}", query_heap);
-                match query_heap.furthest_node(si) {
-                    Some((furthest_distance, _)) => {
-                        if q_dist - self.parameters.scale_base.powi(si) < furthest_distance {
-                            self.get_node_and(nearest_address, |n| {
-                                n.child_knn(
-                                    Some(q_dist),
-                                    &point,
-                                    &self.parameters.point_cloud,
-                                    &mut query_heap,
-                                )
-                            });
-                        } else {
-                            break;
-                        }
-                    }
-                    None => break,
-                }
-            }
-        }
-        println!("========================");
-
-        Ok(query_heap.unpack())
-    }
-
     /// # Dry Insert Query
-    pub fn path<'a, T: Into<PointRef<'a>>>(&self, point: T) -> GokoResult<Vec<(f32, NodeAddress)>> {
-        let point: PointRef<'a> = point.into();
+    pub fn path<'a>(&self, point: &D::PointRef<'a>) -> GokoResult<Vec<(f32, NodeAddress)>> {
         let root_center = self.parameters.point_cloud.point(self.root_address.1)?;
-        let mut current_distance = D::Metric::dist(&root_center, point)?;
+        let mut current_distance = D::Metric::dist(&root_center, &point);
         let mut current_address = self.root_address;
         let mut trace = vec![(current_distance, current_address)];
         while let Some(nearest) =
@@ -424,7 +369,7 @@ impl<D: PointCloud> CoverTreeReader<D> {
     }
 
     ///
-    pub fn known_path(&self, point_index: PointIndex) -> GokoResult<Vec<(f32, NodeAddress)>> {
+    pub fn known_path(&self, point_index: usize) -> GokoResult<Vec<(f32, NodeAddress)>> {
         self.final_addresses
             .get_and(&point_index, |addr| {
                 let mut path = Vec::with_capacity((self.root_address().0 - addr.0) as usize);
@@ -434,7 +379,7 @@ impl<D: PointCloud> CoverTreeReader<D> {
                     parent = self.get_node_and(addr, |n| n.parent_address()).flatten();
                 }
                 (&mut path[..]).reverse();
-                let point_indexes: Vec<PointIndex> = path.iter().map(|na| na.1).collect();
+                let point_indexes: Vec<usize> = path.iter().map(|na| na.1).collect();
                 let dists = self
                     .parameters
                     .point_cloud
@@ -569,7 +514,7 @@ pub struct CoverTreeWriter<D: PointCloud> {
     pub(crate) parameters: Arc<CoverTreeParameters<D>>,
     pub(crate) layers: Vec<CoverLayerWriter<D>>,
     pub(crate) root_address: NodeAddress,
-    pub(crate) final_addresses: MonoWriteHandle<PointIndex, NodeAddress>,
+    pub(crate) final_addresses: MonoWriteHandle<usize, NodeAddress>,
 }
 
 impl<D: PointCloud + LabeledCloud> CoverTreeWriter<D> {
@@ -588,10 +533,7 @@ impl<D: PointCloud + MetaCloud> CoverTreeWriter<D> {
 
 impl<D: PointCloud> CoverTreeWriter<D> {
     ///
-    pub fn add_plugin<P: GokoPlugin<D>>(
-        &mut self,
-        plug_in: P,
-    ) {
+    pub fn add_plugin<P: GokoPlugin<D>>(&mut self, plug_in: P) {
         P::prepare_tree(&plug_in, self);
         let reader = self.reader();
         for layer in self.layers.iter_mut() {
@@ -632,7 +574,7 @@ impl<D: PointCloud> CoverTreeWriter<D> {
     pub(crate) unsafe fn insert_raw(
         &mut self,
         scale_index: i32,
-        point_index: PointIndex,
+        point_index: usize,
         node: CoverNode<D>,
     ) {
         self.layers[self.parameters.internal_index(scale_index)].insert_raw(point_index, node);
@@ -656,6 +598,7 @@ impl<D: PointCloud> CoverTreeWriter<D> {
             verbosity: 2,
             partition_type,
             plugins: RwLock::new(TreePluginSet::new()),
+            rng_seed: None,
         });
         let root_address = (
             cover_proto.get_root_scale(),
@@ -761,6 +704,7 @@ pub(crate) mod tests {
             use_singletons: true,
             partition_type: PartitionType::Nearest,
             verbosity: 0,
+            rng_seed: Some(0),
         };
         builder.build(Arc::new(point_cloud)).unwrap()
     }
@@ -807,6 +751,7 @@ pub(crate) mod tests {
             use_singletons: false,
             partition_type: PartitionType::Nearest,
             verbosity: 0,
+            rng_seed: Some(0),
         };
         let tree = builder.build(Arc::new(point_cloud)).unwrap();
         let reader = tree.reader();
@@ -817,7 +762,7 @@ pub(crate) mod tests {
         let dist_to_root = reader
             .parameters
             .point_cloud
-            .distances_to_point(&point, &[reader.root_address().1])
+            .distances_to_point(&point.as_ref(), &[reader.root_address().1])
             .unwrap()[0];
         query_heap.push_nodes(&[reader.root_address()], &[dist_to_root], None);
 
@@ -829,7 +774,7 @@ pub(crate) mod tests {
                 .1
         );
 
-        reader.greedy_knn_nodes(&point, &mut query_heap);
+        reader.greedy_knn_nodes(&point.as_ref(), &mut query_heap);
         println!("{:#?}", query_heap);
         println!(
             "{:#?}",
@@ -841,7 +786,7 @@ pub(crate) mod tests {
     fn path_sanity() {
         let writer = build_basic_tree();
         let reader = writer.reader();
-        let trace = reader.path(&[0.495f32][..]).unwrap();
+        let trace = reader.path(&[0.495f32].as_ref()).unwrap();
         assert!(trace.len() == 4 || trace.len() == 3);
         println!("{:?}", trace);
         for i in 0..(trace.len() - 1) {
@@ -875,7 +820,7 @@ pub(crate) mod tests {
                 .unwrap();
         }
         let known_trace = reader.known_path(4).unwrap();
-        let trace = reader.path(&[0.0f32][..]).unwrap();
+        let trace = reader.path(&[0.0f32].as_ref()).unwrap();
         println!(
             "Testing known: {:?} matches unknown {:?}",
             known_trace, trace
@@ -886,23 +831,11 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn multiscale_sanity() {
-        let writer = build_basic_tree();
-        let reader = writer.reader();
-        let trace = reader.multiscale_knn(&[0.495f32][..], 2).unwrap();
-        assert_eq!(
-            trace.get(&reader.root_address().0).unwrap()[0],
-            (0.495, reader.root_address())
-        );
-        println!("{:?}", trace);
-    }
-
-    #[test]
     fn knn_singletons_on() {
         println!("2 nearest neighbors of 0.0 are 0.48 and 0.0");
         let writer = build_basic_tree();
         let reader = writer.reader();
-        let zero_nbrs = reader.knn(&[0.1f32][..], 2).unwrap();
+        let zero_nbrs = reader.knn(&[0.1f32].as_ref(), 2).unwrap();
         println!("{:?}", zero_nbrs);
         assert!(zero_nbrs[0].1 == 4);
         assert!(zero_nbrs[1].1 == 2);
@@ -921,6 +854,7 @@ pub(crate) mod tests {
             use_singletons: false,
             partition_type: PartitionType::Nearest,
             verbosity: 0,
+            rng_seed: Some(0),
         };
         let mut tree = builder.build(Arc::new(point_cloud)).unwrap();
         tree.generate_summaries();
@@ -951,12 +885,13 @@ pub(crate) mod tests {
             use_singletons: false,
             partition_type: PartitionType::Nearest,
             verbosity: 0,
+            rng_seed: Some(0),
         };
         let tree = builder.build(Arc::new(point_cloud)).unwrap();
         let reader = tree.reader();
 
         println!("2 nearest neighbors of 0.1 are 0.48 and 0.0");
-        let zero_nbrs = reader.knn(&[0.1f32][..], 2).unwrap();
+        let zero_nbrs = reader.knn(&[0.1f32].as_ref(), 2).unwrap();
         println!("{:?}", zero_nbrs);
         assert!(zero_nbrs[0].1 == 4);
         assert!(zero_nbrs[1].1 == 2);
@@ -975,6 +910,7 @@ pub(crate) mod tests {
             use_singletons: false,
             partition_type: PartitionType::Nearest,
             verbosity: 0,
+            rng_seed: Some(0),
         };
         let tree = builder.build(Arc::clone(&point_cloud)).unwrap();
         let reader = tree.reader();

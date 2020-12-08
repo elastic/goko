@@ -4,8 +4,8 @@ use std::fs;
 use yaml_rust::YamlLoader;
 
 use super::*;
-use crate::distances::L2;
-use crate::{DefaultCloud, DefaultLabeledCloud};
+use crate::metrics::L2;
+use crate::DefaultLabeledCloud;
 
 /// Given a yaml file on disk, it builds a point cloud. Minimal example below.
 /// ```yaml
@@ -16,7 +16,7 @@ use crate::{DefaultCloud, DefaultLabeledCloud};
 /// data_dim: 784
 /// label_csv_index: 2
 /// ```
-pub fn labeled_ram_from_yaml<P: AsRef<Path>, M: Metric>(
+pub fn labeled_ram_from_yaml<P: AsRef<Path>, M: Metric<[f32]>>(
     path: P,
 ) -> PointCloudResult<DefaultLabeledCloud<M>> {
     let label_set = labels_from_yaml(&path)?;
@@ -34,7 +34,7 @@ pub fn labeled_ram_from_yaml<P: AsRef<Path>, M: Metric>(
 /// data_dim: 784
 /// label_dim: 10
 /// ```
-pub fn vec_labeled_ram_from_yaml<P: AsRef<Path>, M: Metric>(
+pub fn vec_labeled_ram_from_yaml<P: AsRef<Path>, M: Metric<[f32]>>(
     path: P,
 ) -> PointCloudResult<SimpleLabeledCloud<DataRam<M>, VecLabels>> {
     let config = fs::read_to_string(&path)
@@ -63,7 +63,7 @@ pub fn vec_labeled_ram_from_yaml<P: AsRef<Path>, M: Metric>(
         .as_i64()
         .expect("Unable to read the 'labels_dim'") as usize;
 
-    let label_set = convert_glued_memmap_to_ram(open_memmaps::<M>(labels_dim, labels_path)?)
+    let label_set = convert_glued_memmap_to_ram::<L2>(open_memmaps(labels_dim, labels_path)?)
         .convert_to_labels();
     let data_set = convert_glued_memmap_to_ram(open_memmaps(data_dim, data_paths)?);
 
@@ -77,7 +77,7 @@ pub fn vec_labeled_ram_from_yaml<P: AsRef<Path>, M: Metric>(
 /// count: NUMBER_OF_DATA_POINTS
 /// data_dim: 784
 /// ```
-pub fn ram_from_yaml<P: AsRef<Path>, M: Metric>(path: P) -> PointCloudResult<DefaultCloud<M>> {
+pub fn ram_from_yaml<P: AsRef<Path>, M: Metric<[f32]>>(path: P) -> PointCloudResult<DataRam<M>> {
     let config = fs::read_to_string(&path)
         .unwrap_or_else(|_| panic!("Unable to read config file {:?}", &path.as_ref()));
 

@@ -18,7 +18,6 @@
 */
 
 use crate::NodeAddress;
-use pointcloud::PointIndex;
 use std::cmp::Ordering::{self, Less};
 use std::f32;
 
@@ -105,11 +104,11 @@ impl PartialOrd for QueryAddressRev {
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct QuerySingleton {
     pub(crate) dist: f32,
-    pub(crate) index: PointIndex,
+    pub(crate) index: usize,
 }
 
 impl QuerySingleton {
-    pub(crate) fn new(index: PointIndex, dist: f32) -> QuerySingleton {
+    pub(crate) fn new(index: usize, dist: f32) -> QuerySingleton {
         QuerySingleton { dist, index }
     }
 }

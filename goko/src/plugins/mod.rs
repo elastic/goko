@@ -48,7 +48,7 @@ pub(crate) mod tests {
     #[derive(Debug, Clone)]
     struct DumbNode1 {
         id: u32,
-        pi: PointIndex,
+        pi: usize,
         cover_count: usize,
     }
 

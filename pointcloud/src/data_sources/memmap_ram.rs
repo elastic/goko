@@ -25,14 +25,14 @@ use std::fs::OpenOptions;
 use std::marker::PhantomData;
 use std::path::Path;
 
-use crate::{Metric, PointIndex, PointRef};
+use crate::metrics::*;
 
 use crate::base_traits::*;
 use crate::label_sources::VecLabels;
 
 /// A thin wrapper to give a `Box<[f32]>` dimensionality.
 #[derive(Debug)]
-pub struct DataMemmap<M: Metric> {
+pub struct DataMemmap<M = L2> {
     name: String,
     data: Mmapf32,
     dim: usize,
@@ -41,14 +41,14 @@ pub struct DataMemmap<M: Metric> {
 
 /// The data stored in ram.
 #[derive(Debug)]
-pub struct DataRam<M: Metric> {
+pub struct DataRam<M = L2> {
     name: String,
     data: Vec<f32>,
     dim: usize,
     metric: PhantomData<M>,
 }
 
-impl<M: Metric> DataMemmap<M> {
+impl<M> DataMemmap<M> {
     /// Creates a new one from a path. The name is the path.
     pub fn new(dim: usize, path: &Path) -> PointCloudResult<DataMemmap<M>> {
         let name = path.to_string_lossy().to_string();
@@ -90,7 +90,7 @@ impl<M: Metric> DataMemmap<M> {
     }
 }
 
-impl<M: Metric> DataRam<M> {
+impl<M> DataRam<M> {
     /// Consumes your box and dimension and gives a dimensioned box.
     pub fn new(data: Vec<f32>, dim: usize) -> Result<DataRam<M>, PointCloudError> {
         assert!(data.len() % dim == 0);
@@ -117,8 +117,10 @@ impl<M: Metric> DataRam<M> {
 
 macro_rules! make_point_cloud {
     ($name:ident) => {
-        impl<M: Metric> PointCloud for $name<M> {
+        impl<M: Metric<[f32]>> PointCloud for $name<M> {
             type Metric = M;
+            type Point = [f32];
+            type PointRef<'a> = &'a [f32];
 
             #[inline]
             fn dim(&self) -> usize {
@@ -133,17 +135,17 @@ macro_rules! make_point_cloud {
                 self.data.is_empty()
             }
             #[inline]
-            fn reference_indexes(&self) -> Vec<PointIndex> {
-                (0..self.len()).map(|i| i as PointIndex).collect()
+            fn reference_indexes(&self) -> Vec<usize> {
+                (0..self.len()).map(|i| i as usize).collect()
             }
             #[inline]
-            fn point(&self, i: PointIndex) -> PointCloudResult<PointRef> {
+            fn point<'a, 'b: 'a>(&'b self, i: usize) -> PointCloudResult<&'a [f32]> {
                 match self
                     .data
                     .get(self.dim * (i as usize)..(self.dim * (i as usize) + self.dim))
                 {
                     None => Err(PointCloudError::data_access(i as usize, self.name.clone())),
-                    Some(x) => Ok(PointRef::Dense(x)),
+                    Some(x) => Ok(x),
                 }
             }
         }
@@ -156,9 +158,7 @@ make_point_cloud!(DataMemmap);
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use crate::distances::*;
     use crate::label_sources::SmallIntLabels;
-    use crate::{Point, PointRef};
     use rand;
     use std::iter;
 
@@ -166,8 +166,8 @@ pub mod tests {
         count: usize,
         data_dim: usize,
         labels_dim: usize,
-    ) -> SimpleLabeledCloud<DataRam<L2>, VecLabels> {
-        let data = DataRam::<L2>::new(
+    ) -> SimpleLabeledCloud<DataRam, VecLabels> {
+        let data = DataRam::new(
             (0..count * data_dim)
                 .map(|_i| rand::random::<f32>())
                 .collect(),
@@ -185,8 +185,8 @@ pub mod tests {
         SimpleLabeledCloud::new(data, labels)
     }
 
-    pub fn build_ram_random_test(count: usize, data_dim: usize) -> DataRam<L2> {
-        DataRam::<L2>::new(
+    pub fn build_ram_random_test(count: usize, data_dim: usize) -> DataRam {
+        DataRam::new(
             (0..count * data_dim)
                 .map(|_i| rand::random::<f32>())
                 .collect(),
@@ -198,8 +198,8 @@ pub mod tests {
     pub fn build_ram_fixed_labeled_test(
         count: usize,
         data_dim: usize,
-    ) -> SimpleLabeledCloud<DataRam<L2>, SmallIntLabels> {
-        let data = DataRam::<L2>::new(
+    ) -> SimpleLabeledCloud<DataRam, SmallIntLabels> {
+        let data = DataRam::new(
             (0..count)
                 .map(|i| iter::repeat(i as f32).take(data_dim))
                 .flatten()
@@ -212,8 +212,8 @@ pub mod tests {
         SimpleLabeledCloud::new(data, labels)
     }
 
-    pub fn build_ram_fixed_test(count: usize, data_dim: usize) -> DataRam<L2> {
-        DataRam::<L2>::new(
+    pub fn build_ram_fixed_test(count: usize, data_dim: usize) -> DataRam {
+        DataRam::new(
             (0..count)
                 .map(|i| iter::repeat(i as f32).take(data_dim))
                 .flatten()
@@ -228,21 +228,17 @@ pub mod tests {
         let pc = build_ram_fixed_test(5, 5);
 
         let point = pc.point(1).unwrap();
-        match point {
-            PointRef::Dense(val) => {
-                for d in val {
-                    assert_approx_eq!(1.0, d);
-                }
-            }
-            PointRef::Sparse(_, _) => panic!("Should return a sparse datum"),
-        };
+        for d in point.iter() {
+            assert_approx_eq!(1.0, d);
+        }
     }
 
+    /*
     #[test]
     fn adjacency_correct() {
         let pc = build_ram_fixed_test(10, 5);
 
-        let indexes: [PointIndex; 5] = [1, 3, 5, 7, 9];
+        let indexes: [usize; 5] = [1, 3, 5, 7, 9];
 
         let adj = pc.adjacency_matrix(&indexes).unwrap();
         println!("{:?}", adj);
@@ -256,15 +252,16 @@ pub mod tests {
             }
         }
     }
+    */
 
     #[test]
     fn distance_correct() {
         let pc = build_ram_fixed_test(5, 5);
 
         let indexes = [1];
-        let point = Point::Dense(vec![0.0; 5]);
+        let point = vec![0.0f32; 5];
 
-        let dists = pc.distances_to_point(&point, &indexes).unwrap();
+        let dists = pc.distances_to_point(&&point[..], &indexes).unwrap();
         for d in dists {
             assert_approx_eq!(5.0f32.sqrt(), d);
         }

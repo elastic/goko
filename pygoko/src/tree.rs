@@ -40,8 +40,8 @@ use goko::plugins::gaussians::*;
 #[pyclass(unsendable)]
 pub struct CoverTree {
     builder: Option<CoverTreeBuilder>,
-    temp_point_cloud: Option<Arc<DefaultLabeledCloud<L1>>>,
-    writer: Option<CoverTreeWriter<DefaultLabeledCloud<L1>>>,
+    temp_point_cloud: Option<Arc<DefaultLabeledCloud<L2>>>,
+    writer: Option<CoverTreeWriter<DefaultLabeledCloud<L2>>>,
     metric: String,
 }
 
@@ -53,7 +53,7 @@ impl CoverTree {
             builder: Some(CoverTreeBuilder::new()),
             temp_point_cloud: None,
             writer: None,
-            metric: "DefaultLabeledCloud<L1>".to_string(),
+            metric: "DefaultLabeledCloud<L2>".to_string(),
         })
     }
     pub fn set_scale_base(&mut self, x: f32) {
@@ -90,7 +90,7 @@ impl CoverTree {
 
     pub fn load_yaml_config(&mut self, file_name: String) -> PyResult<()> {
         let path = Path::new(&file_name);
-        let point_cloud = Arc::new(labeled_ram_from_yaml::<_, L1>(&path).unwrap());
+        let point_cloud = Arc::new(labeled_ram_from_yaml::<_, L2>(&path).unwrap());
         let builder = CoverTreeBuilder::from_yaml(&path);
         self.builder = Some(builder);
         self.temp_point_cloud = Some(point_cloud);
@@ -113,7 +113,7 @@ impl CoverTree {
                 Some(labels) => Vec::from(labels.readonly().as_slice().unwrap()),
                 None => vec![0; len],
             };
-            Arc::new(DefaultLabeledCloud::<L1>::new_simple(
+            Arc::new(DefaultLabeledCloud::<L2>::new_simple(
                 Vec::from(data.readonly().as_slice().unwrap()),
                 data_dim,
                 my_labels,
@@ -135,6 +135,7 @@ impl CoverTree {
         Ok(())
     }
 
+    /*
     pub fn attach_svds(&mut self, min_point_count: usize, max_point_count: usize, tau: f32) {
         let writer = self.writer.as_mut().unwrap();
         writer.add_plugin::<GokoSvdGaussian>(GokoSvdGaussian::new(
@@ -143,6 +144,7 @@ impl CoverTree {
             tau,
         ));
     }
+    */
 
     pub fn data_point(&self, point_index: usize) -> PyResult<Option<Py<PyArray1<f32>>>> {
         let reader = self.writer.as_ref().unwrap().reader();
@@ -151,8 +153,8 @@ impl CoverTree {
             Err(_) => None,
             Ok(point) => {
                 let py_point =
-                    Array1::from_shape_vec((dim,), point.dense_iter(dim).collect()).unwrap();
-                let gil = GILGuard::acquire();
+                    Array1::from_shape_vec((dim,), point.dense_iter().collect()).unwrap();
+                let gil = pyo3::Python::acquire_gil();
                 let py = gil.python();
                 Some(py_point.into_pyarray(py).to_owned())
             }
@@ -214,13 +216,13 @@ impl CoverTree {
 
     pub fn knn(&self, point: &PyArray1<f32>, k: usize) -> Vec<(f32, usize)> {
         let reader = self.writer.as_ref().unwrap().reader();
-        reader.knn(point.readonly().as_slice().unwrap(), k).unwrap()
+        reader.knn(&point.readonly().as_slice().unwrap(), k).unwrap()
     }
 
     pub fn routing_knn(&self, point: &PyArray1<f32>, k: usize) -> Vec<(f32, usize)> {
         let reader = self.writer.as_ref().unwrap().reader();
         reader
-            .routing_knn(point.readonly().as_slice().unwrap(), k)
+            .routing_knn(&point.readonly().as_slice().unwrap(), k)
             .unwrap()
     }
 
@@ -229,11 +231,11 @@ impl CoverTree {
         reader.known_path(point_index).unwrap()
     }
 
-    pub fn index_depths(&self, point_indexes: Vec<usize>, tau: Option<f32>) -> Vec<(usize,usize)> {
+    pub fn index_depths(&self, point_indexes: Vec<usize>, tau: Option<f32>) -> Vec<(usize, usize)> {
         let reader = self.writer.as_ref().unwrap().reader();
         let bulk = BulkInterface::new(reader);
         let tau = tau.unwrap_or(0.00001);
-        bulk.known_path_and(&point_indexes, |reader,path| 
+        bulk.known_path_and(&point_indexes, |reader, path| {
             if let Ok(path) = path {
                 let mut homogenity_depth = path.len();
                 for (i, (_d, a)) in path.iter().enumerate() {
@@ -253,15 +255,15 @@ impl CoverTree {
             } else {
                 (0, 0)
             }
-        )
+        })
     }
 
-    pub fn point_depths(&self, points: &PyArray2<f32>, tau: Option<f32>) -> Vec<(usize,usize)> {
+    pub fn point_depths(&self, points: &PyArray2<f32>, tau: Option<f32>) -> Vec<(usize, usize)> {
         let reader = self.writer.as_ref().unwrap().reader();
         let bulk = BulkInterface::new(reader);
         let tau = tau.unwrap_or(0.00001);
-        
-        bulk.array_map_with_reader(points.readonly().as_array(), |reader,point| 
+
+        bulk.array_map_with_reader(points.readonly().as_array(), |reader, point| {
             if let Ok(path) = reader.path(point) {
                 let mut homogenity_depth = path.len();
                 for (i, (_d, a)) in path.iter().enumerate() {
@@ -281,12 +283,12 @@ impl CoverTree {
             } else {
                 (0, 0)
             }
-        )
+        })
     }
 
     pub fn path(&self, point: &PyArray1<f32>) -> Vec<(f32, (i32, usize))> {
         let reader = self.writer.as_ref().unwrap().reader();
-        reader.path(point.readonly().as_slice().unwrap()).unwrap()
+        reader.path(&point.readonly().as_slice().unwrap()).unwrap()
     }
 
     pub fn sample(&self) -> PyResult<(Py<PyArray1<f32>>, Option<PyObject>)> {
@@ -300,7 +302,7 @@ impl CoverTree {
         {
             parent_addr = pat;
         }
-        let gil = GILGuard::acquire();
+        let gil = pyo3::Python::acquire_gil();
         let py = gil.python();
         let vec = reader
             .get_node_plugin_and::<DiagGaussian, _, _>(parent_addr, |p| p.sample(&mut rng))
@@ -326,15 +328,16 @@ impl CoverTree {
 
     pub fn kl_div_dirichlet(
         &self,
-        prior_weight: f64,
-        observation_weight: f64,
         size: u64,
+        prior_weight: Option<f64>,
+        observation_weight: Option<f64>,
     ) -> PyBayesCategoricalTracker {
         let writer = self.writer.as_ref().unwrap();
+        
         PyBayesCategoricalTracker {
             hkl: BayesCategoricalTracker::new(
-                prior_weight,
-                observation_weight,
+                prior_weight.unwrap_or(1.0),
+                observation_weight.unwrap_or(1.0),
                 size as usize,
                 writer.reader(),
             ),
@@ -344,16 +347,16 @@ impl CoverTree {
 
     pub fn kl_div_dirichlet_baseline(
         &self,
-        prior_weight: f64,
-        observation_weight: f64,
         sequence_len: usize,
         num_sequences: usize,
         sample_rate: usize,
+        prior_weight: Option<f64>,
+        observation_weight: Option<f64>,
     ) -> PyKLDivergenceBaseline {
         let reader = self.writer.as_ref().unwrap().reader();
         let mut trainer = DirichletBaseline::default();
-        trainer.set_prior_weight(prior_weight);
-        trainer.set_observation_weight(observation_weight);
+        trainer.set_prior_weight(prior_weight.unwrap_or(1.0));
+        trainer.set_observation_weight(observation_weight.unwrap_or(1.0));
         trainer.set_sequence_len(sequence_len);
         trainer.set_num_sequences(num_sequences);
         trainer.set_sample_rate(sample_rate);
@@ -361,3 +364,4 @@ impl CoverTree {
         PyKLDivergenceBaseline { baseline }
     }
 }
+

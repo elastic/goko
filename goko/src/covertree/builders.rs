@@ -16,7 +16,6 @@
 * specific language governing permissions and limitations
 * under the License.
 */
-
 use super::data_caches::*;
 use super::layer::*;
 use super::node::*;
@@ -25,6 +24,8 @@ use crate::plugins::TreePluginSet;
 use crate::*;
 use pbr::ProgressBar;
 use std::cmp::{max, min};
+use rand::rngs::SmallRng;
+use rand::SeedableRng;
 use std::fs::read_to_string;
 use std::path::Path;
 use std::sync::{atomic, Arc, RwLock};
@@ -42,7 +43,7 @@ struct BuilderNode {
     covered: CoveredData,
 }
 
-type NodeSplitResult<D> = GokoResult<(i32, PointIndex, CoverNode<D>)>;
+type NodeSplitResult<D> = GokoResult<(i32, usize, CoverNode<D>)>;
 
 impl BuilderNode {
     fn new<D: PointCloud>(
@@ -155,8 +156,12 @@ impl BuilderNode {
         split_scale_index: i32,
         parameters: &Arc<CoverTreeParameters<D>>,
     ) -> GokoResult<Vec<BuilderNode>> {
+        let mut small_rng: SmallRng = match parameters.rng_seed {
+            Some(seed) => SmallRng::seed_from_u64(seed ^ parent_address.1 as u64),
+            None => SmallRng::from_entropy(),
+        };
         let next_scale = parameters.scale_base.powi(split_scale_index);
-        let (nested_potential, mut splits) = covered.split(next_scale, &parameters.point_cloud)?;
+        let (nested_potential, mut splits) = covered.split(next_scale, &parameters.point_cloud, &mut small_rng)?;
         let mut new_nodes = Vec::new();
 
         let mut inserts = Vec::new();
@@ -207,6 +212,10 @@ impl BuilderNode {
         split_scale_index: i32,
         parameters: &Arc<CoverTreeParameters<D>>,
     ) -> GokoResult<Vec<BuilderNode>> {
+        let mut small_rng: SmallRng = match parameters.rng_seed {
+            Some(seed) => SmallRng::seed_from_u64(seed ^ parent_address.1 as u64),
+            None => SmallRng::from_entropy(),
+        };
         let mut new_nodes = Vec::new();
 
         let next_scale = parameters.scale_base.powi(split_scale_index);
@@ -246,7 +255,7 @@ impl BuilderNode {
         */
 
         while fars.len() > 0 {
-            let new_close = fars.pick_center(next_scale, &parameters.point_cloud)?;
+            let new_close = fars.pick_center(next_scale, &parameters.point_cloud, &mut small_rng)?;
             //println!("\t\t [{}] New Covered: {:?}",split_count, new_close);
             if new_close.len() == 1 && parameters.use_singletons {
                 /*
@@ -277,22 +286,16 @@ impl BuilderNode {
     }
 }
 
-/// A construction object for a covertree.
+/// A construction object for a covertree. See [`crate::covertree::tree::CoverTreeParameters`] for docs
 #[derive(Debug)]
 pub struct CoverTreeBuilder {
-    /// See paper or main description, governs the number of children of each node. Higher is more.
-    pub scale_base: f32,
-    /// If a node covers less than or equal to this number of points, it becomes a leaf.
-    pub leaf_cutoff: usize,
-    /// If a node has scale index less than or equal to this, it becomes a leaf
-    pub min_res_index: i32,
-    /// If you don't want singletons messing with your tree and want everything to be a node or a element of leaf node, make this true.
-    pub use_singletons: bool,
-    /// Partition type of the tree
-    pub partition_type: PartitionType,
-    /// Printing verbosity. 2 is the default and gives a progress bar. Still not fully pulled thru the codebase.
-    /// This should be replaced by a logging solution
-    pub verbosity: u32,
+    pub(crate) scale_base: f32,
+    pub(crate) leaf_cutoff: usize,
+    pub(crate) min_res_index: i32,
+    pub(crate) use_singletons: bool,
+    pub(crate) partition_type: PartitionType,
+    pub(crate) verbosity: u32,
+    pub(crate) rng_seed: Option<u64>,
 }
 
 impl Default for CoverTreeBuilder {
@@ -304,6 +307,7 @@ impl Default for CoverTreeBuilder {
             use_singletons: true,
             partition_type: PartitionType::Nearest,
             verbosity: 0,
+            rng_seed: None,
         }
     }
 }
@@ -318,6 +322,7 @@ impl CoverTreeBuilder {
             use_singletons: true,
             partition_type: PartitionType::Nearest,
             verbosity: 0,
+            rng_seed: None,
         }
     }
 
@@ -338,32 +343,38 @@ impl CoverTreeBuilder {
             use_singletons: params["use_singletons"].as_bool().unwrap_or(true),
             partition_type,
             verbosity: params["verbosity"].as_i64().unwrap_or(2) as u32,
+            rng_seed: params["verbosity"].as_i64().map(|i| i as u64),
         }
     }
 
-    ///
+    /// See [`crate::covertree::tree::CoverTreeParameters`] for docs
     pub fn set_scale_base(&mut self, x: f32) -> &mut Self {
         self.scale_base = x;
         self
     }
-    ///
+    /// See [`crate::covertree::tree::CoverTreeParameters`] for docs
     pub fn set_leaf_cutoff(&mut self, x: usize) -> &mut Self {
         self.leaf_cutoff = x;
         self
     }
-    ///
+    /// See [`crate::covertree::tree::CoverTreeParameters`] for docs
     pub fn set_min_res_index(&mut self, x: i32) -> &mut Self {
         self.min_res_index = x;
         self
     }
-    ///
+    /// See [`crate::covertree::tree::CoverTreeParameters`] for docs
     pub fn set_use_singletons(&mut self, x: bool) -> &mut Self {
         self.use_singletons = x;
         self
     }
-    ///
+    /// See [`crate::covertree::tree::CoverTreeParameters`] for docs
     pub fn set_verbosity(&mut self, x: u32) -> &mut Self {
         self.verbosity = x;
+        self
+    }
+    /// See [`crate::covertree::tree::CoverTreeParameters`] for docs
+    pub fn set_rng_seed(&mut self, x: u64) -> &mut Self {
+        self.rng_seed = Some(x);
         self
     }
     /// Pass a point cloud object when ready.
@@ -378,6 +389,7 @@ impl CoverTreeBuilder {
             partition_type: self.partition_type,
             point_cloud,
             verbosity: self.verbosity,
+            rng_seed: self.rng_seed,
             plugins: RwLock::new(TreePluginSet::new()),
         };
 
@@ -477,6 +489,7 @@ mod tests {
             partition_type: PartitionType::Nearest,
             point_cloud,
             verbosity: 0,
+            rng_seed: Some(0),
             plugins: RwLock::new(TreePluginSet::new()),
         })
     }
@@ -564,8 +577,8 @@ mod tests {
         let build_node = BuilderNode::new(&test_parameters, PartitionType::First).unwrap();
 
         let (node_sender, node_receiver): (
-            Sender<GokoResult<(i32, PointIndex, CoverNode<DefaultCloud<L2>>)>>,
-            Receiver<GokoResult<(i32, PointIndex, CoverNode<DefaultCloud<L2>>)>>,
+            Sender<GokoResult<(i32, usize, CoverNode<DefaultCloud<L2>>)>>,
+            Receiver<GokoResult<(i32, usize, CoverNode<DefaultCloud<L2>>)>>,
         ) = unbounded();
         let node_sender = Arc::new(node_sender);
 
@@ -601,8 +614,8 @@ mod tests {
         let build_node = BuilderNode::new(&test_parameters, PartitionType::Nearest).unwrap();
 
         let (node_sender, node_receiver): (
-            Sender<GokoResult<(i32, PointIndex, CoverNode<DefaultCloud<L2>>)>>,
-            Receiver<GokoResult<(i32, PointIndex, CoverNode<DefaultCloud<L2>>)>>,
+            Sender<GokoResult<(i32, usize, CoverNode<DefaultCloud<L2>>)>>,
+            Receiver<GokoResult<(i32, usize, CoverNode<DefaultCloud<L2>>)>>,
         ) = unbounded();
         let node_sender = Arc::new(node_sender);
 
@@ -643,6 +656,7 @@ mod tests {
             use_singletons: true,
             verbosity: 0,
             partition_type: PartitionType::First,
+            rng_seed: Some(0),
         };
         let tree = builder.build(point_cloud).unwrap();
         let reader = tree.reader();
@@ -686,6 +700,7 @@ mod tests {
             use_singletons: false,
             verbosity: 0,
             partition_type: PartitionType::First,
+            rng_seed: Some(0),
         };
         let tree = builder.build(point_cloud).unwrap();
         let reader = tree.reader();

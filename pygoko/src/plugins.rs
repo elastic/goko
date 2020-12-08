@@ -1,8 +1,8 @@
-use numpy::PyArray1;
-use pyo3::prelude::*;
 use goko::plugins::discrete::prelude::*;
 use goko::*;
+use numpy::PyArray1;
 use pointcloud::*;
+use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
 /*
@@ -24,8 +24,8 @@ impl PyBucketProbs {
 
 #[pyclass(unsendable)]
 pub struct PyBayesCategoricalTracker {
-    pub hkl: BayesCategoricalTracker<DefaultLabeledCloud<L1>>,
-    pub tree: CoverTreeReader<DefaultLabeledCloud<L1>>,
+    pub hkl: BayesCategoricalTracker<DefaultLabeledCloud<L2>>,
+    pub tree: CoverTreeReader<DefaultLabeledCloud<L2>>,
 }
 
 #[pymethods]
@@ -33,7 +33,7 @@ impl PyBayesCategoricalTracker {
     pub fn push(&mut self, point: &PyArray1<f32>) {
         let results = self
             .tree
-            .path(point.readonly().as_slice().unwrap())
+            .path(&point.readonly().as_slice().unwrap())
             .unwrap();
         self.hkl.add_path(results);
     }
@@ -55,7 +55,7 @@ impl PyBayesCategoricalTracker {
     }
     pub fn stats(&self) -> PyResult<PyObject> {
         let stats = self.hkl.kl_div_stats();
-        let gil = GILGuard::acquire();
+        let gil = pyo3::Python::acquire_gil();
         let py = gil.python();
         let dict = PyDict::new(py);
         dict.set_item("max", stats.max)?;
@@ -77,7 +77,7 @@ pub struct PyKLDivergenceBaseline {
 impl PyKLDivergenceBaseline {
     pub fn stats(&self, i: usize) -> PyResult<PyObject> {
         let stats = self.baseline.stats(i);
-        let gil = GILGuard::acquire();
+        let gil = pyo3::Python::acquire_gil();
         let dict = PyDict::new(gil.python());
         let max_dict = PyDict::new(gil.python());
         max_dict.set_item("mean", stats.max.0)?;

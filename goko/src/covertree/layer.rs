@@ -45,7 +45,7 @@ use std::iter::FromIterator;
 /// but helps with unit tests.
 pub struct CoverLayerReader<D: PointCloud> {
     scale_index: i32,
-    node_reader: MonoReadHandle<PointIndex, CoverNode<D>>,
+    node_reader: MonoReadHandle<usize, CoverNode<D>>,
 }
 
 impl<D: PointCloud> Clone for CoverLayerReader<D> {
@@ -59,7 +59,7 @@ impl<D: PointCloud> Clone for CoverLayerReader<D> {
 
 impl<D: PointCloud> CoverLayerReader<D> {
     /// Read only access to a single node.
-    pub fn get_node_and<F, T>(&self, pi: PointIndex, f: F) -> Option<T>
+    pub fn get_node_and<F, T>(&self, pi: usize, f: F) -> Option<T>
     where
         F: FnOnce(&CoverNode<D>) -> T,
     {
@@ -70,7 +70,7 @@ impl<D: PointCloud> CoverLayerReader<D> {
     /// closure.
     pub fn get_node_plugin_and<T: Send + Sync + 'static, F, S>(
         &self,
-        center_index: PointIndex,
+        center_index: usize,
         transform_fn: F,
     ) -> Option<S>
     where
@@ -83,7 +83,7 @@ impl<D: PointCloud> CoverLayerReader<D> {
     /// Read only access to all nodes.
     pub fn for_each_node<F>(&self, f: F)
     where
-        F: FnMut(&PointIndex, &CoverNode<D>),
+        F: FnMut(&usize, &CoverNode<D>),
     {
         self.node_reader.for_each(f)
     }
@@ -91,7 +91,7 @@ impl<D: PointCloud> CoverLayerReader<D> {
     /// Maps all nodes on the layer, useful for collecting statistics.
     pub fn map_nodes<Map, Target, Collector>(&self, f: Map) -> Collector
     where
-        Map: FnMut(&PointIndex, &CoverNode<D>) -> Target,
+        Map: FnMut(&usize, &CoverNode<D>) -> Target,
         Collector: FromIterator<Target>,
     {
         self.node_reader.map_into(f)
@@ -99,7 +99,7 @@ impl<D: PointCloud> CoverLayerReader<D> {
 
     /// Grabs all children indexes and allows you to query against them. Usually used at the tree level so that you
     /// can access the child nodes as they are not on this layer.
-    pub fn get_node_children_and<F, T>(&self, pi: PointIndex, f: F) -> Option<T>
+    pub fn get_node_children_and<F, T>(&self, pi: usize, f: F) -> Option<T>
     where
         F: FnOnce(NodeAddress, &[NodeAddress]) -> T,
     {
@@ -110,7 +110,7 @@ impl<D: PointCloud> CoverLayerReader<D> {
 
     /// Grabs all children indexes and allows you to query against them. Usually used at the tree level so that you
     /// can access the child nodes as they are not on this layer.
-    pub fn node_center_indexes(&self) -> Vec<PointIndex> {
+    pub fn node_center_indexes(&self) -> Vec<usize> {
         self.node_reader.map_into(|pi, _| *pi)
     }
 
@@ -141,7 +141,7 @@ impl<D: PointCloud> CoverLayerReader<D> {
 /// Primarily contains the node writer head, but also has the cluster writer head and the index head.
 pub struct CoverLayerWriter<D: PointCloud> {
     scale_index: i32,
-    node_writer: MonoWriteHandle<PointIndex, CoverNode<D>>,
+    node_writer: MonoWriteHandle<usize, CoverNode<D>>,
 }
 
 impl<D: PointCloud> CoverLayerWriter<D> {
@@ -162,7 +162,7 @@ impl<D: PointCloud> CoverLayerWriter<D> {
         }
     }
 
-    pub(crate) unsafe fn update_node<F>(&mut self, pi: PointIndex, update_fn: F)
+    pub(crate) unsafe fn update_node<F>(&mut self, pi: usize, update_fn: F)
     where
         F: Fn(&mut CoverNode<D>) + 'static + Send + Sync,
     {
@@ -173,7 +173,7 @@ impl<D: PointCloud> CoverLayerWriter<D> {
         let scale_index = layer_proto.get_scale_index();
         let (_node_reader, mut node_writer) = monomap::new();
         for node_proto in layer_proto.get_nodes() {
-            let index = node_proto.get_center_index() as PointIndex;
+            let index = node_proto.get_center_index() as usize;
             let node = CoverNode::load(node_proto);
             node_writer.insert(index, node);
         }
@@ -201,7 +201,7 @@ impl<D: PointCloud> CoverLayerWriter<D> {
         layer_proto
     }
 
-    pub(crate) fn insert_raw(&mut self, index: PointIndex, node: CoverNode<D>) {
+    pub(crate) fn insert_raw(&mut self, index: usize, node: CoverNode<D>) {
         self.node_writer.insert(index, node);
     }
 

@@ -20,7 +20,6 @@
 //! Tools and data structures for assisting cover tree queries.
 
 use crate::NodeAddress;
-use pointcloud::*;
 use std::collections::{BinaryHeap, HashMap, HashSet};
 use std::f32;
 
@@ -45,7 +44,7 @@ pub struct KnnQueryHeap {
     child_heap: BinaryHeap<QueryAddress>,
     singleton_heap: BinaryHeap<QueryAddress>,
 
-    known_indexes: HashSet<PointIndex>,
+    known_indexes: HashSet<usize>,
     est_min_dist: HashMap<NodeAddress, f32>,
     dist_heap: BinaryHeap<QuerySingleton>,
     k: usize,
@@ -97,7 +96,7 @@ impl RoutingQueryHeap for KnnQueryHeap {
 
 impl SingletonQueryHeap for KnnQueryHeap {
     /// Shove a bunch of single points onto the heap
-    fn push_outliers(&mut self, indexes: &[PointIndex], dists: &[f32]) {
+    fn push_outliers(&mut self, indexes: &[usize], dists: &[f32]) {
         for (i, d) in indexes.iter().zip(dists) {
             if !self.known_indexes.contains(i) {
                 self.known_indexes.insert(*i);
@@ -195,7 +194,7 @@ impl KnnQueryHeap {
     }
 
     /// Unpacks the distance heap. This consumes the query heap.
-    pub fn unpack(mut self) -> Vec<(f32, PointIndex)> {
+    pub fn unpack(mut self) -> Vec<(f32, usize)> {
         let mut result = Vec::with_capacity(self.k);
         while let Some(el) = self.dist_heap.pop() {
             result.push((el.dist, el.index));

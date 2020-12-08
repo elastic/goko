@@ -18,7 +18,6 @@
 */
 
 //! The errors that can occur when a point cloud is loading, working or saving
-use crate::PointIndex;
 use std::error::Error;
 use std::fmt;
 use std::io;
@@ -33,7 +32,7 @@ pub enum PointCloudError {
     /// Unable to retrieve some data point (given by index) in a file (slice name)
     DataAccessError {
         /// Index of access error
-        index: PointIndex,
+        index: usize,
         /// File that had the access error
         reason: String,
     },
@@ -133,7 +132,7 @@ impl PointCloudError {
     /// If we can't get an element from a loaded data file, gives the i and filename
     pub fn data_access(index: usize, reason: String) -> PointCloudError {
         PointCloudError::DataAccessError {
-            index: index as PointIndex,
+            index: index as usize,
             reason,
         }
     }

@@ -1,0 +1,21 @@
+[flake8]
+max-line-length = 120
+
+# W503 is for "W503 line break before binary operator" black sometimes adds this, so this is for compatibility
+# D401 is for "D401 First line should be in imperative mood". Has false positives, and doesn't like titles.
+# D400 is for "D400 First line should end with a period".
+# E203 is for "E203 Whitespace before ':'". Black is incompatible with this warning.
+# ANN101 conflicts with black.
+ignore = D401, W503, D400, E203, ANN101
+
+# ANN101 is for "ANN101 Missing type annotation for self in method", which is very common in testing and annotation is not needed
+# ANN102 is for "ANN102 Missing type annotation for cls in classmethod", which is very common in testing and annotation is not needed
+# ANN201 is for "ANN201 Missing return type annotation for public function", which is very common in testing and annotation is not needed
+# ANN206 is for "ANN206 Missing return type annotation for classmethod", which is very common in testing and annotation is not needed
+# D101 is for "D101 Missing docstring in public class", wee have a proliferation of classes due to the way we setup standard tests
+# and documenting them all would be pointless
+per-file-ignores =
+    tests/*: D101, ANN101, ANN102, ANN201, ANN206
+    libraries/python/catapult/*: W291, E231, W293
+    libraries/python/catapult/tests/*: D100, D101, D102, D103, D104, D200
+    services/nametag/*: E402

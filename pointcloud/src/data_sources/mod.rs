@@ -21,6 +21,7 @@
 //! The only currently supported are memmaps and ram blobs.
 
 mod memmap_ram;
+mod sparse_ram;
 
 #[allow(dead_code)]
 mod memmapf32;

@@ -27,8 +27,6 @@ use std::fmt;
 use std::io;
 use std::str;
 
-use crate::PointIndex;
-
 /// Helper type for a call that could go wrong.
 pub type GokoResult<T> = Result<T, GokoError>;
 
@@ -38,7 +36,7 @@ pub enum GokoError {
     /// Unable to retrieve some data point (given by index) in a file (slice name)
     PointCloudError(PointCloudError),
     /// Most common error, the given point name isn't present in the training data
-    IndexNotInTree(PointIndex),
+    IndexNotInTree(usize),
     /// IO error when opening files
     IoError(io::Error),
     /// Parsing error when loading a CSV file

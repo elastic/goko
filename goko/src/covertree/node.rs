@@ -57,7 +57,7 @@ pub struct CoverNode<D: PointCloud> {
     coverage_count: usize,
     /// Children
     children: Option<NodeChildren>,
-    singles_indexes: SmallVec<[PointIndex; 20]>,
+    singles_indexes: SmallVec<[usize; 20]>,
     plugins: NodePluginSet,
     metic: PhantomData<D>,
 }
@@ -145,7 +145,7 @@ impl<D: PointCloud> CoverNode<D> {
     }
 
     ///
-    pub fn singletons(&self) -> &[PointIndex] {
+    pub fn singletons(&self) -> &[usize] {
         &self.singles_indexes
     }
 
@@ -160,7 +160,7 @@ impl<D: PointCloud> CoverNode<D> {
     }
 
     ///
-    pub fn center_index(&self) -> &PointIndex {
+    pub fn center_index(&self) -> &usize {
         &self.address.1
     }
 
@@ -186,14 +186,13 @@ impl<D: PointCloud> CoverNode<D> {
 
     /// Performs the `singleton_knn` and `child_knn` with a provided query heap. If you have the distance
     /// from the query point to this you can pass it to save a distance calculation.
-    pub fn knn<'a, P: Into<PointRef<'a>>, T: SingletonQueryHeap + RoutingQueryHeap>(
+    pub fn knn<'a, T: SingletonQueryHeap + RoutingQueryHeap>(
         &self,
         dist_to_center: Option<f32>,
-        point: P,
+        point: &D::PointRef<'a>,
         point_cloud: &D,
         query_heap: &mut T,
     ) -> GokoResult<()> {
-        let point: PointRef<'a> = point.into();
         self.singleton_knn(point, point_cloud, query_heap)?;
 
         let dist_to_center =
@@ -207,13 +206,12 @@ impl<D: PointCloud> CoverNode<D> {
     }
 
     /// Performs a brute force knn against just the singleton children with a provided query heap.
-    pub fn singleton_knn<'a, P: Into<PointRef<'a>>, T: SingletonQueryHeap>(
+    pub fn singleton_knn<'a, T: SingletonQueryHeap>(
         &self,
-        point: P,
+        point: &D::PointRef<'a>,
         point_cloud: &D,
         query_heap: &mut T,
     ) -> GokoResult<()> {
-        let point: PointRef<'a> = point.into();
         let distances = point_cloud.distances_to_point(point, &self.singles_indexes[..])?;
         query_heap.push_outliers(&self.singles_indexes[..], &distances[..]);
         Ok(())
@@ -221,14 +219,13 @@ impl<D: PointCloud> CoverNode<D> {
 
     /// Performs a brute force knn against the children of the node with a provided query heap. Does nothing if this is a leaf node.
     /// If you have the distance from the query point to this you can pass it to save a distance calculation.
-    pub fn child_knn<'a, P: Into<PointRef<'a>>, T: RoutingQueryHeap>(
+    pub fn child_knn<'a, T: RoutingQueryHeap>(
         &self,
         dist_to_center: Option<f32>,
-        point: P,
+        point: &D::PointRef<'a>,
         point_cloud: &D,
         query_heap: &mut T,
     ) -> GokoResult<()> {
-        let point: PointRef<'a> = point.into();
         let dist_to_center =
             dist_to_center.unwrap_or(point_cloud.distances_to_point(point, &[self.address.1])?[0]);
 
@@ -238,7 +235,7 @@ impl<D: PointCloud> CoverNode<D> {
                 &[dist_to_center],
                 None,
             );
-            let children_indexes: Vec<PointIndex> =
+            let children_indexes: Vec<usize> =
                 children.addresses.iter().map(|(_si, pi)| *pi).collect();
             let distances = point_cloud.distances_to_point(point, &children_indexes[..])?;
             query_heap.push_nodes(&children.addresses[..], &distances, Some(self.address));
@@ -247,18 +244,17 @@ impl<D: PointCloud> CoverNode<D> {
     }
 
     /// Gives the closest routing node to the query point.
-    pub fn nearest_covering_child<'a, P: Into<PointRef<'a>>>(
+    pub fn nearest_covering_child<'a>(
         &self,
         scale_base: f32,
         dist_to_center: f32,
-        point: P,
+        point: &D::PointRef<'a>,
         point_cloud: &D,
     ) -> GokoResult<Option<(f32, NodeAddress)>> {
-        let point: PointRef<'a> = point.into();
         if let Some(children) = &self.children {
-            let children_indexes: Vec<PointIndex> =
+            let children_indexes: Vec<usize> =
                 children.addresses.iter().map(|(_si, pi)| *pi).collect();
-            let distances = point_cloud.distances_to_point(point, &children_indexes[..])?;
+            let distances = point_cloud.distances_to_point(&point, &children_indexes[..])?;
             let (min_index, min_dist) = distances
                 .iter()
                 .enumerate()
@@ -286,14 +282,13 @@ impl<D: PointCloud> CoverNode<D> {
     /// Gives the child that the point would be inserted into if the
     /// point just happened to never be picked as a center. This is the first child node that covers
     /// the point.
-    pub fn first_covering_child<'a, P: Into<PointRef<'a>>>(
+    pub fn first_covering_child<'a>(
         &self,
         scale_base: f32,
         dist_to_center: f32,
-        point: P,
+        point: &D::PointRef<'a>,
         point_cloud: &D,
     ) -> GokoResult<Option<(f32, NodeAddress)>> {
-        let point: PointRef<'a> = point.into();
         if let Some(children) = &self.children {
             if dist_to_center < scale_base.powi(children.nested_scale) {
                 return Ok(Some((
@@ -301,9 +296,9 @@ impl<D: PointCloud> CoverNode<D> {
                     (children.nested_scale, self.address.1),
                 )));
             }
-            let children_indexes: Vec<PointIndex> =
+            let children_indexes: Vec<usize> =
                 children.addresses.iter().map(|(_si, pi)| *pi).collect();
-            let distances = point_cloud.distances_to_point(point, &children_indexes[..])?;
+            let distances = point_cloud.distances_to_point(&point, &children_indexes[..])?;
             for (ca, d) in children.addresses.iter().zip(distances) {
                 if d < scale_base.powi(ca.0) {
                     return Ok(Some((d, *ca)));
@@ -344,12 +339,12 @@ impl<D: PointCloud> CoverNode<D> {
     }
 
     /// Inserts a `vec` of singleton children into the node.
-    pub(crate) fn insert_singletons(&mut self, addresses: Vec<PointIndex>) {
+    pub(crate) fn insert_singletons(&mut self, addresses: Vec<usize>) {
         self.coverage_count += addresses.len();
         self.singles_indexes.extend(addresses);
     }
     /// Inserts a single singleton child into the node.
-    pub(crate) fn insert_singleton(&mut self, pi: PointIndex) {
+    pub(crate) fn insert_singleton(&mut self, pi: usize) {
         self.coverage_count += 1;
         self.singles_indexes.push(pi);
     }
@@ -368,7 +363,7 @@ impl<D: PointCloud> CoverNode<D> {
         let singles_indexes = node_proto
             .outlier_point_indexes
             .iter()
-            .map(|i| *i as PointIndex)
+            .map(|i| *i as usize)
             .collect();
         let radius = node_proto.get_radius();
         let address = (
@@ -392,7 +387,7 @@ impl<D: PointCloud> CoverNode<D> {
                 .get_children_scale_indexes()
                 .iter()
                 .zip(node_proto.get_children_point_indexes())
-                .map(|(si, pi)| (*si as i32, *pi as PointIndex))
+                .map(|(si, pi)| (*si as i32, *pi as usize))
                 .collect();
             Some(NodeChildren {
                 nested_scale,
@@ -451,6 +446,7 @@ impl<D: PointCloud> CoverNode<D> {
         proto
     }
 
+    /*
     /// Brute force verifies that the children are separated by at least the scale provided.
     /// The scale provided should be b^(s-1) where s is this node's scale index.
     pub fn check_seperation(&self, scale: f32, point_cloud: &D) -> GokoResult<bool> {
@@ -462,6 +458,7 @@ impl<D: PointCloud> CoverNode<D> {
         let adj = point_cloud.adjacency_matrix(&nodes)?;
         Ok(scale > adj.min())
     }
+    */
 }
 
 #[cfg(test)]
@@ -516,7 +513,7 @@ mod tests {
         let mut heap = KnnQueryHeap::new(5, 2.0);
         let point = [0.494f32];
         test_node
-            .knn(None, &point, &point_cloud, &mut heap)
+            .knn(None, &&point[..], &point_cloud, &mut heap)
             .unwrap();
         println!("{:?}", heap);
         println!("There shoud be 4 node addresses on the heap here");
@@ -542,7 +539,7 @@ mod tests {
         let mut heap = KnnQueryHeap::new(5, 2.0);
         let point = [0.494f32];
         test_node
-            .knn(None, &point, &point_cloud, &mut heap)
+            .knn(None, &&point[..], &point_cloud, &mut heap)
             .unwrap();
         println!("{:?}", heap);
         println!("There shoud be 4 node addresses on the heap here");
@@ -568,7 +565,7 @@ mod tests {
         let mut heap = KnnQueryHeap::new(5, 2.0);
         let point = [0.494f32];
         test_node
-            .knn(None, &point, &point_cloud, &mut heap)
+            .knn(None, &point.as_ref(), &point_cloud, &mut heap)
             .unwrap();
         println!("{:?}", heap);
         println!("There shoudn't be any node addresses on the heap here");
@@ -584,15 +581,23 @@ mod tests {
         assert!(results[1].1 == 3);
     }
 
-    fn brute_test_knn_node<D: PointCloud>(node: &CoverNode<D>, point_cloud: &D) -> bool {
+    fn brute_test_knn_node(
+        node: &CoverNode<DefaultLabeledCloud<L2>>,
+        point_cloud: &DefaultLabeledCloud<L2>,
+    ) -> bool {
         let zeros: Vec<f32> = vec![0.0; 784];
         let mut heap = KnnQueryHeap::new(10000, 1.3);
         let dist_to_center = point_cloud
-            .distances_to_point(&zeros, &[node.address.1])
+            .distances_to_point(&zeros.as_ref(), &[node.address.1])
             .unwrap()[0];
 
-        node.knn(Some(dist_to_center), &zeros, &point_cloud, &mut heap)
-            .unwrap();
+        node.knn(
+            Some(dist_to_center),
+            &zeros.as_ref(),
+            &point_cloud,
+            &mut heap,
+        )
+        .unwrap();
 
         // Complete KNN
         let mut all_children = Vec::from(node.singletons());
@@ -601,15 +606,15 @@ mod tests {
         }
         all_children.push(node.address.1);
         let brute_knn = point_cloud
-            .distances_to_point(&zeros, &all_children)
+            .distances_to_point(&zeros.as_ref(), &all_children)
             .unwrap();
-        let mut brute_knn: Vec<(f32, PointIndex)> = brute_knn
+        let mut brute_knn: Vec<(f32, usize)> = brute_knn
             .iter()
             .zip(all_children)
             .map(|(d, i)| (*d, i))
             .collect();
         brute_knn.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
-        let brute_knn: Vec<PointIndex> = brute_knn.iter().map(|(_d, pi)| *pi).collect();
+        let brute_knn: Vec<usize> = brute_knn.iter().map(|(_d, pi)| *pi).collect();
 
         // Children KNN
         let children = match &node.children() {
@@ -620,10 +625,10 @@ mod tests {
             }
             None => vec![],
         };
-        let children_indexes: Vec<PointIndex> = children.iter().map(|(_si, pi)| *pi).collect();
+        let children_indexes: Vec<usize> = children.iter().map(|(_si, pi)| *pi).collect();
 
         let children_dist = point_cloud
-            .distances_to_point(&zeros, &children_indexes)
+            .distances_to_point(&zeros.as_ref(), &children_indexes)
             .unwrap();
 
         let mut children_range_calc: Vec<QueryAddress> = children_dist
@@ -642,7 +647,7 @@ mod tests {
             children_range_calc
                 .iter()
                 .min_by(|a, b| a.dist_to_center.partial_cmp(&b.dist_to_center).unwrap()),
-            node.nearest_covering_child(1.3, dist_to_center, &zeros, &point_cloud)
+            node.nearest_covering_child(1.3, dist_to_center, &zeros.as_ref(), &point_cloud)
                 .unwrap(),
         ) {
             (Some(query), Some((q_d, q_a))) => {
@@ -667,7 +672,7 @@ mod tests {
             .iter()
             .map(|(_d, a)| *a)
             .collect();
-        let heap_knn: Vec<PointIndex> = heap.unpack().iter().map(|(_d, pi)| *pi).collect();
+        let heap_knn: Vec<usize> = heap.unpack().iter().map(|(_d, pi)| *pi).collect();
 
         let mut correct = true;
         if correct {

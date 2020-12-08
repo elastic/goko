@@ -23,7 +23,6 @@ impl<T: Summary> Clone for NodeLabelSummary<T> {
 
 impl<D: PointCloud + LabeledCloud> NodePlugin<D> for NodeLabelSummary<D::LabelSummary> {}
 
-
 /// Plug in that allows for summaries of labels to be attached to
 #[derive(Debug, Clone, Default)]
 pub struct LabelSummaryPlugin {}
@@ -82,7 +81,6 @@ impl<T: Summary> Clone for NodeMetaSummary<T> {
 }
 
 impl<D: PointCloud + MetaCloud> NodePlugin<D> for NodeMetaSummary<D::MetaSummary> {}
-
 
 /// Plug in that allows for summaries of Metas to be attached to
 #[derive(Debug, Clone, Default)]
