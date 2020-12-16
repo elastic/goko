@@ -1,7 +1,5 @@
 //! Metrics. 
 
-
-// Todo: Make this a macro
 mod l2_misc;
 pub use l2_misc::*;
 mod l1_misc;
