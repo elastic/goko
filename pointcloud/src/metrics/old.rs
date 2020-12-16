@@ -26,6 +26,7 @@ use std::fmt::Debug;
 
 
 
+
 /// The trait that enables a metric
 pub trait Metric: 'static + Send + Sync + Debug + Clone {
     /// Dense calculation

@@ -16,6 +16,43 @@ impl<'a> PointRef for &'a [f32] {
     }
 }
 
+
+
+macro_rules! make_misc_point {
+    ($base:ident, $iter_name:ident) => {
+         /// Helper iterator for converting one type into another. Cleans up a really messy map.
+        pub struct $iter_name<'a> {
+            iter: std::slice::Iter<'a, $base>,
+        }
+
+        impl<'a> Iterator for $iter_name<'a> {
+            type Item = f32;
+            fn next(&mut self) -> Option<Self::Item> {
+                self.iter.next().map(|u| *u as f32)
+            }
+        }
+        impl<'a> PointRef for &'a [$base] {
+            type DenseIter = $iter_name<'a>;
+            fn dense(&self) -> Vec<f32> {
+                self.iter().map(|i| *i as f32).collect()
+            }
+            fn dense_iter(&self) -> Self::DenseIter {
+                $iter_name {
+                    iter: self.iter(),
+                }
+            }
+        }
+    }
+}
+
+make_misc_point!(i8,Converteri8);
+make_misc_point!(u8,Converteru8);
+make_misc_point!(i16,Converteri16);
+make_misc_point!(u16,Converteru16);
+make_misc_point!(i32,Converteri32);
+make_misc_point!(u32,Converteru32);
+
+
 #[derive(Debug)]
 /// Enables iterating thru a sparse vector, like a dense vector without allocating anything
 pub struct SparseDenseIter<'a, T: std::fmt::Debug, S: std::fmt::Debug> {
@@ -27,10 +64,10 @@ pub struct SparseDenseIter<'a, T: std::fmt::Debug, S: std::fmt::Debug> {
 
 impl<'a, T, S> Iterator for SparseDenseIter<'a, T, S>
 where
-    T: std::fmt::Debug + Default + Copy,
+    T: std::fmt::Debug + Copy + Into<f32>,
     S: Ord + TryInto<usize> + std::fmt::Debug + Copy,
 {
-    type Item = T;
+    type Item = f32;
     fn next(&mut self) -> Option<Self::Item> {
         let dim = self.raw.dim();
         if self.index < dim && self.sparse_index < self.raw.len {
@@ -46,10 +83,10 @@ where
                 self.sparse_index += 1;
                 self.index += 1;
 
-                Some(val)
+                Some(val.into())
             } else if self.index < dim {
                 self.index += 1;
-                Some(T::default())
+                Some(0.0)
             } else {
                 None
             }
@@ -145,11 +182,12 @@ impl<'a, T, S> Deref for SparseRef<'a, T, S> {
     }
 }
 
-impl<'a, S> PointRef for SparseRef<'a, f32, S>
+impl<'a, T, S> PointRef for SparseRef<'a, T, S>
 where
+    T: std::fmt::Debug + Copy + Into<f32> + Send + Sync,
     S: TryInto<usize> + Ord + TryFrom<usize> + std::fmt::Debug + Copy + Send + Sync + 'static,
 {
-    type DenseIter = SparseDenseIter<'a, f32, S>;
+    type DenseIter = SparseDenseIter<'a, T, S>;
 
     fn dense(&self) -> Vec<f32> {
         let dim = self.dim();
@@ -159,7 +197,7 @@ where
             match (*i).try_into() {
                 Ok(i) => {
                     let _index: usize = i;
-                    v[i] = *xi;
+                    v[i] = (*xi).into();
                 }
                 Err(_) => panic!("Could not covert a sparse index into a usize"),
             }
@@ -167,7 +205,7 @@ where
         v
     }
 
-    fn dense_iter(&self) -> SparseDenseIter<'a, f32, S> {
+    fn dense_iter(&self) -> SparseDenseIter<'a, T, S> {
         let raw = RawSparse {
             dim: self.raw.dim,
             values_ptr: self.raw.values_ptr,
