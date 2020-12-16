@@ -1,3 +1,5 @@
+//! f32 implementations of the L1 metric. 
+
 use crate::base_traits::Metric;
 use std::ops::Deref;
 use crate::points::*;

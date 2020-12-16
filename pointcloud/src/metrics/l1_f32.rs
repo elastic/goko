@@ -1,3 +1,5 @@
+//! f32 implementations of the L1 metric. 
+
 use crate::base_traits::Metric;
 use std::ops::Deref;
 use crate::points::*;
@@ -28,7 +30,8 @@ impl<'a> Metric<RawSparse<f32, u8>> for L1 {
     }
 }
 
-fn l1_dense_f32(mut x: &[f32], mut y: &[f32]) -> f32 {
+/// 
+pub fn l1_dense_f32(mut x: &[f32], mut y: &[f32]) -> f32 {
     let mut d_acc_16 = f32x16::splat(0.0);
     while y.len() > 16 {
         let y_simd = f32x16::from_slice_unaligned(y);
@@ -55,8 +58,9 @@ fn l1_dense_f32(mut x: &[f32], mut y: &[f32]) -> f32 {
     leftover + d_acc_8.sum() + d_acc_16.sum()
 }
 
+///
 #[inline]
-fn l1_norm_f32(mut x: &[f32]) -> f32 {
+pub fn l1_norm_f32(mut x: &[f32]) -> f32 {
     let mut d_acc_16 = f32x16::splat(0.0);
     while x.len() > 16 {
         let x_simd = f32x16::from_slice_unaligned(x);
@@ -73,7 +77,8 @@ fn l1_norm_f32(mut x: &[f32]) -> f32 {
     leftover + d_acc_8.sum() + d_acc_16.sum()
 }
 
-fn l1_sparse_f32_f32<S>(x_ind: &[S], x_val: &[f32], y_ind: &[S], y_val: &[f32]) -> f32
+///
+pub fn l1_sparse_f32_f32<S>(x_ind: &[S], x_val: &[f32], y_ind: &[S], y_val: &[f32]) -> f32
 where
     S: Ord,
 {

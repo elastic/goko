@@ -1,3 +1,5 @@
+//! Various implementations of the L2 metric for types that can be easily converted to f32. 
+
 use crate::base_traits::Metric;
 use std::ops::Deref;
 use crate::points::*;
