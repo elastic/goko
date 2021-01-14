@@ -142,9 +142,9 @@ macro_rules! make_l2_distance {
     }
 }
 
-make_l2_distance!(i8,i8x16,i8x8,sq_l2_sparse_i8_f32,sq_l2_dist_i8,sq_l2_norm_i8);
-make_l2_distance!(u8,u8x16,u8x8,sq_l2_sparse_u8_f32,sq_l2_dist_u8,sq_l2_norm_u8);
-make_l2_distance!(i16,i16x16,i16x8,sq_l2_sparse_i16_f32,sq_l2_dist_i16,sq_l2_norm_i16);
-make_l2_distance!(u16,u16x16,u16x8,sq_l2_sparse_u16_f32,sq_l2_dist_u16,sq_l2_norm_u16);
-make_l2_distance!(i32,i32x16,i32x8,sq_l2_sparse_i32_f32,sq_l2_dist_i32,sq_l2_norm_i32);
-make_l2_distance!(u32,u32x16,u32x8,sq_l2_sparse_u32_f32,sq_l2_dist_u32,sq_l2_norm_u32);
+make_l2_distance!(i8,i8x16,i8x8,sq_l2_sparse_i8_f32,sq_l2_dense_i8,sq_l2_norm_i8);
+make_l2_distance!(u8,u8x16,u8x8,sq_l2_sparse_u8_f32,sq_l2_dense_u8,sq_l2_norm_u8);
+make_l2_distance!(i16,i16x16,i16x8,sq_l2_sparse_i16_f32,sq_l2_dense_i16,sq_l2_norm_i16);
+make_l2_distance!(u16,u16x16,u16x8,sq_l2_sparse_u16_f32,sq_l2_dense_u16,sq_l2_norm_u16);
+make_l2_distance!(i32,i32x16,i32x8,sq_l2_sparse_i32_f32,sq_l2_dense_i32,sq_l2_norm_i32);
+make_l2_distance!(u32,u32x16,u32x8,sq_l2_sparse_u32_f32,sq_l2_dense_u32,sq_l2_norm_u32);
