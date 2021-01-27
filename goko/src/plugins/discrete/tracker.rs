@@ -64,6 +64,7 @@ impl<D: PointCloud> BayesCategoricalTracker<D> {
         }
         self.sequence_queue
             .extend(other.sequence_queue.iter().cloned());
+        self.sequence_count += other.sequence_count;
         self
     }
 
@@ -210,7 +211,6 @@ impl<D: PointCloud> BayesCategoricalTracker<D> {
 
     /// The KL Divergence between the prior and posterior of the whole tree.
     pub fn kl_div(&self) -> f64 {
-
         let prior_total = (self.reader.parameters().point_cloud.len() + self.reader.node_count()) as f64;
         let posterior_total = prior_total + self.sequence_len() as f64;
         let mut prior_total_lng = 0.0;
@@ -329,7 +329,28 @@ pub(crate) mod tests {
                 }
             }
         }
+    }
 
-        assert!(false);
+
+    #[test]
+    fn dirichlet_tree_append_test() {
+        let mut tree = build_basic_tree();
+        tree.add_plugin::<GokoDirichlet>(GokoDirichlet::default());
+        let mut tracker = BayesCategoricalTracker::new(1.0,1.0,0, tree.reader());
+        assert_approx_eq!(tracker.kl_div(),0.0);
+        tracker.add_path(vec![(0.0,(-1,4)),(0.0,(-2,2)),(0.0,(-5,2)),(0.0,(-6,2))]);
+        println!("KL Div: {}",tracker.kl_div());
+        tracker.add_path(vec![(0.0,(-1,4))]);
+        println!("KL Div: {}",tracker.kl_div());
+
+
+        let mut tracker1 = BayesCategoricalTracker::new(1.0,1.0,0, tree.reader());
+        tracker1.add_path(vec![(0.0,(-1,4)),(0.0,(-2,2)),(0.0,(-5,2)),(0.0,(-6,2))]);
+        let mut tracker2 = BayesCategoricalTracker::new(1.0,1.0,0, tree.reader());
+        tracker2.add_path(vec![(0.0,(-1,4))]);
+        tracker1 = tracker1.append(&tracker2);
+
+        println!("Merge KL Div: {}",tracker1.kl_div());
+        assert_approx_eq!(tracker.kl_div(),tracker1.kl_div());
     }
 }

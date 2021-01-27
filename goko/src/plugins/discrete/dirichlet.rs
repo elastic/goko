@@ -298,7 +298,7 @@ impl<D: PointCloud> GokoPlugin<D> for GokoDirichlet {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::covertree::tests::build_basic_tree;
+    //use crate::covertree::tests::build_basic_tree;
 
     #[test]
     fn dirichlet_sanity_test() {
