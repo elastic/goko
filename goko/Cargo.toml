@@ -1,6 +1,6 @@
 [package]
 name = "goko"
-version = "0.5.1"
+version = "0.5.2"
 edition = "2018"
 
 description = "A lock-free, eventually consistent, concurrent covertree."

@@ -6,6 +6,7 @@ use hashbrown::HashMap;
 
 use super::categorical::*;
 use super::dirichlet::*;
+use statrs::function::gamma::{digamma, ln_gamma};
 
 use serde::{Deserialize, Serialize};
 
@@ -207,6 +208,36 @@ impl<D: PointCloud> BayesCategoricalTracker<D> {
         }
     }
 
+    /// The KL Divergence between the prior and posterior of the whole tree.
+    pub fn kl_div(&self) -> f64 {
+
+        let prior_total = (self.reader.parameters().point_cloud.len() + self.reader.node_count()) as f64;
+        let posterior_total = prior_total + self.sequence_len() as f64;
+        let mut prior_total_lng = 0.0;
+        let mut posterior_total_lng = 0.0;
+        let mut digamma_portion = 0.0;
+        for (addr,evidence) in self.running_evidence.iter() {
+            if evidence.singleton_count > 0.0 {
+                self.reader.get_node_and(*addr, |n| {
+                    let prior = n.singletons_len() as f64 + 1.0;
+                    prior_total_lng += ln_gamma(prior);
+                    posterior_total_lng += ln_gamma(evidence.singleton_count + prior);
+                    digamma_portion += evidence.singleton_count * (digamma(evidence.singleton_count + prior) - digamma(posterior_total));
+                });
+            }
+        } 
+        
+        let kld = ln_gamma(posterior_total) - posterior_total_lng - ln_gamma(prior_total)
+            + prior_total_lng
+            + digamma_portion;
+        // for floating point errors, sometimes this is -0.000000001
+        if kld < 0.0 {
+            0.0
+        } else {
+            kld
+        }
+    }
+
     /// A set of stats for the sequence that are helpful.
     pub fn fractal_dim_stats(&self) -> FractalDimStats {
         let mut layer_totals: Vec<u64> = vec![0; self.reader.len()];
@@ -268,4 +299,37 @@ pub struct FractalDimStats {
     pub layer_totals: Vec<u64>,
     /// The number of nodes per layer this sequence touches
     pub weighted_layer_totals: Vec<f32>,
+}
+
+
+#[cfg(test)]
+pub(crate) mod tests {
+    use super::*;
+    use crate::covertree::tests::build_basic_tree;
+
+    #[test]
+    fn dirichlet_tree_probs_test() {
+        let mut tree = build_basic_tree();
+        tree.add_plugin::<GokoDirichlet>(GokoDirichlet::default());
+        let mut tracker = BayesCategoricalTracker::new(1.0,1.0,0, tree.reader());
+        assert_approx_eq!(tracker.kl_div(),0.0);
+        tracker.add_path(vec![(0.0,(-1,4)),(0.0,(-2,2)),(0.0,(-5,2)),(0.0,(-6,2))]);
+        println!("KL Div: {}",tracker.kl_div());
+        tracker.add_path(vec![(0.0,(-1,4))]);
+        println!("KL Div: {}",tracker.kl_div());
+        let mut unvisited_nodes = vec![tree.root_address];
+        let reader = tree.reader();
+        println!("Address: {:?}, ln_prob: {}",tree.root_address,0.0);
+        while let Some(addr) = unvisited_nodes.pop() {
+            let ln_probs = reader.get_node_plugin_and::<Dirichlet,_,_>(addr, |p| p.ln_prob_vector()).unwrap();
+            if let Some((child_probs,_singleton_prob)) = ln_probs {
+                for (child_addr,child_prob) in child_probs {
+                    println!("Address: {:?}, ln_prob: {}, parent: {:?}",child_addr,child_prob,addr);
+                    unvisited_nodes.push(child_addr);
+                }
+            }
+        }
+
+        assert!(false);
+    }
 }

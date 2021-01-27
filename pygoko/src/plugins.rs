@@ -53,6 +53,11 @@ impl PyBayesCategoricalTracker {
     pub fn all_kl(&self) -> Vec<(f64, (i32, usize))> {
         self.hkl.all_node_kl()
     }
+
+    pub fn kl_div(&self) -> f64 {
+        self.hkl.kl_div()
+    }
+
     pub fn stats(&self) -> PyResult<PyObject> {
         let stats = self.hkl.kl_div_stats();
         let gil = pyo3::Python::acquire_gil();

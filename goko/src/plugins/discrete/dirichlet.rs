@@ -67,6 +67,21 @@ impl Dirichlet {
         }
     }
 
+    /// Gives the probability vector for this
+    pub fn ln_prob_vector(&self) -> Option<(Vec<(NodeAddress, f64)>, f64)> {
+        let total_ln = self.total().ln();
+        if total_ln > 1.0 {
+            let v: Vec<(NodeAddress, f64)> = self
+                .child_counts
+                .iter()
+                .map(|(na, f)| (*na, f.ln() - total_ln))
+                .collect();
+            Some((v, self.singleton_count.ln() - total_ln))
+        } else {
+            None
+        }
+    }
+
     fn add_child_pop(&mut self, loc: Option<NodeAddress>, count: f64) {
         match loc {
             Some(ca) => match self.child_counts.binary_search_by_key(&ca, |&(a, _)| a) {
@@ -220,9 +235,14 @@ impl Dirichlet {
 
 impl<D: PointCloud> NodePlugin<D> for Dirichlet {}
 
-/// Zero sized type that can be passed around. Equivilant to `()`
-#[derive(Debug, Clone)]
-pub struct GokoDirichlet {}
+/// Stores the log probabilities for each node in the tree. 
+/// 
+/// This is the probability that when you sample from the tree you end up at a particular node.
+#[derive(Debug, Clone, Default)]
+pub struct GokoDirichlet {
+    // probability that you'd pass thru this node.
+    //pub cond_ln_probs: HashMap<NodeAddress,f64>,
+}
 
 /// Parent trait that make this all work. Ideally this should be included in the `TreePlugin` but rust doesn't like it.
 impl<D: PointCloud> GokoPlugin<D> for GokoDirichlet {
@@ -253,12 +273,32 @@ impl<D: PointCloud> GokoPlugin<D> for GokoDirichlet {
         }
         Some(bucket)
     }
+
+    /*
+    fn tree_component(parameters: &mut Self, my_tree: &mut CoverTreeWriter<D>) {
+        let mut unvisited_nodes = vec![my_tree.root_address];
+        let reader = my_tree.reader();
+        parameters.cond_ln_probs.insert(my_tree.root_address, 0.0);
+        while let Some(addr) = unvisited_nodes.pop() {
+            let pass_thru_prob = parameters.cond_ln_probs.get(&addr).unwrap().clone();
+            let ln_probs = reader.get_node_plugin_and::<Self::NodeComponent,_,_>(addr, |p| p.ln_prob_vector()).unwrap();
+            if let Some((child_probs,_singleton_prob)) = ln_probs {
+                for (child_addr,child_prob) in child_probs {
+                    parameters.cond_ln_probs.insert(child_addr, pass_thru_prob + child_prob);
+                    unvisited_nodes.push(child_addr);
+                }
+            }
+        }
+    }
+    */
 }
+
+
 
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    //use crate::tree::tests::build_basic_tree;
+    use crate::covertree::tests::build_basic_tree;
 
     #[test]
     fn dirichlet_sanity_test() {
@@ -378,4 +418,17 @@ pub(crate) mod tests {
             bucket1.kl_divergence(&bucket2).unwrap() > bucket1.kl_divergence(&bucket3).unwrap()
         );
     }
+
+    /*
+    #[test]
+    fn dirichlet_tree_probs_test() {
+        let mut tree = build_basic_tree();
+        tree.add_plugin::<GokoDirichlet>(GokoDirichlet::default());
+        assert!(tree.reader().get_plugin_and::<GokoDirichlet,_,_>(|p| {
+            // Checked these probs by hand
+            assert_approx_eq!(p.cond_ln_probs.get(&( -2,2)).unwrap(),-0.5108256237659905);
+            true
+        }).unwrap());
+    }
+    */
 }
