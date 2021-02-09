@@ -4,6 +4,7 @@
 use crate::*;
 use ndarray::ArrayView2;
 use rayon::iter::repeatn;
+use std::ops::Deref;
 
 /// Inteface for bulk queries. Handles cloning the readers for you
 pub struct BulkInterface<D: PointCloud> {
@@ -38,9 +39,9 @@ impl<D: PointCloud> BulkInterface<D> {
     }
 
     /// Applies the passed in fn to the passed in indexes and collects the result in a vector. Core function for this struct.
-    pub fn point_map_with_reader<'a, F, T>(&self, points: &[D::PointRef<'a>], f: F) -> Vec<T>
+    pub fn point_map_with_reader<P: Deref<Target = D::Point> + Send + Sync, F, T>(&self, points: &[P], f: F) -> Vec<T>
     where
-        F: Fn(&CoverTreeReader<D>, &D::PointRef<'a>) -> T + Send + Sync,
+        F: Fn(&CoverTreeReader<D>, &P) -> T + Send + Sync,
         T: Send + Sync,
     {
         let point_iter = points.par_chunks(100);
@@ -87,12 +88,12 @@ impl<D: PointCloud> BulkInterface<D> {
     }
 
     /// Bulk routing knn
-    pub fn routing_knn<'a>(
+    pub fn routing_knn<P: Deref<Target = D::Point> + Send + Sync>(
         &self,
-        points: &[D::PointRef<'a>],
+        points: &[P],
         k: usize,
     ) -> Vec<GokoResult<Vec<(f32, usize)>>> {
-        self.point_map_with_reader(points, |reader, p| reader.routing_knn(&p, k))
+        self.point_map_with_reader(points, |reader, p| reader.routing_knn(p, k))
     }
 }
 

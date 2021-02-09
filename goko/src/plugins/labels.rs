@@ -21,13 +21,13 @@ impl<T: Summary> Clone for NodeLabelSummary<T> {
     }
 }
 
-impl<D: PointCloud + LabeledCloud> NodePlugin<D> for NodeLabelSummary<D::LabelSummary> {}
+impl<D: PointCloud> NodePlugin<D> for NodeLabelSummary<D::LabelSummary> {}
 
 /// Plug in that allows for summaries of labels to be attached to
 #[derive(Debug, Clone, Default)]
 pub struct LabelSummaryPlugin {}
 
-impl<D: PointCloud + LabeledCloud> GokoPlugin<D> for LabelSummaryPlugin {
+impl<D: PointCloud> GokoPlugin<D> for LabelSummaryPlugin {
     type NodeComponent = NodeLabelSummary<D::LabelSummary>;
     fn node_component(
         _parameters: &Self,
@@ -80,13 +80,13 @@ impl<T: Summary> Clone for NodeMetaSummary<T> {
     }
 }
 
-impl<D: PointCloud + MetaCloud> NodePlugin<D> for NodeMetaSummary<D::MetaSummary> {}
+impl<D: PointCloud> NodePlugin<D> for NodeMetaSummary<D::MetaSummary> {}
 
 /// Plug in that allows for summaries of Metas to be attached to
 #[derive(Debug, Clone, Default)]
 pub struct MetaSummaryPlugin {}
 
-impl<D: PointCloud + MetaCloud> GokoPlugin<D> for MetaSummaryPlugin {
+impl<D: PointCloud> GokoPlugin<D> for MetaSummaryPlugin {
     type NodeComponent = NodeMetaSummary<D::MetaSummary>;
     fn node_component(
         _parameters: &Self,

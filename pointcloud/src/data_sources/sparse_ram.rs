@@ -46,6 +46,41 @@ where
     type PointRef<'a> = SparseRef<'a, f32, u32>;
     type Point = RawSparse<f32, u32>;
     type Metric = L2;
+    type Name = usize;
+    type LabelSummary = ();
+    type Label = ();
+    type MetaSummary = ();
+    type Metadata = ();
+
+    fn metadata(&self, _pn: usize) -> PointCloudResult<Option<&Self::Metadata>> {
+        Ok(None)
+    }
+    fn metasummary(&self, pns: &[usize]) -> PointCloudResult<SummaryCounter<Self::MetaSummary>> {
+        Ok(SummaryCounter {
+            summary: (),
+            nones: pns.len(),
+            errors: 0,
+        })
+    }
+    fn label(&self, _pn: usize) -> PointCloudResult<Option<&Self::Label>> {
+        Ok(None)
+    }
+    fn label_summary(&self, pns: &[usize]) -> PointCloudResult<SummaryCounter<Self::LabelSummary>> {
+        Ok(SummaryCounter {
+            summary: (),
+            nones: pns.len(),
+            errors: 0,
+        })
+    }
+    fn name(&self, pi: usize) -> PointCloudResult<Self::Name> {
+        Ok(pi)
+    }
+    fn index(&self, pn: &Self::Name) -> PointCloudResult<usize> {
+        Ok(*pn)
+    }
+    fn names(&self) -> Vec<Self::Name> {
+        self.reference_indexes()
+    }
 
     /// The number of samples this cloud covers
     fn len(&self) -> usize {

@@ -1,7 +1,7 @@
-use std::path::Path;
 use goko::utils::*;
 use goko::CoverTreeWriter;
 use pointcloud::*;
+use std::path::Path;
 extern crate serve_goko;
 use serve_goko::*;
 
@@ -22,20 +22,12 @@ fn build_tree() -> CoverTreeWriter<DefaultLabeledCloud<L2>> {
 pub async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     pretty_env_logger::init();
     let ct_writer = build_tree();
-    
-    let goko_server = GokoLayer {
-        writer: ct_writer,
-    };
 
-    let service_builder = ServiceBuilder::new()
-        .buffer(100)
-        .concurrency_limit(10)
-        .service(tree_router)
-        .layer(goko_server)
+    let goko_server = MakeGokoService::new(MsgPackDense::new(), ct_writer);
 
     let addr = ([127, 0, 0, 1], 3030).into();
 
-    let server = Server::bind(&addr).serve(service_builder);
+    let server = Server::bind(&addr).serve(goko_server);
 
     println!("Listening on http://{}", addr);
 

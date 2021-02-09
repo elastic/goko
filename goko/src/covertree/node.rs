@@ -28,6 +28,7 @@ use crate::plugins::{
 };
 use crate::tree_file_format::*;
 use crate::NodeAddress;
+use std::ops::Deref;
 
 use pointcloud::*;
 use smallvec::SmallVec;
@@ -77,24 +78,6 @@ impl<D: PointCloud> Clone for CoverNode<D> {
     }
 }
 
-impl<D: PointCloud + LabeledCloud> CoverNode<D> {
-    /// If the node has a summary attached, this returns the summary.
-    pub fn label_summary(&self) -> Option<Arc<SummaryCounter<D::LabelSummary>>> {
-        self.plugins
-            .get::<NodeLabelSummary<D::LabelSummary>>()
-            .map(|c| Arc::clone(&c.summary))
-    }
-}
-
-impl<D: PointCloud + MetaCloud> CoverNode<D> {
-    /// If the node has a summary attached, this returns the summary.
-    pub fn metasummary(&self) -> Option<Arc<SummaryCounter<D::MetaSummary>>> {
-        self.plugins
-            .get::<NodeMetaSummary<D::MetaSummary>>()
-            .map(|c| Arc::clone(&c.summary))
-    }
-}
-
 impl<D: PointCloud> CoverNode<D> {
     /// Creates a new blank node
     pub fn new(parent_address: Option<NodeAddress>, address: NodeAddress) -> CoverNode<D> {
@@ -108,6 +91,20 @@ impl<D: PointCloud> CoverNode<D> {
             plugins: NodePluginSet::new(),
             metic: PhantomData,
         }
+    }
+
+    /// If the node has a summary attached, this returns the summary.
+    pub fn label_summary(&self) -> Option<Arc<SummaryCounter<D::LabelSummary>>> {
+        self.plugins
+            .get::<NodeLabelSummary<D::LabelSummary>>()
+            .map(|c| Arc::clone(&c.summary))
+    }
+
+    /// If the node has a summary attached, this returns the summary.
+    pub fn metasummary(&self) -> Option<Arc<SummaryCounter<D::MetaSummary>>> {
+        self.plugins
+            .get::<NodeMetaSummary<D::MetaSummary>>()
+            .map(|c| Arc::clone(&c.summary))
     }
 
     /// Verifies that this is a leaf by checking there's no nested child
@@ -186,10 +183,10 @@ impl<D: PointCloud> CoverNode<D> {
 
     /// Performs the `singleton_knn` and `child_knn` with a provided query heap. If you have the distance
     /// from the query point to this you can pass it to save a distance calculation.
-    pub fn knn<'a, T: SingletonQueryHeap + RoutingQueryHeap>(
+    pub fn knn<P: Deref<Target = D::Point> + Send + Sync, T: SingletonQueryHeap + RoutingQueryHeap>(
         &self,
         dist_to_center: Option<f32>,
-        point: &D::PointRef<'a>,
+        point: &P,
         point_cloud: &D,
         query_heap: &mut T,
     ) -> GokoResult<()> {
@@ -206,9 +203,9 @@ impl<D: PointCloud> CoverNode<D> {
     }
 
     /// Performs a brute force knn against just the singleton children with a provided query heap.
-    pub fn singleton_knn<'a, T: SingletonQueryHeap>(
+    pub fn singleton_knn<P: Deref<Target = D::Point> + Send + Sync, T: SingletonQueryHeap>(
         &self,
-        point: &D::PointRef<'a>,
+        point: &P,
         point_cloud: &D,
         query_heap: &mut T,
     ) -> GokoResult<()> {
@@ -219,10 +216,10 @@ impl<D: PointCloud> CoverNode<D> {
 
     /// Performs a brute force knn against the children of the node with a provided query heap. Does nothing if this is a leaf node.
     /// If you have the distance from the query point to this you can pass it to save a distance calculation.
-    pub fn child_knn<'a, T: RoutingQueryHeap>(
+    pub fn child_knn<P: Deref<Target = D::Point> + Send + Sync, T: RoutingQueryHeap>(
         &self,
         dist_to_center: Option<f32>,
-        point: &D::PointRef<'a>,
+        point: &P,
         point_cloud: &D,
         query_heap: &mut T,
     ) -> GokoResult<()> {
@@ -244,17 +241,17 @@ impl<D: PointCloud> CoverNode<D> {
     }
 
     /// Gives the closest routing node to the query point.
-    pub fn nearest_covering_child<'a>(
+    pub fn nearest_covering_child<P: Deref<Target = D::Point> + Send + Sync>(
         &self,
         scale_base: f32,
         dist_to_center: f32,
-        point: &D::PointRef<'a>,
+        point: &P,
         point_cloud: &D,
     ) -> GokoResult<Option<(f32, NodeAddress)>> {
         if let Some(children) = &self.children {
             let children_indexes: Vec<usize> =
                 children.addresses.iter().map(|(_si, pi)| *pi).collect();
-            let distances = point_cloud.distances_to_point(&point, &children_indexes[..])?;
+            let distances = point_cloud.distances_to_point(point, &children_indexes[..])?;
             let (min_index, min_dist) = distances
                 .iter()
                 .enumerate()
@@ -282,11 +279,11 @@ impl<D: PointCloud> CoverNode<D> {
     /// Gives the child that the point would be inserted into if the
     /// point just happened to never be picked as a center. This is the first child node that covers
     /// the point.
-    pub fn first_covering_child<'a>(
+    pub fn first_covering_child<P: Deref<Target = D::Point> + Send + Sync,>(
         &self,
         scale_base: f32,
         dist_to_center: f32,
-        point: &D::PointRef<'a>,
+        point: &P,
         point_cloud: &D,
     ) -> GokoResult<Option<(f32, NodeAddress)>> {
         if let Some(children) = &self.children {
@@ -298,7 +295,7 @@ impl<D: PointCloud> CoverNode<D> {
             }
             let children_indexes: Vec<usize> =
                 children.addresses.iter().map(|(_si, pi)| *pi).collect();
-            let distances = point_cloud.distances_to_point(&point, &children_indexes[..])?;
+            let distances = point_cloud.distances_to_point(point, &children_indexes[..])?;
             for (ca, d) in children.addresses.iter().zip(distances) {
                 if d < scale_base.powi(ca.0) {
                     return Ok(Some((d, *ca)));

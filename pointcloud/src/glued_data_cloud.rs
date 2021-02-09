@@ -80,6 +80,12 @@ impl<D: PointCloud> PointCloud for HashGluedCloud<D> {
     type Metric = D::Metric;
     type Point = D::Point;
     type PointRef<'a> = D::PointRef<'a>;
+    type Label = D::Label;
+    type LabelSummary = D::LabelSummary;
+    type Name = D::Name;
+    type Metadata = D::Metadata;
+    type MetaSummary = D::MetaSummary;
+
 
     /// Returns a slice corresponding to the point in question. Used for rarely referenced points,
     /// like outliers or leaves.
@@ -111,12 +117,6 @@ impl<D: PointCloud> PointCloud for HashGluedCloud<D> {
     fn dim(&self) -> usize {
         self.data_sources[0].dim()
     }
-}
-
-impl<D: LabeledCloud> LabeledCloud for HashGluedCloud<D> {
-    type Label = D::Label;
-    type LabelSummary = D::LabelSummary;
-
     fn label(&self, pn: usize) -> PointCloudResult<Option<&Self::Label>> {
         let (i, j) = self.get_address(pn)?;
         self.data_sources[i].label(j)
@@ -129,16 +129,12 @@ impl<D: LabeledCloud> LabeledCloud for HashGluedCloud<D> {
         }
         Ok(summary)
     }
-}
 
-impl<D: PointCloud + NamedCloud> NamedCloud for HashGluedCloud<D> {
-    type Name = D::Name;
-
-    fn name(&self, pi: usize) -> PointCloudResult<&Self::Name> {
+    fn name(&self, pi: usize) -> PointCloudResult<Self::Name> {
         let (i, j) = self.get_address(pi)?;
         self.data_sources[i].name(j)
     }
-    fn index(&self, pn: &Self::Name) -> PointCloudResult<&usize> {
+    fn index(&self, pn: &Self::Name) -> PointCloudResult<usize> {
         for data_source in &self.data_sources {
             let index = data_source.index(pn);
             if index.is_ok() {
@@ -149,18 +145,13 @@ impl<D: PointCloud + NamedCloud> NamedCloud for HashGluedCloud<D> {
     }
     fn names(&self) -> Vec<Self::Name>
     where
-        <D as NamedCloud>::Name: std::marker::Sized,
+        D::Name: std::marker::Sized,
     {
         self.addresses
             .values()
             .filter_map(|(i, j)| self.data_sources[*i].name(*j).ok().map(|n| n.clone()))
             .collect()
     }
-}
-
-impl<D: PointCloud + MetaCloud> MetaCloud for HashGluedCloud<D> {
-    type Metadata = D::Metadata;
-    type MetaSummary = D::MetaSummary;
 
     fn metadata(&self, pn: usize) -> PointCloudResult<Option<&Self::Metadata>> {
         let (i, j) = self.get_address(pn)?;

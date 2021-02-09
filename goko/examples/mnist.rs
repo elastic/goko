@@ -17,13 +17,7 @@
 * under the License.
 */
 
-extern crate protobuf;
-extern crate rand;
-extern crate yaml_rust;
 use std::path::Path;
-#[allow(dead_code)]
-extern crate goko;
-extern crate pointcloud;
 use goko::utils::*;
 use goko::CoverTreeWriter;
 use pointcloud::*;
