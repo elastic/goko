@@ -74,14 +74,14 @@ impl<D: PointCloud> BulkInterface<D> {
     }
 
     /// Bulk known path
-    pub fn path<'a>(&self, points: &[D::PointRef<'a>]) -> Vec<GokoResult<Vec<(f32, NodeAddress)>>> {
-        self.point_map_with_reader(points, |reader, p| reader.path(&p))
+    pub fn path<P: Deref<Target = D::Point> + Send + Sync>(&self, points: &[P]) -> Vec<GokoResult<Vec<(f32, NodeAddress)>>> {
+        self.point_map_with_reader(points, |reader, p| reader.path(p))
     }
 
     /// Bulk knn
-    pub fn knn<'a>(
+    pub fn knn<P: Deref<Target = D::Point> + Send + Sync>(
         &self,
-        points: &[D::PointRef<'a>],
+        points: &[P],
         k: usize,
     ) -> Vec<GokoResult<Vec<(f32, usize)>>> {
         self.point_map_with_reader(points, |reader, p| reader.knn(p, k))

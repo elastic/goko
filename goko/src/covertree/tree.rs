@@ -333,7 +333,7 @@ impl<D: PointCloud> CoverTreeReader<D> {
     }
 
     /// # Dry Insert Query
-    pub fn path<'a>(&self, point: &D::PointRef<'a>) -> GokoResult<Vec<(f32, NodeAddress)>> {
+    pub fn path<P: Deref<Target = D::Point> + Send + Sync>(&self, point: &P) -> GokoResult<Vec<(f32, NodeAddress)>> {
         let root_center = self.parameters.point_cloud.point(self.root_address.1)?;
         let mut current_distance = D::Metric::dist(&root_center, &point);
         let mut current_address = self.root_address;

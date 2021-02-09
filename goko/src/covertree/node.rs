@@ -307,7 +307,7 @@ impl<D: PointCloud> CoverNode<D> {
 
     /// Add a nested child and converts the node from a leaf to a routing node.
     /// Throws an error if the node is already a routing node with a nested node.
-    pub fn insert_nested_child(&mut self, scale_index: i32, coverage: usize) -> GokoResult<()> {
+    pub(crate) fn insert_nested_child(&mut self, scale_index: i32, coverage: usize) -> GokoResult<()> {
         assert!(
             coverage > 0,
             "Panic: attempting to add an empty nested child."
