@@ -196,7 +196,7 @@ impl Dirichlet {
         None
     }
 
-    /// from http://bariskurt.com/kullback-leibler-divergence-between-two-dirichlet-and-beta-distributions/
+    /// from <http://bariskurt.com/kullback-leibler-divergence-between-two-dirichlet-and-beta-distributions/>
     /// We assume that the Dirichlet distribution passed into this one is conditioned on this one! It assumes they have the same keys!
     pub fn kl_divergence(&self, other: &Dirichlet) -> Option<f64> {
         let my_total = self.total();

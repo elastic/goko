@@ -50,13 +50,14 @@ use std::iter::Rev;
 use std::ops::Range;
 use std::slice::Iter;
 use std::ops::Deref;
+use serde::{Deserialize, Serialize};
 
 use plugins::labels::*;
 
 /// When 2 spheres overlap under a node, and there is a point in the overlap we have to decide
 /// to which sphere it belongs. As we create the nodes in a particular sequence, we can assign them
 /// to the first to be created or we can assign it to the nearest.
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub enum PartitionType {
     /// Conflicts assigning a point to several eligible nodes are assigned to the nearest node.
     Nearest,
@@ -80,14 +81,14 @@ pub struct CoverTreeParameters<D: PointCloud> {
     pub use_singletons: bool,
     /// The partition type of the tree
     pub partition_type: PartitionType,
-    /// The point cloud this tree references
-    pub point_cloud: Arc<D>,
     /// This should be replaced by a logging solution
     pub verbosity: u32,
     /// The seed to use for deterministic trees. This is xor-ed with the point index to create a seed for `rand::rngs::SmallRng`.
     /// 
     /// Pass in None if you want to use the host os's entropy instead. 
     pub rng_seed: Option<u64>,
+    /// The point cloud this tree references
+    pub point_cloud: Arc<D>,
     /// This is where the base plugins are are stored.
     pub plugins: RwLock<TreePluginSet>,
 }

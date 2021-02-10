@@ -65,9 +65,9 @@ impl Summary for CategorySummary {
 /// Summary of vectors
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct VecSummary {
-    /// First moment, see https://en.wikipedia.org/wiki/Moment_(mathematics)
+    /// First moment, see <https://en.wikipedia.org/wiki/Moment_(mathematics)>
     pub moment1: Vec<f32>,
-    /// Second moment, see https://en.wikipedia.org/wiki/Moment_(mathematics)
+    /// Second moment, see <https://en.wikipedia.org/wiki/Moment_(mathematics)>
     pub moment2: Vec<f32>,
     /// The count of the number of labels included
     pub count: usize,
@@ -117,9 +117,9 @@ impl Summary for VecSummary {
 /// Summary of a bunch of underlying floats
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct FloatSummary {
-    /// First moment, see https://en.wikipedia.org/wiki/Moment_(mathematics)
+    /// First moment, see <https://en.wikipedia.org/wiki/Moment_(mathematics)>
     pub moment1: f64,
-    /// Second moment, see https://en.wikipedia.org/wiki/Moment_(mathematics)
+    /// Second moment, see <https://en.wikipedia.org/wiki/Moment_(mathematics)>
     pub moment2: f64,
     /// The count of the number of labels included
     pub count: usize,
@@ -147,9 +147,9 @@ impl Summary for FloatSummary {
 /// Summary of a bunch of underlying integers, more accurate for int than the float summary
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct IntSummary {
-    /// First moment, see https://en.wikipedia.org/wiki/Moment_(mathematics)
+    /// First moment, see <https://en.wikipedia.org/wiki/Moment_(mathematics)>
     pub moment1: i64,
-    /// Second moment, see https://en.wikipedia.org/wiki/Moment_(mathematics)
+    /// Second moment, see <https://en.wikipedia.org/wiki/Moment_(mathematics)>
     pub moment2: i64,
     /// The count of the number of labels included
     pub count: usize,

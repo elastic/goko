@@ -286,7 +286,7 @@ impl BuilderNode {
     }
 }
 
-/// A construction object for a covertree. See [`crate::covertree::tree::CoverTreeParameters`] for docs
+/// A construction object for a covertree. See [`crate::covertree::CoverTreeParameters`] for docs
 #[derive(Debug)]
 pub struct CoverTreeBuilder {
     pub(crate) scale_base: f32,
@@ -347,32 +347,32 @@ impl CoverTreeBuilder {
         }
     }
 
-    /// See [`crate::covertree::tree::CoverTreeParameters`] for docs
+    /// See [`crate::covertree::CoverTreeParameters`] for docs
     pub fn set_scale_base(&mut self, x: f32) -> &mut Self {
         self.scale_base = x;
         self
     }
-    /// See [`crate::covertree::tree::CoverTreeParameters`] for docs
+    /// See [`crate::covertree::CoverTreeParameters`] for docs
     pub fn set_leaf_cutoff(&mut self, x: usize) -> &mut Self {
         self.leaf_cutoff = x;
         self
     }
-    /// See [`crate::covertree::tree::CoverTreeParameters`] for docs
+    /// See [`crate::covertree::CoverTreeParameters`] for docs
     pub fn set_min_res_index(&mut self, x: i32) -> &mut Self {
         self.min_res_index = x;
         self
     }
-    /// See [`crate::covertree::tree::CoverTreeParameters`] for docs
+    /// See [`crate::covertree::CoverTreeParameters`] for docs
     pub fn set_use_singletons(&mut self, x: bool) -> &mut Self {
         self.use_singletons = x;
         self
     }
-    /// See [`crate::covertree::tree::CoverTreeParameters`] for docs
+    /// See [`crate::covertree::CoverTreeParameters`] for docs
     pub fn set_verbosity(&mut self, x: u32) -> &mut Self {
         self.verbosity = x;
         self
     }
-    /// See [`crate::covertree::tree::CoverTreeParameters`] for docs
+    /// See [`crate::covertree::CoverTreeParameters`] for docs
     pub fn set_rng_seed(&mut self, x: u64) -> &mut Self {
         self.rng_seed = Some(x);
         self

@@ -1,9 +1,9 @@
 use http::Request;
 use hyper::Body;
 
-use tokio::sync::mpsc;
-use std::fmt;
 use std::error::Error;
+use std::fmt;
+use tokio::sync::mpsc;
 
 //use serde::{Deserialize, Serialize};
 //
@@ -22,9 +22,9 @@ impl From<hyper::Error> for GokoClientError {
     }
 }
 
-impl<T> From<mpsc::error::SendError<(Request<Body>,T)>> for GokoClientError {
-    fn from(e: mpsc::error::SendError<(Request<Body>,T)>) -> GokoClientError {
-        GokoClientError::SendError(e.0.0)
+impl<T> From<mpsc::error::SendError<(Request<Body>, T)>> for GokoClientError {
+    fn from(e: mpsc::error::SendError<(Request<Body>, T)>) -> GokoClientError {
+        GokoClientError::SendError(e.0 .0)
     }
 }
 

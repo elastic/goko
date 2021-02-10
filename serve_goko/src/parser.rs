@@ -1,3 +1,8 @@
+//! # Parser System
+//! 
+//! This currently isn't safe (we assume the caller is going to send requests with bodies of reasonable size), and does more allocations
+//! than it strictly needs to. 
+
 use hyper::body::to_bytes;
 use hyper::{header::HeaderValue, Body};
 
@@ -25,7 +30,8 @@ impl ParserService for MsgPackDense {
     type Point = Vec<f32>;
     fn parse(&self, bytes: &[u8]) -> Result<Vec<f32>, GokoClientError> {
         if bytes.len() > 0 {
-            let point: Vec<f32> = rmp_serde::from_read_ref(bytes).map_err(|e| GokoClientError::Parse(Box::new(e)))?;
+            let point: Vec<f32> =
+                rmp_serde::from_read_ref(bytes).map_err(|e| GokoClientError::Parse(Box::new(e)))?;
             Ok(point)
         } else {
             Err(GokoClientError::MissingBody)
@@ -33,7 +39,7 @@ impl ParserService for MsgPackDense {
     }
 }
 
-pub(crate) fn decode_level(content_type: &str, mut raw: Vec<u8>) -> Vec<u8> {
+pub fn decode_level(content_type: &str, mut raw: Vec<u8>) -> Vec<u8> {
     let mut new_body: Vec<u8> = Vec::new();
     match content_type {
         "zlib" => {
@@ -62,7 +68,7 @@ pub(crate) fn decode_level(content_type: &str, mut raw: Vec<u8>) -> Vec<u8> {
     }
 }
 
-pub(crate) async fn parse_body<P: ParserService>(
+pub async fn parse_body<P: ParserService>(
     parser: &P,
     content_type: Option<&HeaderValue>,
     body: Body,
