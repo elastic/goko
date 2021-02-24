@@ -21,7 +21,8 @@ use std::ops::Deref;
 
 use crate::errors::*;
 use crate::parser::*;
-use crate::api::{into_response, parse_request, Process};
+use crate::api::{parse_request, Process};
+use warp::reply::Reply;
 
 type ResponseSender = oneshot::Sender<Result<Response<Body>, hyper::Error>>;
 type ResponseReciever = oneshot::Receiver<Result<Response<Body>, hyper::Error>>;
@@ -34,6 +35,7 @@ pub struct GokoHttpClient<D> {
     request_snd: RequestSender,
     pointcloud: PhantomData<D>,
 }
+
 
 impl<D: PointCloud> GokoHttpClient<D>
 where
@@ -50,7 +52,7 @@ where
             while let Some((request, response_tx)) = request_rcv.recv().await {
                 match parse_request(&parser, request).await {
                     Ok(goko_request) => {
-                        response_tx.send(Ok(into_response(goko_request.process(&reader))))
+                        response_tx.send(Ok(goko_request.process(&reader).into_response()))
                     }
                     Err(e) => response_tx.send(Err(e)),
                 }
@@ -93,6 +95,7 @@ impl<D> Service<Request<Body>> for GokoHttpClient<D> {
         }
     }
 }
+
 
 impl<D> Load for GokoHttpClient<D> {
     type Metric = u32;

@@ -1,30 +1,31 @@
-use http::Request;
-use hyper::Body;
-
 use std::error::Error;
 use std::fmt;
-use tokio::sync::mpsc;
+use goko::errors::GokoError;
 
 //use serde::{Deserialize, Serialize};
 //
-//#[derive(Deserialize, Serialize)]
 pub enum GokoClientError {
-    SendError(Request<Body>),
-    ClientDropped,
-    Underlying(hyper::Error),
-    Parse(Box<dyn std::error::Error + Send + Sync>),
+    Underlying(GokoError),
+    Http(hyper::Error),
+    Parse(Box<dyn std::error::Error + Send>),
     MissingBody,
 }
 
-impl From<hyper::Error> for GokoClientError {
-    fn from(e: hyper::Error) -> GokoClientError {
+impl GokoClientError {
+    pub fn parse(err: Box<dyn std::error::Error + Send>) -> Self {
+        GokoClientError::Parse(err)
+    }
+}
+
+impl From<GokoError> for GokoClientError {
+    fn from(e: GokoError) -> GokoClientError {
         GokoClientError::Underlying(e)
     }
 }
 
-impl<T> From<mpsc::error::SendError<(Request<Body>, T)>> for GokoClientError {
-    fn from(e: mpsc::error::SendError<(Request<Body>, T)>) -> GokoClientError {
-        GokoClientError::SendError(e.0 .0)
+impl From<hyper::Error> for GokoClientError {
+    fn from(e: hyper::Error) -> GokoClientError {
+        GokoClientError::Http(e)
     }
 }
 
@@ -32,10 +33,9 @@ impl fmt::Display for GokoClientError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             GokoClientError::Underlying(ref se) => fmt::Display::fmt(se, f),
+            GokoClientError::Http(ref se) => fmt::Display::fmt(se, f),
             GokoClientError::Parse(ref se) => fmt::Display::fmt(se, f),
-            GokoClientError::ClientDropped => f.pad("Client was dropped"),
             GokoClientError::MissingBody => f.pad("Body Missing"),
-            GokoClientError::SendError(_) => f.pad("Send Failed"),
         }
     }
 }
@@ -44,10 +44,9 @@ impl fmt::Debug for GokoClientError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             GokoClientError::Underlying(ref se) => write!(f, "Underlying({:?})", se),
+            GokoClientError::Http(ref se) => write!(f, "Http({:?})", se),
             GokoClientError::Parse(ref se) => write!(f, "Underlying({:?})", se),
-            GokoClientError::ClientDropped => f.pad("ClientDropped"),
             GokoClientError::MissingBody => f.pad("MissingBody"),
-            GokoClientError::SendError(_) => f.pad("SendError"),
         }
     }
 }
@@ -56,10 +55,9 @@ impl Error for GokoClientError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match *self {
             GokoClientError::Underlying(ref se) => Some(se),
+            GokoClientError::Http(ref se) => Some(se),
             GokoClientError::Parse(ref se) => se.source(),
-            GokoClientError::ClientDropped => None,
             GokoClientError::MissingBody => None,
-            GokoClientError::SendError(_) => None,
         }
     }
 }

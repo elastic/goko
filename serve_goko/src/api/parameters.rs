@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::convert::Infallible;
 
 /// Send a `GET` request to `/` for this
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Clone, Copy)]
 pub struct ParametersRequest;
 use super::Process;
 

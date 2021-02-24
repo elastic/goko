@@ -53,7 +53,7 @@ pub trait PointCloud: Send + Sync + 'static {
     /// The metric this pointcloud is bound to. Think L2
     type Metric: Metric<Self::Point>;
     /// Name type, could be a string or a
-    type Name: Sized + Clone + Eq + Serialize;
+    type Name: Sized + Clone + Eq + Serialize + Send + Debug;
     /// The label type.
     /// Summary of a set of labels
     type Label: ?Sized;
@@ -512,7 +512,7 @@ impl<D: PointCloud, L: LabelSet> PointCloud for SimpleLabeledCloud<D, L> {
 /// Enables the points in the underlying cloud to be named with strings.
 pub trait NamedSet: Send + Sync + 'static {
     /// Name type, could be a string or a
-    type Name: Sized + Clone + Eq + Serialize;
+    type Name: Sized + Clone + Eq + Serialize + Send + Debug;
     /// Number of elements in this name set
     fn len(&self) -> usize;
     /// If there are no elements left in this name set

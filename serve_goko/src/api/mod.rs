@@ -1,15 +1,12 @@
 use goko::CoverTreeReader;
-use http::{Request, Response};
-use hyper::{Body, Method};
+use http::Response;
+use hyper::Body;
 use pointcloud::*;
-use regex::Regex;
-
-use lazy_static::lazy_static;
+use goko::errors::GokoError;
 
 use serde::{Deserialize, Serialize};
 use std::ops::Deref;
-
-use goko::errors::GokoError;
+//use std::convert::Infallible;
 
 pub mod parameters;
 pub mod path;
@@ -19,7 +16,7 @@ use parameters::*;
 use path::*;
 use knn::*;
 
-use crate::parser::{parse_body, ParserService};
+//use crate::parser::{parse_body, ParserService};
 
 /// How the server processes the request, under the hood.
 pub(crate) trait Process<D: PointCloud> {
@@ -100,9 +97,9 @@ impl<D: PointCloud, T: Deref<Target = D::Point> + Send + Sync> Process<D> for Go
     fn process(self, reader: &CoverTreeReader<D>) -> Result<Self::Response, Self::Error> {
         match self {
             GokoRequest::Parameters(p) => Ok(GokoResponse::Parameters(p.process(reader).unwrap())),
-            GokoRequest::Knn(p) => Ok(GokoResponse::Knn(p.process(reader)?)),
-            GokoRequest::RoutingKnn(p) => Ok(GokoResponse::RoutingKnn(p.process(reader)?)),
-            GokoRequest::Path(p) => Ok(GokoResponse::Path(p.process(reader)?)),
+            GokoRequest::Knn(p) => p.process(reader).map(|p| GokoResponse::Knn(p)),
+            GokoRequest::RoutingKnn(p) => p.process(reader).map(|p| GokoResponse::RoutingKnn(p)),
+            GokoRequest::Path(p) => p.process(reader).map(|p| GokoResponse::Path(p)),
             GokoRequest::Unknown(response_string, status) => {
                 Ok(GokoResponse::Unknown(response_string, status))
             }
@@ -110,73 +107,53 @@ impl<D: PointCloud, T: Deref<Target = D::Point> + Send + Sync> Process<D> for Go
     }
 }
 
-pub(crate) async fn parse_request<P: ParserService>(
-    parser: &P,
-    request: Request<Body>,
-) -> Result<GokoRequest<P::Point>, hyper::Error> {
-    let (parts, body) = request.into_parts();
-    match (parts.method, parts.uri.path()) {
-        // Serve some instructions at /
-        (Method::GET, "/") => Ok(GokoRequest::Parameters(ParametersRequest)),
-        (Method::GET, "/knn") => {
-            lazy_static! {
-                static ref RE: Regex = Regex::new(r"k=(?P<k>\d+)").unwrap();
-            }
+fn parse_knn_query(uri: &Uri) -> usize {
+    lazy_static! {
+        static ref RE: Regex = Regex::new(r"k=(?P<k>\d+)").unwrap();
+    }
 
-            let k: usize = match parts.uri.query().map(|s| RE.captures(s)).flatten() {
-                Some(caps) => caps["k"].parse::<usize>().unwrap(),
-                None => 10,
-            };
-            let point = parse_body(parser, parts.headers.get("Content-Type"), body).await?;
+    match uri.query().map(|s| RE.captures(s)).flatten() {
+        Some(caps) => caps["k"].parse::<usize>().unwrap(),
+        None => 10,
+    }
+}
+
+pub async fn parse_http<P: PointParser>(request: Request<Body>, parser: &mut PointBuffer<P>) -> Result<GokoRequest<P::Point>, GokoClientError> {
+    match (request.method(), request.uri().path()) {
+        // Serve some instructions at /
+        (&Method::GET, "/") => Ok(GokoRequest::Parameters(ParametersRequest)),
+        (&Method::GET, "/knn") => {
+            let k = parse_knn_query(request.uri());
+            let point = parser.point(request).await?;
             Ok(GokoRequest::Knn(KnnRequest { point, k }))
         }
-        (Method::GET, "/routing_knn") => {
-            lazy_static! {
-                static ref RE: Regex = Regex::new(r"k=(?P<k>\d+)").unwrap();
-            }
-
-            let k: usize = match parts.uri.query().map(|s| RE.captures(s)).flatten() {
-                Some(caps) => caps["k"].parse::<usize>().unwrap(),
-                None => 10,
-            };
-            let point = parse_body(parser, parts.headers.get("Content-Type"), body).await?;
+        (&Method::GET, "/routing_knn") => {
+            let k = parse_knn_query(request.uri());
+            let point = parser.point(request).await?;
             Ok(GokoRequest::RoutingKnn(RoutingKnnRequest { point, k }))
+
         }
-        (Method::GET, "/path") => {
-            let point = parse_body(parser, parts.headers.get("Content-Type"), body).await?;
+        (&Method::GET, "/path") => {
+            let point = parser.point(request).await?;
             Ok(GokoRequest::Path(PathRequest { point }))
+
         }
         // The 404 Not Found route...
         _ => Ok(GokoRequest::Unknown(String::new(), 404)),
     }
 }
 
-pub(crate) fn into_response<T: Serialize>(
-    result: Result<GokoResponse<T>, GokoError>,
-) -> Response<Body> {
-    match result {
-        Err(e) => {
-            let error_detail = ErrorResponse {
-                error: e.to_string(),
-            };
-            http::response::Builder::new()
-                .status(500)
-                .body(Body::from(serde_json::to_string(&error_detail).unwrap()))
-                .unwrap()
-        }
-        Ok(resp) => {
-            let mut builder = http::response::Builder::new();
-            let json_str = match resp {
-                GokoResponse::Parameters(p) => serde_json::to_string(&p).unwrap(),
-                GokoResponse::Knn(p) => serde_json::to_string(&p).unwrap(),
-                GokoResponse::RoutingKnn(p) => serde_json::to_string(&p).unwrap(),
-                GokoResponse::Path(p) => serde_json::to_string(&p).unwrap(),
-                GokoResponse::Unknown(response_string, status) => {
-                    builder = builder.status(status);
-                    response_string
-                }
-            };
-            builder.body(Body::from(json_str)).unwrap()
+pub fn into_http<T>(response: GokoResponse<T>) -> Result<Response<Body>, GokoClientError> {
+    let mut builder = http::response::Builder::new();
+    let json_str = match response {
+        GokoResponse::Parameters(p) => serde_json::to_string(&p).unwrap(),
+        GokoResponse::Knn(p) => serde_json::to_string(&p).unwrap(),
+        GokoResponse::RoutingKnn(p) => serde_json::to_string(&p).unwrap(),
+        GokoResponse::Path(p) => serde_json::to_string(&p).unwrap(),
+        GokoResponse::Unknown(response_string, status) => {
+            builder = builder.status(status);
+            response_string
         }
     }
+    Ok(builder.body(Body::from(json_str)).unwrap())
 }
