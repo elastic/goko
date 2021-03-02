@@ -45,12 +45,12 @@ use std::sync::{atomic, Arc, RwLock};
 use super::query_tools::{KnnQueryHeap, RoutingQueryHeap};
 use crate::plugins::{GokoPlugin, TreePluginSet};
 use errors::{GokoError, GokoResult};
+use serde::{Deserialize, Serialize};
 use std::iter::Iterator;
 use std::iter::Rev;
+use std::ops::Deref;
 use std::ops::Range;
 use std::slice::Iter;
-use std::ops::Deref;
-use serde::{Deserialize, Serialize};
 
 use plugins::labels::*;
 
@@ -84,8 +84,8 @@ pub struct CoverTreeParameters<D: PointCloud> {
     /// This should be replaced by a logging solution
     pub verbosity: u32,
     /// The seed to use for deterministic trees. This is xor-ed with the point index to create a seed for `rand::rngs::SmallRng`.
-    /// 
-    /// Pass in None if you want to use the host os's entropy instead. 
+    ///
+    /// Pass in None if you want to use the host os's entropy instead.
     pub rng_seed: Option<u64>,
     /// The point cloud this tree references
     pub point_cloud: Arc<D>,
@@ -277,7 +277,11 @@ impl<D: PointCloud> CoverTreeReader<D> {
     ///
     /// See `query_tools::KnnQueryHeap` for the pair of heaps and mechanisms for tracking the minimum distance and the current knn set.
     /// See the `nodes::CoverNode::singleton_knn` and `nodes::CoverNode::child_knn` for the brute force node based knn.
-    pub fn knn<P: Deref<Target = D::Point> + Send + Sync>(&self, point: &P, k: usize) -> GokoResult<Vec<(f32, usize)>> {
+    pub fn knn<P: Deref<Target = D::Point> + Send + Sync>(
+        &self,
+        point: &P,
+        k: usize,
+    ) -> GokoResult<Vec<(f32, usize)>> {
         let mut query_heap = KnnQueryHeap::new(k, self.parameters.scale_base);
 
         let root_center = self.parameters.point_cloud.point(self.root_address.1)?;
@@ -313,7 +317,11 @@ impl<D: PointCloud> CoverTreeReader<D> {
         Ok(query_heap.unpack())
     }
 
-    fn greedy_knn_nodes<P: Deref<Target = D::Point> + Send + Sync>(&self, point: &P, query_heap: &mut KnnQueryHeap) -> bool {
+    fn greedy_knn_nodes<P: Deref<Target = D::Point> + Send + Sync>(
+        &self,
+        point: &P,
+        query_heap: &mut KnnQueryHeap,
+    ) -> bool {
         let mut did_something = false;
         while let Some((dist, nearest_address)) =
             query_heap.closest_unvisited_child_covering_address()
@@ -334,7 +342,10 @@ impl<D: PointCloud> CoverTreeReader<D> {
     }
 
     /// # Dry Insert Query
-    pub fn path<P: Deref<Target = D::Point> + Send + Sync>(&self, point: &P) -> GokoResult<Vec<(f32, NodeAddress)>> {
+    pub fn path<P: Deref<Target = D::Point> + Send + Sync>(
+        &self,
+        point: &P,
+    ) -> GokoResult<Vec<(f32, NodeAddress)>> {
         let root_center = self.parameters.point_cloud.point(self.root_address.1)?;
         let mut current_distance = D::Metric::dist(&root_center, &point);
         let mut current_address = self.root_address;
@@ -659,6 +670,14 @@ impl<D: PointCloud> CoverTreeWriter<D> {
         cover_proto.set_root_scale(self.root_address.0);
         cover_proto.set_root_index(self.root_address.1 as u64);
         cover_proto.set_layers(self.layers.iter().map(|l| l.save()).collect());
+        let name_map: std::collections::HashMap<String, u64> =
+            self.final_addresses.map_into(|k, _v| {
+                (
+                    self.parameters.point_cloud.name(*k).unwrap().to_string(),
+                    *k as u64,
+                )
+            });
+        cover_proto.set_name_map(name_map);
         cover_proto
     }
 

@@ -82,10 +82,8 @@ impl<D: PointCloud> PointCloud for HashGluedCloud<D> {
     type PointRef<'a> = D::PointRef<'a>;
     type Label = D::Label;
     type LabelSummary = D::LabelSummary;
-    type Name = D::Name;
     type Metadata = D::Metadata;
     type MetaSummary = D::MetaSummary;
-
 
     /// Returns a slice corresponding to the point in question. Used for rarely referenced points,
     /// like outliers or leaves.
@@ -130,11 +128,11 @@ impl<D: PointCloud> PointCloud for HashGluedCloud<D> {
         Ok(summary)
     }
 
-    fn name(&self, pi: usize) -> PointCloudResult<Self::Name> {
+    fn name(&self, pi: usize) -> PointCloudResult<String> {
         let (i, j) = self.get_address(pi)?;
         self.data_sources[i].name(j)
     }
-    fn index(&self, pn: &Self::Name) -> PointCloudResult<usize> {
+    fn index(&self, pn: &str) -> PointCloudResult<usize> {
         for data_source in &self.data_sources {
             let index = data_source.index(pn);
             if index.is_ok() {
@@ -143,13 +141,10 @@ impl<D: PointCloud> PointCloud for HashGluedCloud<D> {
         }
         Err(PointCloudError::UnknownName)
     }
-    fn names(&self) -> Vec<Self::Name>
-    where
-        D::Name: std::marker::Sized,
-    {
+    fn names(&self) -> Vec<String> {
         self.addresses
             .values()
-            .filter_map(|(i, j)| self.data_sources[*i].name(*j).ok().map(|n| n.clone()))
+            .filter_map(|(i, j)| self.data_sources[*i].name(*j).ok())
             .collect()
     }
 

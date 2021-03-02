@@ -3,8 +3,9 @@ use goko::CoverTreeWriter;
 use pointcloud::*;
 use std::path::Path;
 extern crate serve_goko;
-use serve_goko::*;
-use serve_goko::parser::MsgPackDense;
+use serve_goko::parsers::MsgPackDense;
+use serve_goko::http::*;
+use std::sync::{Arc, RwLock};
 
 use hyper::Server;
 
@@ -23,7 +24,7 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     pretty_env_logger::init();
     let ct_writer = build_tree();
 
-    let goko_server = MakeGokoHttpService::new(MsgPackDense::new(), ct_writer);
+    let goko_server = MakeGokoHttp::<_,MsgPackDense>::new(Arc::new(RwLock::new(ct_writer)));
 
     let addr = ([127, 0, 0, 1], 3030).into();
 

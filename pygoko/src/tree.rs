@@ -216,7 +216,9 @@ impl CoverTree {
 
     pub fn knn(&self, point: &PyArray1<f32>, k: usize) -> Vec<(f32, usize)> {
         let reader = self.writer.as_ref().unwrap().reader();
-        reader.knn(&point.readonly().as_slice().unwrap(), k).unwrap()
+        reader
+            .knn(&point.readonly().as_slice().unwrap(), k)
+            .unwrap()
     }
 
     pub fn routing_knn(&self, point: &PyArray1<f32>, k: usize) -> Vec<(f32, usize)> {
@@ -333,7 +335,7 @@ impl CoverTree {
         observation_weight: Option<f64>,
     ) -> PyBayesCategoricalTracker {
         let writer = self.writer.as_ref().unwrap();
-        
+
         PyBayesCategoricalTracker {
             hkl: BayesCategoricalTracker::new(
                 prior_weight.unwrap_or(1.0),
@@ -364,4 +366,3 @@ impl CoverTree {
         PyKLDivergenceBaseline { baseline }
     }
 }
-

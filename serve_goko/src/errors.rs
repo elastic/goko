@@ -7,12 +7,12 @@ use goko::errors::GokoError;
 pub enum GokoClientError {
     Underlying(GokoError),
     Http(hyper::Error),
-    Parse(Box<dyn std::error::Error + Send>),
+    Parse(Box<dyn std::error::Error + Send + Sync>),
     MissingBody,
 }
 
 impl GokoClientError {
-    pub fn parse(err: Box<dyn std::error::Error + Send>) -> Self {
+    pub fn parse(err: Box<dyn std::error::Error + Send + Sync>) -> Self {
         GokoClientError::Parse(err)
     }
 }

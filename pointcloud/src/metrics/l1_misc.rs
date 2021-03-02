@@ -1,10 +1,10 @@
-//! Various implementations of the L1 metric for types that can be easily converted to f32. 
+//! Various implementations of the L1 metric for types that can be easily converted to f32.
 
+use super::L1;
 use crate::base_traits::Metric;
-use std::ops::Deref;
 use crate::points::*;
 use packed_simd::*;
-use super::L1;
+use std::ops::Deref;
 
 macro_rules! make_l1_distance {
     ($base:ident, $simd_16_base:ident, $simd_8_base:ident, $sparse_base:ident, $dist_base:ident, $norm_base:ident) => {
@@ -121,30 +121,58 @@ macro_rules! make_l1_distance {
                 $dist_base(x.deref(), y.deref()).sqrt()
             }
         }
-        
+
         impl<'a> Metric<RawSparse<$base, u32>> for L1 {
             fn dist(x: &RawSparse<$base, u32>, y: &RawSparse<$base, u32>) -> f32 {
                 $sparse_base(x.indexes(), x.values(), y.indexes(), y.values()).sqrt()
             }
         }
-        
+
         impl<'a> Metric<RawSparse<$base, u16>> for L1 {
             fn dist(x: &RawSparse<$base, u16>, y: &RawSparse<$base, u16>) -> f32 {
                 $sparse_base(x.indexes(), x.values(), y.indexes(), y.values()).sqrt()
             }
         }
-        
+
         impl<'a> Metric<RawSparse<$base, u8>> for L1 {
             fn dist(x: &RawSparse<$base, u8>, y: &RawSparse<$base, u8>) -> f32 {
                 $sparse_base(x.indexes(), x.values(), y.indexes(), y.values()).sqrt()
             }
         }
-    }
+    };
 }
 
-make_l1_distance!(i8,i8x16,i8x8,l1_sparse_i8_f32,l1_dense_i8,l1_norm_i8);
-make_l1_distance!(u8,u8x16,u8x8,l1_sparse_u8_f32,l1_dense_u8,l1_norm_u8);
-make_l1_distance!(i16,i16x16,i16x8,l1_sparse_i16_f32,l1_dense_i16,l1_norm_i16);
-make_l1_distance!(u16,u16x16,u16x8,l1_sparse_u16_f32,l1_dense_u16,l1_norm_u16);
-make_l1_distance!(i32,i32x16,i32x8,l1_sparse_i32_f32,l1_dense_i32,l1_norm_i32);
-make_l1_distance!(u32,u32x16,u32x8,l1_sparse_u32_f32,l1_dense_u32,l1_norm_u32);
+make_l1_distance!(i8, i8x16, i8x8, l1_sparse_i8_f32, l1_dense_i8, l1_norm_i8);
+make_l1_distance!(u8, u8x16, u8x8, l1_sparse_u8_f32, l1_dense_u8, l1_norm_u8);
+make_l1_distance!(
+    i16,
+    i16x16,
+    i16x8,
+    l1_sparse_i16_f32,
+    l1_dense_i16,
+    l1_norm_i16
+);
+make_l1_distance!(
+    u16,
+    u16x16,
+    u16x8,
+    l1_sparse_u16_f32,
+    l1_dense_u16,
+    l1_norm_u16
+);
+make_l1_distance!(
+    i32,
+    i32x16,
+    i32x8,
+    l1_sparse_i32_f32,
+    l1_dense_i32,
+    l1_norm_i32
+);
+make_l1_distance!(
+    u32,
+    u32x16,
+    u32x8,
+    l1_sparse_u32_f32,
+    l1_dense_u32,
+    l1_norm_u32
+);

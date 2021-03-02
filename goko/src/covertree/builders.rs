@@ -23,9 +23,9 @@ use super::*;
 use crate::plugins::TreePluginSet;
 use crate::*;
 use pbr::ProgressBar;
-use std::cmp::{max, min};
 use rand::rngs::SmallRng;
 use rand::SeedableRng;
+use std::cmp::{max, min};
 use std::fs::read_to_string;
 use std::path::Path;
 use std::sync::{atomic, Arc, RwLock};
@@ -161,7 +161,8 @@ impl BuilderNode {
             None => SmallRng::from_entropy(),
         };
         let next_scale = parameters.scale_base.powi(split_scale_index);
-        let (nested_potential, mut splits) = covered.split(next_scale, &parameters.point_cloud, &mut small_rng)?;
+        let (nested_potential, mut splits) =
+            covered.split(next_scale, &parameters.point_cloud, &mut small_rng)?;
         let mut new_nodes = Vec::new();
 
         let mut inserts = Vec::new();
@@ -255,7 +256,8 @@ impl BuilderNode {
         */
 
         while fars.len() > 0 {
-            let new_close = fars.pick_center(next_scale, &parameters.point_cloud, &mut small_rng)?;
+            let new_close =
+                fars.pick_center(next_scale, &parameters.point_cloud, &mut small_rng)?;
             //println!("\t\t [{}] New Covered: {:?}",split_count, new_close);
             if new_close.len() == 1 && parameters.use_singletons {
                 /*

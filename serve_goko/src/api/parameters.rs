@@ -3,6 +3,7 @@ use pointcloud::*;
 
 use goko::PartitionType;
 use serde::{Deserialize, Serialize};
+use crate::core::*;
 
 use std::convert::Infallible;
 
@@ -33,8 +34,8 @@ pub struct ParametersResponse {
 impl<D: PointCloud> Process<D> for ParametersRequest {
     type Response = ParametersResponse;
     type Error = Infallible;
-    fn process(self, reader: &CoverTreeReader<D>) -> Result<Self::Response, Self::Error> {
-        let params = reader.parameters();
+    fn process(self, reader: &CoreReader<D>) -> Result<Self::Response, Self::Error> {
+        let params = reader.tree.parameters();
         Ok(ParametersResponse {
             scale_base: params.scale_base,
             leaf_cutoff: params.leaf_cutoff,

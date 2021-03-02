@@ -39,7 +39,11 @@ impl<D: PointCloud> BulkInterface<D> {
     }
 
     /// Applies the passed in fn to the passed in indexes and collects the result in a vector. Core function for this struct.
-    pub fn point_map_with_reader<P: Deref<Target = D::Point> + Send + Sync, F, T>(&self, points: &[P], f: F) -> Vec<T>
+    pub fn point_map_with_reader<P: Deref<Target = D::Point> + Send + Sync, F, T>(
+        &self,
+        points: &[P],
+        f: F,
+    ) -> Vec<T>
     where
         F: Fn(&CoverTreeReader<D>, &P) -> T + Send + Sync,
         T: Send + Sync,
@@ -74,7 +78,10 @@ impl<D: PointCloud> BulkInterface<D> {
     }
 
     /// Bulk known path
-    pub fn path<P: Deref<Target = D::Point> + Send + Sync>(&self, points: &[P]) -> Vec<GokoResult<Vec<(f32, NodeAddress)>>> {
+    pub fn path<P: Deref<Target = D::Point> + Send + Sync>(
+        &self,
+        points: &[P],
+    ) -> Vec<GokoResult<Vec<(f32, NodeAddress)>>> {
         self.point_map_with_reader(points, |reader, p| reader.path(p))
     }
 

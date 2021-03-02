@@ -17,10 +17,10 @@
 * under the License.
 */
 
-use std::path::Path;
 use goko::utils::*;
 use goko::CoverTreeWriter;
 use pointcloud::*;
+use std::path::Path;
 
 fn build_tree() -> CoverTreeWriter<DefaultLabeledCloud<L2>> {
     let file_name = "../data/ember_complex.yml";

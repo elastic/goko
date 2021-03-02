@@ -14,5 +14,5 @@ pub use api::GokoRequest;
 pub use api::GokoResponse;
 pub use parsers::PointParser;
 
-// pub mod rest_layer;
+pub mod http;
 pub mod core;

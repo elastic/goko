@@ -29,6 +29,7 @@ use crate::metrics::*;
 
 use crate::base_traits::*;
 use crate::label_sources::VecLabels;
+use crate::pc_errors::ParsingError;
 
 /// A thin wrapper to give a `Box<[f32]>` dimensionality.
 #[derive(Debug)]
@@ -121,7 +122,6 @@ macro_rules! make_point_cloud {
             type Metric = M;
             type Point = [f32];
             type PointRef<'a> = &'a [f32];
-            type Name = usize;
             type LabelSummary = ();
             type Label = ();
             type MetaSummary = ();
@@ -130,7 +130,10 @@ macro_rules! make_point_cloud {
             fn metadata(&self, _pn: usize) -> PointCloudResult<Option<&Self::Metadata>> {
                 Ok(None)
             }
-            fn metasummary(&self, pns: &[usize]) -> PointCloudResult<SummaryCounter<Self::MetaSummary>> {
+            fn metasummary(
+                &self,
+                pns: &[usize],
+            ) -> PointCloudResult<SummaryCounter<Self::MetaSummary>> {
                 Ok(SummaryCounter {
                     summary: (),
                     nones: pns.len(),
@@ -140,21 +143,24 @@ macro_rules! make_point_cloud {
             fn label(&self, _pn: usize) -> PointCloudResult<Option<&Self::Label>> {
                 Ok(None)
             }
-            fn label_summary(&self, pns: &[usize]) -> PointCloudResult<SummaryCounter<Self::LabelSummary>> {
+            fn label_summary(
+                &self,
+                pns: &[usize],
+            ) -> PointCloudResult<SummaryCounter<Self::LabelSummary>> {
                 Ok(SummaryCounter {
                     summary: (),
                     nones: pns.len(),
                     errors: 0,
                 })
             }
-            fn name(&self, pi: usize) -> PointCloudResult<Self::Name> {
-                Ok(pi)
+            fn name(&self, pi: usize) -> PointCloudResult<String> {
+                Ok(pi.to_string())
             }
-            fn index(&self, pn: &Self::Name) -> PointCloudResult<usize> {
-                Ok(*pn)
+            fn index(&self, pn: &str) -> PointCloudResult<usize> {
+                pn.parse::<usize>().map_err(|_| ParsingError::RegularParsingError("Unable to parse your str into an usize").into())
             }
-            fn names(&self) -> Vec<Self::Name> {
-                self.reference_indexes()
+            fn names(&self) -> Vec<String> {
+                (0..self.len()).map(|i| i.to_string()).collect()
             }
 
             #[inline]

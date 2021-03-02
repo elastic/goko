@@ -1,6 +1,7 @@
 use crate::pc_errors::PointCloudResult;
 use std::convert::TryInto;
 use std::marker::PhantomData;
+use crate::pc_errors::ParsingError;
 
 use crate::base_traits::*;
 use crate::metrics::*;
@@ -46,7 +47,6 @@ where
     type PointRef<'a> = SparseRef<'a, f32, u32>;
     type Point = RawSparse<f32, u32>;
     type Metric = L2;
-    type Name = usize;
     type LabelSummary = ();
     type Label = ();
     type MetaSummary = ();
@@ -72,14 +72,14 @@ where
             errors: 0,
         })
     }
-    fn name(&self, pi: usize) -> PointCloudResult<Self::Name> {
-        Ok(pi)
+    fn name(&self, pi: usize) -> PointCloudResult<String> {
+        Ok(pi.to_string())
     }
-    fn index(&self, pn: &Self::Name) -> PointCloudResult<usize> {
-        Ok(*pn)
+    fn index(&self, pn: &str) -> PointCloudResult<usize> {
+        pn.parse::<usize>().map_err(|_| ParsingError::RegularParsingError("Unable to parse your str into an usize").into())
     }
-    fn names(&self) -> Vec<Self::Name> {
-        self.reference_indexes()
+    fn names(&self) -> Vec<String> {
+        (0..self.len()).map(|i| i.to_string()).collect()
     }
 
     /// The number of samples this cloud covers

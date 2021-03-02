@@ -183,7 +183,10 @@ impl<D: PointCloud> CoverNode<D> {
 
     /// Performs the `singleton_knn` and `child_knn` with a provided query heap. If you have the distance
     /// from the query point to this you can pass it to save a distance calculation.
-    pub fn knn<P: Deref<Target = D::Point> + Send + Sync, T: SingletonQueryHeap + RoutingQueryHeap>(
+    pub fn knn<
+        P: Deref<Target = D::Point> + Send + Sync,
+        T: SingletonQueryHeap + RoutingQueryHeap,
+    >(
         &self,
         dist_to_center: Option<f32>,
         point: &P,
@@ -279,7 +282,7 @@ impl<D: PointCloud> CoverNode<D> {
     /// Gives the child that the point would be inserted into if the
     /// point just happened to never be picked as a center. This is the first child node that covers
     /// the point.
-    pub fn first_covering_child<P: Deref<Target = D::Point> + Send + Sync,>(
+    pub fn first_covering_child<P: Deref<Target = D::Point> + Send + Sync>(
         &self,
         scale_base: f32,
         dist_to_center: f32,
@@ -307,7 +310,11 @@ impl<D: PointCloud> CoverNode<D> {
 
     /// Add a nested child and converts the node from a leaf to a routing node.
     /// Throws an error if the node is already a routing node with a nested node.
-    pub(crate) fn insert_nested_child(&mut self, scale_index: i32, coverage: usize) -> GokoResult<()> {
+    pub(crate) fn insert_nested_child(
+        &mut self,
+        scale_index: i32,
+        coverage: usize,
+    ) -> GokoResult<()> {
         assert!(
             coverage > 0,
             "Panic: attempting to add an empty nested child."

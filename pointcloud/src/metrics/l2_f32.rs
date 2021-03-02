@@ -1,10 +1,10 @@
-//! f32 implementations of the L1 metric. 
+//! f32 implementations of the L1 metric.
 
+use super::L2;
 use crate::base_traits::Metric;
-use std::ops::Deref;
 use crate::points::*;
 use packed_simd::*;
-use super::L2;
+use std::ops::Deref;
 
 impl Metric<[f32]> for L2 {
     fn dist(x: &[f32], y: &[f32]) -> f32 {
@@ -81,7 +81,6 @@ where
         total
     }
 }
-
 
 ///
 #[inline]

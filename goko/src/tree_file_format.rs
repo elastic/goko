@@ -28,6 +28,7 @@ pub struct NodeProto {
     // message fields
     pub coverage_count: u64,
     pub center_index: u64,
+    pub name: ::std::string::String,
     pub scale_index: i32,
     pub parent_center_index: u64,
     pub parent_scale_index: i32,
@@ -84,7 +85,33 @@ impl NodeProto {
         self.center_index = v;
     }
 
-    // int32 scale_index = 3;
+    // string name = 3;
+
+
+    pub fn get_name(&self) -> &str {
+        &self.name
+    }
+    pub fn clear_name(&mut self) {
+        self.name.clear();
+    }
+
+    // Param is passed by value, moved
+    pub fn set_name(&mut self, v: ::std::string::String) {
+        self.name = v;
+    }
+
+    // Mutable pointer to the field.
+    // If field is not initialized, it is initialized with default value first.
+    pub fn mut_name(&mut self) -> &mut ::std::string::String {
+        &mut self.name
+    }
+
+    // Take field
+    pub fn take_name(&mut self) -> ::std::string::String {
+        ::std::mem::replace(&mut self.name, ::std::string::String::new())
+    }
+
+    // int32 scale_index = 4;
 
 
     pub fn get_scale_index(&self) -> i32 {
@@ -99,7 +126,7 @@ impl NodeProto {
         self.scale_index = v;
     }
 
-    // uint64 parent_center_index = 4;
+    // uint64 parent_center_index = 5;
 
 
     pub fn get_parent_center_index(&self) -> u64 {
@@ -114,7 +141,7 @@ impl NodeProto {
         self.parent_center_index = v;
     }
 
-    // int32 parent_scale_index = 5;
+    // int32 parent_scale_index = 6;
 
 
     pub fn get_parent_scale_index(&self) -> i32 {
@@ -129,7 +156,7 @@ impl NodeProto {
         self.parent_scale_index = v;
     }
 
-    // bool is_leaf = 6;
+    // bool is_leaf = 7;
 
 
     pub fn get_is_leaf(&self) -> bool {
@@ -144,7 +171,7 @@ impl NodeProto {
         self.is_leaf = v;
     }
 
-    // repeated uint64 children_point_indexes = 7;
+    // repeated uint64 children_point_indexes = 8;
 
 
     pub fn get_children_point_indexes(&self) -> &[u64] {
@@ -169,7 +196,7 @@ impl NodeProto {
         ::std::mem::replace(&mut self.children_point_indexes, ::std::vec::Vec::new())
     }
 
-    // repeated int32 children_scale_indexes = 8;
+    // repeated int32 children_scale_indexes = 9;
 
 
     pub fn get_children_scale_indexes(&self) -> &[i32] {
@@ -194,7 +221,7 @@ impl NodeProto {
         ::std::mem::replace(&mut self.children_scale_indexes, ::std::vec::Vec::new())
     }
 
-    // int32 nested_scale_index = 9;
+    // int32 nested_scale_index = 10;
 
 
     pub fn get_nested_scale_index(&self) -> i32 {
@@ -209,7 +236,7 @@ impl NodeProto {
         self.nested_scale_index = v;
     }
 
-    // repeated uint64 outlier_point_indexes = 10;
+    // repeated uint64 outlier_point_indexes = 11;
 
 
     pub fn get_outlier_point_indexes(&self) -> &[u64] {
@@ -234,7 +261,7 @@ impl NodeProto {
         ::std::mem::replace(&mut self.outlier_point_indexes, ::std::vec::Vec::new())
     }
 
-    // string outlier_summary_json = 11;
+    // string outlier_summary_json = 12;
 
 
     pub fn get_outlier_summary_json(&self) -> &str {
@@ -260,7 +287,7 @@ impl NodeProto {
         ::std::mem::replace(&mut self.outlier_summary_json, ::std::string::String::new())
     }
 
-    // float radius = 12;
+    // float radius = 13;
 
 
     pub fn get_radius(&self) -> f32 {
@@ -300,53 +327,56 @@ impl ::protobuf::Message for NodeProto {
                     self.center_index = tmp;
                 },
                 3 => {
+                    ::protobuf::rt::read_singular_proto3_string_into(wire_type, is, &mut self.name)?;
+                },
+                4 => {
                     if wire_type != ::protobuf::wire_format::WireTypeVarint {
                         return ::std::result::Result::Err(::protobuf::rt::unexpected_wire_type(wire_type));
                     }
                     let tmp = is.read_int32()?;
                     self.scale_index = tmp;
                 },
-                4 => {
+                5 => {
                     if wire_type != ::protobuf::wire_format::WireTypeVarint {
                         return ::std::result::Result::Err(::protobuf::rt::unexpected_wire_type(wire_type));
                     }
                     let tmp = is.read_uint64()?;
                     self.parent_center_index = tmp;
                 },
-                5 => {
+                6 => {
                     if wire_type != ::protobuf::wire_format::WireTypeVarint {
                         return ::std::result::Result::Err(::protobuf::rt::unexpected_wire_type(wire_type));
                     }
                     let tmp = is.read_int32()?;
                     self.parent_scale_index = tmp;
                 },
-                6 => {
+                7 => {
                     if wire_type != ::protobuf::wire_format::WireTypeVarint {
                         return ::std::result::Result::Err(::protobuf::rt::unexpected_wire_type(wire_type));
                     }
                     let tmp = is.read_bool()?;
                     self.is_leaf = tmp;
                 },
-                7 => {
+                8 => {
                     ::protobuf::rt::read_repeated_uint64_into(wire_type, is, &mut self.children_point_indexes)?;
                 },
-                8 => {
+                9 => {
                     ::protobuf::rt::read_repeated_int32_into(wire_type, is, &mut self.children_scale_indexes)?;
                 },
-                9 => {
+                10 => {
                     if wire_type != ::protobuf::wire_format::WireTypeVarint {
                         return ::std::result::Result::Err(::protobuf::rt::unexpected_wire_type(wire_type));
                     }
                     let tmp = is.read_int32()?;
                     self.nested_scale_index = tmp;
                 },
-                10 => {
+                11 => {
                     ::protobuf::rt::read_repeated_uint64_into(wire_type, is, &mut self.outlier_point_indexes)?;
                 },
-                11 => {
+                12 => {
                     ::protobuf::rt::read_singular_proto3_string_into(wire_type, is, &mut self.outlier_summary_json)?;
                 },
-                12 => {
+                13 => {
                     if wire_type != ::protobuf::wire_format::WireTypeFixed32 {
                         return ::std::result::Result::Err(::protobuf::rt::unexpected_wire_type(wire_type));
                     }
@@ -371,32 +401,35 @@ impl ::protobuf::Message for NodeProto {
         if self.center_index != 0 {
             my_size += ::protobuf::rt::value_size(2, self.center_index, ::protobuf::wire_format::WireTypeVarint);
         }
+        if !self.name.is_empty() {
+            my_size += ::protobuf::rt::string_size(3, &self.name);
+        }
         if self.scale_index != 0 {
-            my_size += ::protobuf::rt::value_size(3, self.scale_index, ::protobuf::wire_format::WireTypeVarint);
+            my_size += ::protobuf::rt::value_size(4, self.scale_index, ::protobuf::wire_format::WireTypeVarint);
         }
         if self.parent_center_index != 0 {
-            my_size += ::protobuf::rt::value_size(4, self.parent_center_index, ::protobuf::wire_format::WireTypeVarint);
+            my_size += ::protobuf::rt::value_size(5, self.parent_center_index, ::protobuf::wire_format::WireTypeVarint);
         }
         if self.parent_scale_index != 0 {
-            my_size += ::protobuf::rt::value_size(5, self.parent_scale_index, ::protobuf::wire_format::WireTypeVarint);
+            my_size += ::protobuf::rt::value_size(6, self.parent_scale_index, ::protobuf::wire_format::WireTypeVarint);
         }
         if self.is_leaf != false {
             my_size += 2;
         }
         for value in &self.children_point_indexes {
-            my_size += ::protobuf::rt::value_size(7, *value, ::protobuf::wire_format::WireTypeVarint);
-        };
-        for value in &self.children_scale_indexes {
             my_size += ::protobuf::rt::value_size(8, *value, ::protobuf::wire_format::WireTypeVarint);
         };
+        for value in &self.children_scale_indexes {
+            my_size += ::protobuf::rt::value_size(9, *value, ::protobuf::wire_format::WireTypeVarint);
+        };
         if self.nested_scale_index != 0 {
-            my_size += ::protobuf::rt::value_size(9, self.nested_scale_index, ::protobuf::wire_format::WireTypeVarint);
+            my_size += ::protobuf::rt::value_size(10, self.nested_scale_index, ::protobuf::wire_format::WireTypeVarint);
         }
         for value in &self.outlier_point_indexes {
-            my_size += ::protobuf::rt::value_size(10, *value, ::protobuf::wire_format::WireTypeVarint);
+            my_size += ::protobuf::rt::value_size(11, *value, ::protobuf::wire_format::WireTypeVarint);
         };
         if !self.outlier_summary_json.is_empty() {
-            my_size += ::protobuf::rt::string_size(11, &self.outlier_summary_json);
+            my_size += ::protobuf::rt::string_size(12, &self.outlier_summary_json);
         }
         if self.radius != 0. {
             my_size += 5;
@@ -413,35 +446,38 @@ impl ::protobuf::Message for NodeProto {
         if self.center_index != 0 {
             os.write_uint64(2, self.center_index)?;
         }
+        if !self.name.is_empty() {
+            os.write_string(3, &self.name)?;
+        }
         if self.scale_index != 0 {
-            os.write_int32(3, self.scale_index)?;
+            os.write_int32(4, self.scale_index)?;
         }
         if self.parent_center_index != 0 {
-            os.write_uint64(4, self.parent_center_index)?;
+            os.write_uint64(5, self.parent_center_index)?;
         }
         if self.parent_scale_index != 0 {
-            os.write_int32(5, self.parent_scale_index)?;
+            os.write_int32(6, self.parent_scale_index)?;
         }
         if self.is_leaf != false {
-            os.write_bool(6, self.is_leaf)?;
+            os.write_bool(7, self.is_leaf)?;
         }
         for v in &self.children_point_indexes {
-            os.write_uint64(7, *v)?;
+            os.write_uint64(8, *v)?;
         };
         for v in &self.children_scale_indexes {
-            os.write_int32(8, *v)?;
+            os.write_int32(9, *v)?;
         };
         if self.nested_scale_index != 0 {
-            os.write_int32(9, self.nested_scale_index)?;
+            os.write_int32(10, self.nested_scale_index)?;
         }
         for v in &self.outlier_point_indexes {
-            os.write_uint64(10, *v)?;
+            os.write_uint64(11, *v)?;
         };
         if !self.outlier_summary_json.is_empty() {
-            os.write_string(11, &self.outlier_summary_json)?;
+            os.write_string(12, &self.outlier_summary_json)?;
         }
         if self.radius != 0. {
-            os.write_float(12, self.radius)?;
+            os.write_float(13, self.radius)?;
         }
         os.write_unknown_fields(self.get_unknown_fields())?;
         ::std::result::Result::Ok(())
@@ -490,6 +526,11 @@ impl ::protobuf::Message for NodeProto {
                 "center_index",
                 |m: &NodeProto| { &m.center_index },
                 |m: &mut NodeProto| { &mut m.center_index },
+            ));
+            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
+                "name",
+                |m: &NodeProto| { &m.name },
+                |m: &mut NodeProto| { &mut m.name },
             ));
             fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeInt32>(
                 "scale_index",
@@ -559,6 +600,7 @@ impl ::protobuf::Clear for NodeProto {
     fn clear(&mut self) {
         self.coverage_count = 0;
         self.center_index = 0;
+        self.name.clear();
         self.scale_index = 0;
         self.parent_center_index = 0;
         self.parent_scale_index = 0;
@@ -799,6 +841,7 @@ pub struct CoreProto {
     pub root_scale: i32,
     pub root_index: u64,
     pub layers: ::protobuf::RepeatedField<LayerProto>,
+    pub name_map: ::std::collections::HashMap<::std::string::String, u64>,
     // special fields
     pub unknown_fields: ::protobuf::UnknownFields,
     pub cached_size: ::protobuf::CachedSize,
@@ -985,6 +1028,31 @@ impl CoreProto {
     pub fn take_layers(&mut self) -> ::protobuf::RepeatedField<LayerProto> {
         ::std::mem::replace(&mut self.layers, ::protobuf::RepeatedField::new())
     }
+
+    // repeated .CoverTree.CoreProto.NameMapEntry name_map = 12;
+
+
+    pub fn get_name_map(&self) -> &::std::collections::HashMap<::std::string::String, u64> {
+        &self.name_map
+    }
+    pub fn clear_name_map(&mut self) {
+        self.name_map.clear();
+    }
+
+    // Param is passed by value, moved
+    pub fn set_name_map(&mut self, v: ::std::collections::HashMap<::std::string::String, u64>) {
+        self.name_map = v;
+    }
+
+    // Mutable pointer to the field.
+    pub fn mut_name_map(&mut self) -> &mut ::std::collections::HashMap<::std::string::String, u64> {
+        &mut self.name_map
+    }
+
+    // Take field
+    pub fn take_name_map(&mut self) -> ::std::collections::HashMap<::std::string::String, u64> {
+        ::std::mem::replace(&mut self.name_map, ::std::collections::HashMap::new())
+    }
 }
 
 impl ::protobuf::Message for CoreProto {
@@ -1063,6 +1131,9 @@ impl ::protobuf::Message for CoreProto {
                 11 => {
                     ::protobuf::rt::read_repeated_message_into(wire_type, is, &mut self.layers)?;
                 },
+                12 => {
+                    ::protobuf::rt::read_map_into::<::protobuf::types::ProtobufTypeString, ::protobuf::types::ProtobufTypeUint64>(wire_type, is, &mut self.name_map)?;
+                },
                 _ => {
                     ::protobuf::rt::read_unknown_or_skip_group(field_number, wire_type, is, self.mut_unknown_fields())?;
                 },
@@ -1106,6 +1177,7 @@ impl ::protobuf::Message for CoreProto {
             let len = value.compute_size();
             my_size += 1 + ::protobuf::rt::compute_raw_varint32_size(len) + len;
         };
+        my_size += ::protobuf::rt::compute_map_size::<::protobuf::types::ProtobufTypeString, ::protobuf::types::ProtobufTypeUint64>(12, &self.name_map);
         my_size += ::protobuf::rt::unknown_fields_size(self.get_unknown_fields());
         self.cached_size.set(my_size);
         my_size
@@ -1144,6 +1216,7 @@ impl ::protobuf::Message for CoreProto {
             os.write_raw_varint32(v.get_cached_size())?;
             v.write_to_with_cached_sizes(os)?;
         };
+        ::protobuf::rt::write_map_with_cached_sizes::<::protobuf::types::ProtobufTypeString, ::protobuf::types::ProtobufTypeUint64>(12, &self.name_map, os)?;
         os.write_unknown_fields(self.get_unknown_fields())?;
         ::std::result::Result::Ok(())
     }
@@ -1232,6 +1305,11 @@ impl ::protobuf::Message for CoreProto {
                 |m: &CoreProto| { &m.layers },
                 |m: &mut CoreProto| { &mut m.layers },
             ));
+            fields.push(::protobuf::reflect::accessor::make_map_accessor::<_, ::protobuf::types::ProtobufTypeString, ::protobuf::types::ProtobufTypeUint64>(
+                "name_map",
+                |m: &CoreProto| { &m.name_map },
+                |m: &mut CoreProto| { &mut m.name_map },
+            ));
             ::protobuf::reflect::MessageDescriptor::new_pb_name::<CoreProto>(
                 "CoreProto",
                 fields,
@@ -1258,6 +1336,7 @@ impl ::protobuf::Clear for CoreProto {
         self.root_scale = 0;
         self.root_index = 0;
         self.layers.clear();
+        self.name_map.clear();
         self.unknown_fields.clear();
     }
 }
@@ -1275,29 +1354,33 @@ impl ::protobuf::reflect::ProtobufValue for CoreProto {
 }
 
 static file_descriptor_proto_data: &'static [u8] = b"\
-    \n\x16tree_file_format.proto\x12\tCoverTree\"\x85\x04\n\tNodeProto\x12%\
+    \n\x16tree_file_format.proto\x12\tCoverTree\"\x99\x04\n\tNodeProto\x12%\
     \n\x0ecoverage_count\x18\x01\x20\x01(\x04R\rcoverageCount\x12!\n\x0ccent\
-    er_index\x18\x02\x20\x01(\x04R\x0bcenterIndex\x12\x1f\n\x0bscale_index\
-    \x18\x03\x20\x01(\x05R\nscaleIndex\x12.\n\x13parent_center_index\x18\x04\
-    \x20\x01(\x04R\x11parentCenterIndex\x12,\n\x12parent_scale_index\x18\x05\
-    \x20\x01(\x05R\x10parentScaleIndex\x12\x17\n\x07is_leaf\x18\x06\x20\x01(\
-    \x08R\x06isLeaf\x124\n\x16children_point_indexes\x18\x07\x20\x03(\x04R\
-    \x14childrenPointIndexes\x124\n\x16children_scale_indexes\x18\x08\x20\
-    \x03(\x05R\x14childrenScaleIndexes\x12,\n\x12nested_scale_index\x18\t\
-    \x20\x01(\x05R\x10nestedScaleIndex\x122\n\x15outlier_point_indexes\x18\n\
-    \x20\x03(\x04R\x13outlierPointIndexes\x120\n\x14outlier_summary_json\x18\
-    \x0b\x20\x01(\tR\x12outlierSummaryJson\x12\x16\n\x06radius\x18\x0c\x20\
-    \x01(\x02R\x06radius\"Y\n\nLayerProto\x12\x1f\n\x0bscale_index\x18\x01\
-    \x20\x01(\x05R\nscaleIndex\x12*\n\x05nodes\x18\x02\x20\x03(\x0b2\x14.Cov\
-    erTree.NodeProtoR\x05nodes\"\xc5\x02\n\tCoreProto\x12%\n\x0euse_singleto\
-    ns\x18\x01\x20\x01(\x08R\ruseSingletons\x12\x1d\n\nscale_base\x18\x02\
-    \x20\x01(\x02R\tscaleBase\x12\x16\n\x06cutoff\x18\x03\x20\x01(\x04R\x06c\
-    utoff\x12\x1e\n\nresolution\x18\x04\x20\x01(\x11R\nresolution\x12%\n\x0e\
-    partition_type\x18\x05\x20\x01(\tR\rpartitionType\x12\x10\n\x03dim\x18\
-    \x07\x20\x01(\x04R\x03dim\x12\x14\n\x05count\x18\x08\x20\x01(\x04R\x05co\
-    unt\x12\x1d\n\nroot_scale\x18\t\x20\x01(\x05R\trootScale\x12\x1d\n\nroot\
-    _index\x18\n\x20\x01(\x04R\trootIndex\x12-\n\x06layers\x18\x0b\x20\x03(\
-    \x0b2\x15.CoverTree.LayerProtoR\x06layersb\x06proto3\
+    er_index\x18\x02\x20\x01(\x04R\x0bcenterIndex\x12\x12\n\x04name\x18\x03\
+    \x20\x01(\tR\x04name\x12\x1f\n\x0bscale_index\x18\x04\x20\x01(\x05R\nsca\
+    leIndex\x12.\n\x13parent_center_index\x18\x05\x20\x01(\x04R\x11parentCen\
+    terIndex\x12,\n\x12parent_scale_index\x18\x06\x20\x01(\x05R\x10parentSca\
+    leIndex\x12\x17\n\x07is_leaf\x18\x07\x20\x01(\x08R\x06isLeaf\x124\n\x16c\
+    hildren_point_indexes\x18\x08\x20\x03(\x04R\x14childrenPointIndexes\x124\
+    \n\x16children_scale_indexes\x18\t\x20\x03(\x05R\x14childrenScaleIndexes\
+    \x12,\n\x12nested_scale_index\x18\n\x20\x01(\x05R\x10nestedScaleIndex\
+    \x122\n\x15outlier_point_indexes\x18\x0b\x20\x03(\x04R\x13outlierPointIn\
+    dexes\x120\n\x14outlier_summary_json\x18\x0c\x20\x01(\tR\x12outlierSumma\
+    ryJson\x12\x16\n\x06radius\x18\r\x20\x01(\x02R\x06radius\"Y\n\nLayerProt\
+    o\x12\x1f\n\x0bscale_index\x18\x01\x20\x01(\x05R\nscaleIndex\x12*\n\x05n\
+    odes\x18\x02\x20\x03(\x0b2\x14.CoverTree.NodeProtoR\x05nodes\"\xbf\x03\n\
+    \tCoreProto\x12%\n\x0euse_singletons\x18\x01\x20\x01(\x08R\ruseSingleton\
+    s\x12\x1d\n\nscale_base\x18\x02\x20\x01(\x02R\tscaleBase\x12\x16\n\x06cu\
+    toff\x18\x03\x20\x01(\x04R\x06cutoff\x12\x1e\n\nresolution\x18\x04\x20\
+    \x01(\x11R\nresolution\x12%\n\x0epartition_type\x18\x05\x20\x01(\tR\rpar\
+    titionType\x12\x10\n\x03dim\x18\x07\x20\x01(\x04R\x03dim\x12\x14\n\x05co\
+    unt\x18\x08\x20\x01(\x04R\x05count\x12\x1d\n\nroot_scale\x18\t\x20\x01(\
+    \x05R\trootScale\x12\x1d\n\nroot_index\x18\n\x20\x01(\x04R\trootIndex\
+    \x12-\n\x06layers\x18\x0b\x20\x03(\x0b2\x15.CoverTree.LayerProtoR\x06lay\
+    ers\x12<\n\x08name_map\x18\x0c\x20\x03(\x0b2!.CoverTree.CoreProto.NameMa\
+    pEntryR\x07nameMap\x1a:\n\x0cNameMapEntry\x12\x10\n\x03key\x18\x01\x20\
+    \x01(\tR\x03key\x12\x14\n\x05value\x18\x02\x20\x01(\x04R\x05value:\x028\
+    \x01b\x06proto3\
 ";
 
 static file_descriptor_proto_lazy: ::protobuf::rt::LazyV2<::protobuf::descriptor::FileDescriptorProto> = ::protobuf::rt::LazyV2::INIT;

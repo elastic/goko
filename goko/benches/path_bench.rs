@@ -26,7 +26,6 @@ use std::sync::Arc;
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
-
 fn build_tree() -> CoverTreeWriter<SimpleLabeledCloud<DataRam<L2>, SmallIntLabels>> {
     let file_name = "data/ember_complex.yml";
     let path = Path::new(file_name);

@@ -2,6 +2,9 @@ use tokio::sync::{mpsc, oneshot};
 use crate::{GokoRequest,GokoResponse};
 use pin_project::pin_project;
 
+use http::{Uri, Method, Request, Response};
+use hyper::Body;
+
 use core::task::Context;
 use std::future::Future;
 use std::pin::Pin;
@@ -19,13 +22,13 @@ pub(crate) type CoreRequestReciever = mpsc::UnboundedReceiver<Message>;
 
 #[pin_project]
 pub(crate) struct Message {
-    pub(crate) request: Option<Result<Request<Body>,GokoClientError>>,
+    pub(crate) request: Option<Request<Body>>,
     pub(crate) reply: Option<CoreResponseSender>,
     pub(crate) global_error: Arc<Mutex<Option<Box<dyn std::error::Error + Send>>>>,
 }
 
 impl Message {
-    pub(crate) fn request(&mut self) -> Option<Result<Request<Body>,GokoClientError>> {
+    pub(crate) fn request(&mut self) -> Option<Request<Body>> {
         self.request.take()
     }
 
@@ -35,11 +38,11 @@ impl Message {
                 match reply.send(response) {
                     Ok(_) => (),
                     Err(_) => {
-                        *self.global_error.lock().unwrap() = Some(Box::new(GokoCoreError::FailedRespSend));
+                        *self.global_error.lock().unwrap() = Some(Box::new(GokoHttpError::FailedRespSend));
                     }
                 }
             }
-            None => *self.global_error.lock().unwrap() = Some(Box::new(GokoCoreError::DoubleRead)),
+            None => *self.global_error.lock().unwrap() = Some(Box::new(GokoHttpError::DoubleRead)),
         }
     }
     pub(crate) fn error(&mut self, error: impl std::error::Error + Send + 'static) {
@@ -52,11 +55,11 @@ pub struct ResponseFuture {
     #[pin]
     pub(crate) response: CoreResponseReciever,
     pub(crate) flight_counter: Arc<atomic::AtomicU32>,
-    pub(crate) error: Option<GokoCoreError>,
+    pub(crate) error: Option<GokoHttpError>,
 }
 
-impl<N: Send> Future for ResponseFuture {
-    type Output = Result<Response<Body>, GokoCoreError>;
+impl Future for ResponseFuture {
+    type Output = Result<Response<Body>, GokoHttpError>;
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.project();
         if let Some(err) = this.error.take() {

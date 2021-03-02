@@ -1,5 +1,6 @@
 use goko::CoverTreeReader;
 use pointcloud::*;
+use crate::core::*;
 
 use serde::{Deserialize, Serialize};
 use std::ops::Deref;
@@ -17,17 +18,17 @@ pub struct KnnRequest<T> {
 
 /// Request: [`KnnRequest`]
 #[derive(Deserialize, Serialize)]
-pub struct KnnResponse<N> {
-    pub knn: Vec<NamedDistance<N>>,
+pub struct KnnResponse {
+    pub knn: Vec<NamedDistance>,
 }
 
 impl<D: PointCloud, T: Deref<Target = D::Point> + Send + Sync> Process<D> for KnnRequest<T> {
-    type Response = KnnResponse<D::Name>;
+    type Response = KnnResponse;
     type Error = GokoError;
-    fn process(self, reader: &CoverTreeReader<D>) -> Result<Self::Response, Self::Error> {
-        let knn = reader.knn(&self.point, self.k)?;
-        let pc = &reader.parameters().point_cloud;
-        let resp: Result<Vec<NamedDistance<D::Name>>, GokoError> = knn
+    fn process(self, reader: &CoreReader<D>) -> Result<Self::Response, Self::Error> {
+        let knn = reader.tree.knn(&self.point, self.k)?;
+        let pc = &reader.tree.parameters().point_cloud;
+        let resp: Result<Vec<NamedDistance>, GokoError> = knn
             .iter()
             .map(|(distance, pi)| {
                 Ok(NamedDistance {
@@ -50,17 +51,17 @@ pub struct RoutingKnnRequest<T> {
 
 /// Request: [`RoutingKnnRequest`]
 #[derive(Deserialize, Serialize)]
-pub struct RoutingKnnResponse<N> {
-    pub routing_knn: Vec<NamedDistance<N>>,
+pub struct RoutingKnnResponse {
+    pub routing_knn: Vec<NamedDistance>,
 }
 
 impl<D: PointCloud, T: Deref<Target = D::Point> + Send + Sync> Process<D> for RoutingKnnRequest<T> {
-    type Response = RoutingKnnResponse<D::Name>;
+    type Response = RoutingKnnResponse;
     type Error = GokoError;
-    fn process(self, reader: &CoverTreeReader<D>) -> Result<Self::Response, Self::Error> {
-        let knn = reader.routing_knn(&self.point, self.k)?;
-        let pc = &reader.parameters().point_cloud;
-        let resp: Result<Vec<NamedDistance<D::Name>>, GokoError> = knn
+    fn process(self, reader: &CoreReader<D>) -> Result<Self::Response, Self::Error> {
+        let knn = reader.tree.routing_knn(&self.point, self.k)?;
+        let pc = &reader.tree.parameters().point_cloud;
+        let resp: Result<Vec<NamedDistance>, GokoError> = knn
             .iter()
             .map(|(distance, pi)| {
                 Ok(NamedDistance {

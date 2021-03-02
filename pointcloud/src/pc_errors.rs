@@ -119,6 +119,12 @@ impl From<io::Error> for PointCloudError {
     }
 }
 
+impl From<ParsingError> for PointCloudError {
+    fn from(err: ParsingError) -> Self {
+        PointCloudError::ParsingError(err)
+    }
+}
+
 impl From<PointCloudError> for io::Error {
     fn from(err: PointCloudError) -> Self {
         match err {

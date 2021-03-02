@@ -10,8 +10,8 @@ use crate::pc_errors::*;
 use serde::{Deserialize, Serialize};
 
 /// A trait to ensure that we can create matrices and statiscial vectors from your point reference.
-/// 
-/// See [`crate::points`] for some pre-baked implementations. 
+///
+/// See [`crate::points`] for some pre-baked implementations.
 pub trait PointRef: Send + Sync {
     /// The iterator type for this reference.
     type DenseIter: Iterator<Item = f32>;
@@ -25,8 +25,8 @@ pub trait PointRef: Send + Sync {
     fn dense_iter(&self) -> Self::DenseIter;
 }
 
-/// Metric trait. Done as a trait so that it's easy to switch out. 
-/// 
+/// Metric trait. Done as a trait so that it's easy to switch out.
+///
 /// Implement this then benchmark it to hell, this is the core loop of everything.
 pub trait Metric<T: ?Sized>: Send + Sync + 'static {
     /// Distance calculator. Optimize the hell out of this if you're implementing it.
@@ -52,8 +52,6 @@ pub trait PointCloud: Send + Sync + 'static {
     type PointRef<'a>: Deref<Target = Self::Point> + PointRef;
     /// The metric this pointcloud is bound to. Think L2
     type Metric: Metric<Self::Point>;
-    /// Name type, could be a string or a
-    type Name: Sized + Clone + Eq + Serialize + Send + Debug;
     /// The label type.
     /// Summary of a set of labels
     type Label: ?Sized;
@@ -63,7 +61,6 @@ pub trait PointCloud: Send + Sync + 'static {
     type Metadata: ?Sized;
     /// A summary of the underlying metadata
     type MetaSummary: Summary<Label = Self::Metadata>;
-
 
     /// Expensive metadata object for the sample
     fn metadata(&self, pn: usize) -> PointCloudResult<Option<&Self::Metadata>>;
@@ -77,11 +74,11 @@ pub trait PointCloud: Send + Sync + 'static {
     fn label_summary(&self, pns: &[usize]) -> PointCloudResult<SummaryCounter<Self::LabelSummary>>;
     /// Grabs the name of the point.
     /// Returns an error if the access errors out, and a None if the name is unknown
-    fn name(&self, pi: usize) -> PointCloudResult<Self::Name>;
+    fn name(&self, pi: usize) -> PointCloudResult<String>;
     /// Converts a name to an index you can use
-    fn index(&self, pn: &Self::Name) -> PointCloudResult<usize>;
+    fn index(&self, pn: &str) -> PointCloudResult<usize>;
     /// Gather's all valid known names
-    fn names(&self) -> Vec<Self::Name>;
+    fn names(&self) -> Vec<String>;
 
     /// The number of samples this cloud covers
     fn len(&self) -> usize;
@@ -355,7 +352,9 @@ impl Summary for () {
     type Label = ();
     fn add(&mut self, _v: &Self::Label) {}
     fn combine(&mut self, _other: &Self) {}
-    fn count(&self) -> usize { 0 }
+    fn count(&self) -> usize {
+        0
+    }
 }
 
 /// A trait for a container that just holds labels. Meant to be used in conjunction with `SimpleLabeledCloud` to be
@@ -449,7 +448,6 @@ impl<D: PointCloud, L: LabelSet> PointCloud for SimpleLabeledCloud<D, L> {
     type Metric = D::Metric;
     type Point = D::Point;
     type PointRef<'a> = D::PointRef<'a>;
-    type Name = D::Name;
     type Metadata = D::Metadata;
     type MetaSummary = D::MetaSummary;
 
@@ -496,34 +494,32 @@ impl<D: PointCloud, L: LabelSet> PointCloud for SimpleLabeledCloud<D, L> {
     }
     /// Grabs the name of the point.
     /// Returns an error if the access errors out, and a None if the name is unknown
-    fn name(&self, pi: usize) -> PointCloudResult<Self::Name> {
+    fn name(&self, pi: usize) -> PointCloudResult<String> {
         self.data.name(pi)
     }
     /// Converts a name to an index you can use
-    fn index(&self, pn: &Self::Name) -> PointCloudResult<usize> {
+    fn index(&self, pn: &str) -> PointCloudResult<usize> {
         self.data.index(pn)
     }
     /// Gather's all valid known names
-    fn names(&self) -> Vec<Self::Name> {
+    fn names(&self) -> Vec<String> {
         self.data.names()
     }
 }
 
 /// Enables the points in the underlying cloud to be named with strings.
 pub trait NamedSet: Send + Sync + 'static {
-    /// Name type, could be a string or a
-    type Name: Sized + Clone + Eq + Serialize + Send + Debug;
     /// Number of elements in this name set
     fn len(&self) -> usize;
     /// If there are no elements left in this name set
     fn is_empty(&self) -> bool;
     /// Grabs the name of the point.
     /// Returns an error if the access errors out, and a None if the name is unknown
-    fn name(&self, pi: usize) -> PointCloudResult<Self::Name>;
+    fn name(&self, pi: usize) -> PointCloudResult<String>;
     /// Converts a name to an index you can use
-    fn index(&self, pn: &Self::Name) -> PointCloudResult<usize>;
+    fn index(&self, pn: &str) -> PointCloudResult<usize>;
     /// Gather's all valid known names
-    fn names(&self) -> Vec<Self::Name>;
+    fn names(&self) -> Vec<String>;
 }
 
 /// Simply shoves together a point cloud and a name set, for a modular name system
@@ -546,7 +542,6 @@ impl<D: PointCloud, N: NamedSet> PointCloud for SimpleNamedCloud<D, N> {
     type Metric = D::Metric;
     type Point = D::Point;
     type PointRef<'a> = D::PointRef<'a>;
-    type Name = N::Name;
     type Metadata = D::Metadata;
     type MetaSummary = D::MetaSummary;
 
@@ -593,15 +588,15 @@ impl<D: PointCloud, N: NamedSet> PointCloud for SimpleNamedCloud<D, N> {
     }
     /// Grabs the name of the point.
     /// Returns an error if the access errors out, and a None if the name is unknown
-    fn name(&self, pi: usize) -> PointCloudResult<Self::Name> {
+    fn name(&self, pi: usize) -> PointCloudResult<String> {
         self.names.name(pi)
     }
     /// Converts a name to an index you can use
-    fn index(&self, pn: &Self::Name) -> PointCloudResult<usize> {
+    fn index(&self, pn: &str) -> PointCloudResult<usize> {
         self.names.index(pn)
     }
     /// Gather's all valid known names
-    fn names(&self) -> Vec<Self::Name> {
+    fn names(&self) -> Vec<String> {
         self.names.names()
     }
 }

@@ -1,10 +1,10 @@
-//! Various implementations of the L2 metric for types that can be easily converted to f32. 
+//! Various implementations of the L2 metric for types that can be easily converted to f32.
 
+use super::L2;
 use crate::base_traits::Metric;
-use std::ops::Deref;
 use crate::points::*;
 use packed_simd::*;
-use super::L2;
+use std::ops::Deref;
 
 macro_rules! make_l2_distance {
     ($base:ident, $simd_16_base:ident, $simd_8_base:ident, $sparse_base:ident, $dist_base:ident, $norm_base:ident) => {
@@ -48,14 +48,14 @@ macro_rules! make_l2_distance {
             while x.len() > 16 {
                 let x_simd = $simd_16_base::from_slice_unaligned(x);
                 let x_simd_f32 = f32x16::from_cast(x_simd);
-                d_acc_16 += x_simd_f32*x_simd_f32;
+                d_acc_16 += x_simd_f32 * x_simd_f32;
                 x = &x[16..];
             }
             let mut d_acc_8 = f32x8::splat(0.0);
             if x.len() > 8 {
                 let x_simd = $simd_8_base::from_slice_unaligned(x);
                 let x_simd_f32 = f32x8::from_cast(x_simd);
-                d_acc_8 += x_simd_f32*x_simd_f32;
+                d_acc_8 += x_simd_f32 * x_simd_f32;
                 x = &x[8..];
             }
             let leftover = x
@@ -91,7 +91,7 @@ macro_rules! make_l2_distance {
                 for (si, sv) in short_iter {
                     while let Some((li, lv)) = l_tr {
                         if li < si {
-                            total += (*lv as f32)*(*lv as f32);
+                            total += (*lv as f32) * (*lv as f32);
                             l_tr = long_iter.next();
                         } else {
                             break;
@@ -100,17 +100,17 @@ macro_rules! make_l2_distance {
                     if let Some((li, lv)) = l_tr {
                         if li == si {
                             let val = (*sv as f32) - (*lv as f32);
-                            total += val*val;
+                            total += val * val;
                             l_tr = long_iter.next();
                         } else {
-                            total += (*sv as f32)*(*sv as f32);
+                            total += (*sv as f32) * (*sv as f32);
                         }
                     } else {
-                        total += (*sv as f32)*(*sv as f32);
+                        total += (*sv as f32) * (*sv as f32);
                     }
                 }
                 while let Some((_li, lv)) = l_tr {
-                    total += (*lv as f32)*(*lv as f32);
+                    total += (*lv as f32) * (*lv as f32);
                     l_tr = long_iter.next();
                 }
                 total
@@ -121,30 +121,72 @@ macro_rules! make_l2_distance {
                 $dist_base(x.deref(), y.deref()).sqrt()
             }
         }
-        
+
         impl<'a> Metric<RawSparse<$base, u32>> for L2 {
             fn dist(x: &RawSparse<$base, u32>, y: &RawSparse<$base, u32>) -> f32 {
                 $sparse_base(x.indexes(), x.values(), y.indexes(), y.values()).sqrt()
             }
         }
-        
+
         impl<'a> Metric<RawSparse<$base, u16>> for L2 {
             fn dist(x: &RawSparse<$base, u16>, y: &RawSparse<$base, u16>) -> f32 {
                 $sparse_base(x.indexes(), x.values(), y.indexes(), y.values()).sqrt()
             }
         }
-        
+
         impl<'a> Metric<RawSparse<$base, u8>> for L2 {
             fn dist(x: &RawSparse<$base, u8>, y: &RawSparse<$base, u8>) -> f32 {
                 $sparse_base(x.indexes(), x.values(), y.indexes(), y.values()).sqrt()
             }
         }
-    }
+    };
 }
 
-make_l2_distance!(i8,i8x16,i8x8,sq_l2_sparse_i8_f32,sq_l2_dense_i8,sq_l2_norm_i8);
-make_l2_distance!(u8,u8x16,u8x8,sq_l2_sparse_u8_f32,sq_l2_dense_u8,sq_l2_norm_u8);
-make_l2_distance!(i16,i16x16,i16x8,sq_l2_sparse_i16_f32,sq_l2_dense_i16,sq_l2_norm_i16);
-make_l2_distance!(u16,u16x16,u16x8,sq_l2_sparse_u16_f32,sq_l2_dense_u16,sq_l2_norm_u16);
-make_l2_distance!(i32,i32x16,i32x8,sq_l2_sparse_i32_f32,sq_l2_dense_i32,sq_l2_norm_i32);
-make_l2_distance!(u32,u32x16,u32x8,sq_l2_sparse_u32_f32,sq_l2_dense_u32,sq_l2_norm_u32);
+make_l2_distance!(
+    i8,
+    i8x16,
+    i8x8,
+    sq_l2_sparse_i8_f32,
+    sq_l2_dense_i8,
+    sq_l2_norm_i8
+);
+make_l2_distance!(
+    u8,
+    u8x16,
+    u8x8,
+    sq_l2_sparse_u8_f32,
+    sq_l2_dense_u8,
+    sq_l2_norm_u8
+);
+make_l2_distance!(
+    i16,
+    i16x16,
+    i16x8,
+    sq_l2_sparse_i16_f32,
+    sq_l2_dense_i16,
+    sq_l2_norm_i16
+);
+make_l2_distance!(
+    u16,
+    u16x16,
+    u16x8,
+    sq_l2_sparse_u16_f32,
+    sq_l2_dense_u16,
+    sq_l2_norm_u16
+);
+make_l2_distance!(
+    i32,
+    i32x16,
+    i32x8,
+    sq_l2_sparse_i32_f32,
+    sq_l2_dense_i32,
+    sq_l2_norm_i32
+);
+make_l2_distance!(
+    u32,
+    u32x16,
+    u32x8,
+    sq_l2_sparse_u32_f32,
+    sq_l2_dense_u32,
+    sq_l2_norm_u32
+);

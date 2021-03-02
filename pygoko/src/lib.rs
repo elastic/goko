@@ -24,8 +24,8 @@ pub mod node;
 pub mod plugins;
 pub mod tree;
 
-use tree::CoverTree;
 use plugins::*;
+use tree::CoverTree;
 
 #[pymodule]
 fn pygoko(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
