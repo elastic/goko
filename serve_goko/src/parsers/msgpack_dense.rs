@@ -3,8 +3,7 @@
 //! This currently isn't safe (we assume the caller is going to send requests with bodies of reasonable size), and does more allocations
 //! than it strictly needs to. 
 
-use hyper::body::to_bytes;
-use hyper::{Request, header::HeaderValue, Body};
+use hyper::{Request, Body};
 
 use http::header::CONTENT_TYPE;
 use flate2::read::{DeflateDecoder, ZlibDecoder};

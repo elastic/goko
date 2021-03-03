@@ -1,9 +1,6 @@
 use tokio::sync::oneshot;
 use crate::errors::GokoClientError;
-use crate::GokoRequest;
 use goko::errors::GokoError;
-
-use hyper::{Request,Body};
 
 use std::error::Error;
 use std::fmt;
@@ -15,8 +12,6 @@ mod service;
 pub use service::GokoHttp;
 pub use message::ResponseFuture;
 pub use maker::MakeGokoHttp;
-use std::future::Future;
-use serde::Serialize;
 
 pub enum GokoHttpError {
     Other(GokoClientError),

@@ -1,4 +1,3 @@
-use goko::CoverTreeReader;
 use pointcloud::*;
 use crate::core::*;
 
@@ -7,7 +6,7 @@ use std::ops::Deref;
 
 use goko::errors::GokoError;
 
-use super::{Process,NamedDistance};
+use super::NamedDistance;
 
 /// Response: [`KnnResponse`]
 #[derive(Deserialize, Serialize)]
@@ -22,10 +21,12 @@ pub struct KnnResponse {
     pub knn: Vec<NamedDistance>,
 }
 
-impl<D: PointCloud, T: Deref<Target = D::Point> + Send + Sync> Process<D> for KnnRequest<T> {
-    type Response = KnnResponse;
-    type Error = GokoError;
-    fn process(self, reader: &CoreReader<D>) -> Result<Self::Response, Self::Error> {
+impl<T> KnnRequest<T> {
+    pub fn process<D>(self, reader: &mut CoreReader<D>) -> Result<KnnResponse, GokoError> 
+    where 
+        D: PointCloud, 
+        T: Deref<Target = D::Point> + Send + Sync,
+    {
         let knn = reader.tree.knn(&self.point, self.k)?;
         let pc = &reader.tree.parameters().point_cloud;
         let resp: Result<Vec<NamedDistance>, GokoError> = knn
@@ -55,10 +56,12 @@ pub struct RoutingKnnResponse {
     pub routing_knn: Vec<NamedDistance>,
 }
 
-impl<D: PointCloud, T: Deref<Target = D::Point> + Send + Sync> Process<D> for RoutingKnnRequest<T> {
-    type Response = RoutingKnnResponse;
-    type Error = GokoError;
-    fn process(self, reader: &CoreReader<D>) -> Result<Self::Response, Self::Error> {
+impl<T> RoutingKnnRequest<T> {
+    pub fn process<D>(self, reader: &CoreReader<D>) -> Result<RoutingKnnResponse, GokoError> 
+    where 
+        D: PointCloud, 
+        T: Deref<Target = D::Point> + Send + Sync,
+    {
         let knn = reader.tree.routing_knn(&self.point, self.k)?;
         let pc = &reader.tree.parameters().point_cloud;
         let resp: Result<Vec<NamedDistance>, GokoError> = knn

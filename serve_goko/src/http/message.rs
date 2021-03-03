@@ -1,8 +1,7 @@
 use tokio::sync::{mpsc, oneshot};
-use crate::{GokoRequest,GokoResponse};
 use pin_project::pin_project;
 
-use http::{Uri, Method, Request, Response};
+use http::{Request, Response};
 use hyper::Body;
 
 use core::task::Context;

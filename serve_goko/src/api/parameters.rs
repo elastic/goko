@@ -1,16 +1,13 @@
-use goko::CoverTreeReader;
 use pointcloud::*;
 
 use goko::PartitionType;
 use serde::{Deserialize, Serialize};
 use crate::core::*;
-
-use std::convert::Infallible;
+use goko::errors::GokoError;
 
 /// Send a `GET` request to `/` for this
 #[derive(Deserialize, Serialize, Clone, Copy)]
 pub struct ParametersRequest;
-use super::Process;
 
 /// Response to a parameters request
 #[derive(Deserialize, Serialize)]
@@ -31,10 +28,8 @@ pub struct ParametersResponse {
     pub rng_seed: Option<u64>,
 }
 
-impl<D: PointCloud> Process<D> for ParametersRequest {
-    type Response = ParametersResponse;
-    type Error = Infallible;
-    fn process(self, reader: &CoreReader<D>) -> Result<Self::Response, Self::Error> {
+impl ParametersRequest {
+    pub fn process<D: PointCloud>(self, reader: &mut CoreReader<D>) -> Result<ParametersResponse, GokoError> {
         let params = reader.tree.parameters();
         Ok(ParametersResponse {
             scale_base: params.scale_base,

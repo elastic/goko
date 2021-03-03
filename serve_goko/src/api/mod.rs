@@ -1,12 +1,8 @@
-use goko::CoverTreeReader;
-use http::Response;
-use hyper::Body;
 use pointcloud::*;
 use goko::errors::GokoError;
 use crate::core::*;
 
 use serde::{Deserialize, Serialize};
-use std::ops::Deref;
 //use std::convert::Infallible;
 
 mod parameters;
@@ -22,8 +18,7 @@ pub use knn::*;
 /// How the server processes the request, under the hood.
 pub(crate) trait Process<D: PointCloud> {
     type Response: Serialize;
-    type Error;
-    fn process(self, reader: &CoreReader<D>) -> Result<Self::Response, Self::Error>;
+    fn process(self, reader: &CoreReader<D>) -> Result<Self::Response, GokoError>;
 }
 
 /// A summary for a small number of categories.
@@ -84,26 +79,4 @@ pub struct NodeDistance {
     pub layer: i32,
     /// The distance to the central node
     pub distance: f32,
-}
-
-/// Response when there is some kind of error
-#[derive(Deserialize, Serialize)]
-pub struct ErrorResponse {
-    pub error: String,
-}
-
-impl<D: PointCloud, T: Deref<Target = D::Point> + Send + Sync> Process<D> for GokoRequest<T> {
-    type Response = GokoResponse;
-    type Error = GokoError;
-    fn process(self, reader: &CoreReader<D>) -> Result<Self::Response, Self::Error> {
-        match self {
-            GokoRequest::Parameters(p) => Ok(GokoResponse::Parameters(p.process(reader).unwrap())),
-            GokoRequest::Knn(p) => p.process(reader).map(|p| GokoResponse::Knn(p)),
-            GokoRequest::RoutingKnn(p) => p.process(reader).map(|p| GokoResponse::RoutingKnn(p)),
-            GokoRequest::Path(p) => p.process(reader).map(|p| GokoResponse::Path(p)),
-            GokoRequest::Unknown(response_string, status) => {
-                Ok(GokoResponse::Unknown(response_string, status))
-            }
-        }
-    }
 }

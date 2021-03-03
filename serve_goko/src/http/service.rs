@@ -5,7 +5,6 @@ use hyper::Body;
 
 use crate::{GokoRequest,GokoResponse};
 
-use goko::CoverTreeReader;
 use pointcloud::*;
 
 use tower::load::Load;
@@ -13,8 +12,6 @@ use tower::Service;
 
 use core::task::Context;
 use std::task::Poll;
-
-use crate::api::Process;
 
 use std::sync::{atomic, Arc, Mutex};
 
@@ -97,7 +94,7 @@ where
     P: PointParser,
     P::Point: Deref<Target = D::Point> + Send + Sync + 'static,
 {
-    pub(crate) fn new(reader: CoreReader<D>, mut parser: PointBuffer<P>) -> GokoHttp<D, P> {
+    pub(crate) fn new(mut reader: CoreReader<D>, mut parser: PointBuffer<P>) -> GokoHttp<D, P> {
         let (request_snd, mut request_rcv): (CoreRequestSender, CoreRequestReciever) =
             mpsc::unbounded_channel();
         tokio::spawn(async move {
@@ -105,7 +102,7 @@ where
                 if let Some(hyper_request) = msg.request() {
                     let goko_request = parse_http(hyper_request, &mut parser).await;
                     let response = match goko_request {
-                        Ok(r) => r.process(&reader).map_err(|e| e.into()),
+                        Ok(r) => reader.process(r).await.map_err(|e| e.into()),
                         Err(e) => Err(e),
                     };
                     match response {

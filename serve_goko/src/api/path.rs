@@ -1,4 +1,3 @@
-use goko::CoverTreeReader;
 use pointcloud::*;
 
 use serde::{Deserialize, Serialize};
@@ -6,7 +5,7 @@ use std::ops::Deref;
 
 use goko::errors::GokoError;
 use crate::core::*;
-use super::{Process,NodeDistance};
+use super::NodeDistance;
 
 /// Response: [`PathResponse`]
 #[derive(Deserialize, Serialize)]
@@ -20,10 +19,12 @@ pub struct PathResponse {
     pub path: Vec<NodeDistance>,
 }
 
-impl<D: PointCloud, T: Deref<Target = D::Point> + Send + Sync> Process<D> for PathRequest<T> {
-    type Response = PathResponse;
-    type Error = GokoError;
-    fn process(self, reader: &CoreReader<D>) -> Result<Self::Response, Self::Error> {
+impl<T> PathRequest<T> {
+    pub fn process<D>(self, reader: &mut CoreReader<D>) -> Result<PathResponse, GokoError> 
+    where 
+        D: PointCloud, 
+        T: Deref<Target = D::Point> + Send + Sync,
+    {
         let knn = reader.tree.path(&self.point)?;
         let pc = &reader.tree.parameters().point_cloud;
         let resp: Result<Vec<NodeDistance>, GokoError> = knn

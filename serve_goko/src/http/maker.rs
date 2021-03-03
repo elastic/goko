@@ -1,6 +1,5 @@
-use std::sync::{RwLock,Arc};
+use std::sync::Arc;
 
-use goko::CoverTreeWriter;
 use pointcloud::*;
 
 use tower::Service;
