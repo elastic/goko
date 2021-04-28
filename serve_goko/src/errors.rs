@@ -70,6 +70,7 @@ impl Error for InternalServiceError {
 //
 pub enum GokoClientError {
     Underlying(InternalServiceError),
+    MalformedQuery(&'static str),
     Http(hyper::Error),
     Parse(Box<dyn std::error::Error + Send + Sync>),
     MissingBody,
@@ -109,6 +110,7 @@ impl fmt::Display for GokoClientError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             GokoClientError::Underlying(ref se) => fmt::Display::fmt(se, f),
+            GokoClientError::MalformedQuery(ref se) => fmt::Display::fmt(se, f),
             GokoClientError::Http(ref se) => fmt::Display::fmt(se, f),
             GokoClientError::Parse(ref se) => fmt::Display::fmt(se, f),
             GokoClientError::MissingBody => f.pad("Body Missing"),
@@ -120,6 +122,7 @@ impl fmt::Debug for GokoClientError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             GokoClientError::Underlying(ref se) => write!(f, "Underlying({:?})", se),
+            GokoClientError::MalformedQuery(ref se) => write!(f, "MalformedQuery({:?})", se),
             GokoClientError::Http(ref se) => write!(f, "Http({:?})", se),
             GokoClientError::Parse(ref se) => write!(f, "Underlying({:?})", se),
             GokoClientError::MissingBody => f.pad("MissingBody"),
@@ -133,6 +136,7 @@ impl Error for GokoClientError {
             GokoClientError::Underlying(ref se) => Some(se),
             GokoClientError::Http(ref se) => Some(se),
             GokoClientError::Parse(ref se) => se.source(),
+            GokoClientError::MalformedQuery(_) => None,
             GokoClientError::MissingBody => None,
         }
     }

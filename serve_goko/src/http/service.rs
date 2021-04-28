@@ -48,25 +48,99 @@ fn parse_knn_query(uri: &Uri) -> usize {
     }
 }
 
+fn parse_tracker_query(uri: &Uri) -> (Option<String>, Option<usize>) {
+    lazy_static! {
+        static ref RE_TRACKER: Regex = Regex::new(r"tracker_name=(?P<tracker_name>\w+)").unwrap();
+    }
+    lazy_static! {
+        static ref RE_WINDOW: Regex = Regex::new(r"window_size=(?P<window_size>\d+)").unwrap();
+    }
+
+    let tracker_name = match uri.query().map(|s| RE_TRACKER.captures(s)).flatten() {
+        Some(caps) => caps["tracker_name"].parse::<String>().ok(),
+        None => None,
+    };
+
+    let window_size = match uri.query().map(|s| RE_WINDOW.captures(s)).flatten() {
+        Some(caps) => caps["window_size"].parse::<usize>().ok(),
+        None => None,
+    };
+    (tracker_name, window_size)
+}
+
 pub(crate) async fn parse_http<P: PointParser>(request: Request<Body>, parser: &mut PointBuffer<P>) -> Result<GokoRequest<P::Point>, GokoClientError> {
     match (request.method(), request.uri().path()) {
         // Serve some instructions at /
         (&Method::GET, "/") => Ok(GokoRequest::Parameters(ParametersRequest)),
         (&Method::GET, "/knn") => {
             let k = parse_knn_query(request.uri());
+            println!("KNN QUERY: k = {}",k);
             let point = parser.point(request).await?;
             Ok(GokoRequest::Knn(KnnRequest { point, k }))
         }
         (&Method::GET, "/routing_knn") => {
             let k = parse_knn_query(request.uri());
+            println!("ROUTING KNN QUERY: k = {}",k);
             let point = parser.point(request).await?;
             Ok(GokoRequest::RoutingKnn(RoutingKnnRequest { point, k }))
 
         }
         (&Method::GET, "/path") => {
+            println!("PATH QUERY");
             let point = parser.point(request).await?;
             Ok(GokoRequest::Path(PathRequest { point }))
 
+        }
+        (&Method::POST, "/track/add") => {
+            let (tracker_name, window_size) = parse_tracker_query(request.uri());
+            println!("TRACKER ADD QUERY: name = {:?} window_size = {:?}", tracker_name, window_size);
+            if let Some(window_size) = window_size {
+                let request = TrackingRequestChoice::AddTracker(
+                    AddTrackerRequest {
+                        window_size,
+                    }
+                );
+                let tracking_request = TrackingRequest {
+                    tracker_name,
+                    request,
+                };
+                Ok(GokoRequest::Tracking(tracking_request))
+            } else {
+                Err(GokoClientError::MalformedQuery("Unable to parse window_size."))
+            }
+        }
+        (&Method::POST, "/track/point") => {
+            let (tracker_name, window_size) = parse_tracker_query(request.uri());
+            println!("TRACK POINT QUERY: name = {:?} window_size = {:?}", tracker_name, window_size);
+            let point = parser.point(request).await?;
+            let request = TrackingRequestChoice::TrackPoint(
+                TrackPointRequest {
+                    point,
+                }
+            );
+            let tracking_request = TrackingRequest {
+                tracker_name,
+                request,
+            };
+            Ok(GokoRequest::Tracking(tracking_request))
+        }
+        (&Method::GET, "/track/stats") => {
+            let (tracker_name, window_size) = parse_tracker_query(request.uri());
+            println!("TRACK STATS QUERY: name = {:?} window_size = {:?}", tracker_name, window_size);
+            if let Some(window_size) = window_size {
+                let request = TrackingRequestChoice::CurrentStats(
+                    CurrentStatsRequest {
+                        window_size,
+                    }
+                );
+                let tracking_request = TrackingRequest {
+                    tracker_name,
+                    request,
+                };
+                Ok(GokoRequest::Tracking(tracking_request))
+            } else {
+                Err(GokoClientError::MalformedQuery("Unable to parse window_size."))
+            }
         }
         // The 404 Not Found route...
         _ => Ok(GokoRequest::Unknown(String::new(), 404)),
@@ -104,7 +178,13 @@ where
                     let goko_request = parse_http(hyper_request, &mut parser).await;
                     let response = match goko_request {
                         Ok(r) => reader.process(r).await.map_err(|e| e.into()),
-                        Err(e) => Err(e),
+                        Err(e) => {
+                            if let GokoClientError::MalformedQuery(s) = e {
+                                Ok(GokoResponse::Unknown(s.to_string(), 404))
+                            } else {
+                                Err(e)
+                            }
+                        },
                     };
                     match response {
                         Ok(resp) => msg.respond(into_http(resp)),

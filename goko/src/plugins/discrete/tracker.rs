@@ -159,14 +159,17 @@ impl<D: PointCloud> BayesCategoricalTracker<D> {
     pub fn all_node_kl(&self) -> Vec<(f64, NodeAddress)> {
         self.running_evidence()
             .iter()
-            .map(|(address, sequence_pdf)| {
-                let kl = self
+            .filter_map(|(address, sequence_pdf)| {
+                let kl_option = self
                     .reader
                     .get_node_plugin_and::<Dirichlet, _, _>(*address, |p| {
                         p.posterior_kl_divergence(sequence_pdf).unwrap()
                     })
-                    .unwrap();
-                (kl, *address)
+                    .map(|kl| (kl, *address));
+                if let None = kl_option {
+                    println!("Unable to find node at {:?}", address);
+                }
+                kl_option
             })
             .collect()
     }

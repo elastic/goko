@@ -51,39 +51,30 @@ pub enum GokoRequest<T> {
 }
 #[derive(Deserialize, Serialize)]
 pub struct TrackingRequest<T> {
-    tracker_name: Option<String>,
-    request: TrackingRequestChoice<T>,
+    pub tracker_name: Option<String>,
+    pub request: TrackingRequestChoice<T>,
 }
 
 
 #[derive(Deserialize, Serialize)]
 pub enum TrackingRequestChoice<T> {
-    /// Track a point, send a `POST` request to `/track/point/TRACKER_NAME` with a set of features in the body for this query. 
+    /// Track a point, send a `POST` request to `/track/point?tracker_name=TRACKER_NAMEE` with a set of features in the body for this query. 
     /// Omit the `TRACKER_NAME` query to use the default. You
     /// 
     /// See the chosen body parser for how to encode the body.
     /// 
     /// Response: [`TrackPointResponse`]
     TrackPoint(TrackPointRequest<T>),
-    /// Track a point, send a `POST` request to `/track/path/TRACKER_NAME` with the path encoded in json for this query. 
-    /// Omit the `TRACKER_NAME` query to use the default.
-    /// 
-    /// Path Example: 
-    /// 
-    /// ```json
-    /// [[0.0,[0,0]] , [0.0,[1,0]], [0.0,[2,0]]] >]
-    /// ```
-    /// It is a list of 2-tuples, the first entry is the distance, the second entry is the address. The address is also a 2-tuple with 
-    /// the scale index first and the central point index second. 
+    /// Unsupported for HTTP
     /// 
     /// Response: [`TrackPathResponse`]
     TrackPath(TrackPathRequest),
-    /// Add a tracker, send a `POST` request to `/track/add/WINDOW_SIZE/TRACKER_NAME` with a set of features in the body for this query. 
+    /// Add a tracker, send a `POST` request to `/track/add?window_size=WINDOW_SIZE&tracker_name=TRACKER_NAME` with a set of features in the body for this query. 
     /// Omit the `TRACKER_NAME` query to use the default.
     /// 
     /// Response: [`AddTrackerResponse`]
     AddTracker(AddTrackerRequest),
-    /// Get the status of a tracker, send a `GET` request to `/track/stats/WINDOW_SIZE/TRACKER_NAME`.
+    /// Get the status of a tracker, send a `GET` request to `/track/stats?window_size=WINDOW_SIZE&tracker_name=TRACKER_NAME`.
     /// Omit the `TRACKER_NAME` query to use the default.
     /// 
     /// Response: [`CurrentStatsResponse`]
@@ -142,7 +133,7 @@ where P: Deref<Target = D::Point> + Send + Sync + 'static {
             },
             GokoRequest::Tracking(p) => {
                 if let Some(tracker_name) = &p.tracker_name {
-
+                    println!("=== in tracker {}", tracker_name);
                     if let TrackingRequestChoice::AddTracker(_) = p.request {
                         self.trackers.write().await.entry(tracker_name.clone()).or_insert_with(|| TrackerWorker::operator(self.tree.clone()));
                     }
@@ -151,6 +142,7 @@ where P: Deref<Target = D::Point> + Send + Sync + 'static {
                         None => Ok(GokoResponse::Tracking(TrackingResponse::Unknown(Some(tracker_name.clone()), None))),
                     }
                 } else {
+                    println!("=== in MAIN tracker");
                     self.main_tracker.message(p).await.map(|r| GokoResponse::Tracking(r))
                 }
             }
