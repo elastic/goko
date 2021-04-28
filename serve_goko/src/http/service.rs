@@ -74,26 +74,22 @@ pub(crate) async fn parse_http<P: PointParser>(request: Request<Body>, parser: &
         (&Method::GET, "/") => Ok(GokoRequest::Parameters(ParametersRequest)),
         (&Method::GET, "/knn") => {
             let k = parse_knn_query(request.uri());
-            println!("KNN QUERY: k = {}",k);
             let point = parser.point(request).await?;
             Ok(GokoRequest::Knn(KnnRequest { point, k }))
         }
         (&Method::GET, "/routing_knn") => {
             let k = parse_knn_query(request.uri());
-            println!("ROUTING KNN QUERY: k = {}",k);
             let point = parser.point(request).await?;
             Ok(GokoRequest::RoutingKnn(RoutingKnnRequest { point, k }))
 
         }
         (&Method::GET, "/path") => {
-            println!("PATH QUERY");
             let point = parser.point(request).await?;
             Ok(GokoRequest::Path(PathRequest { point }))
 
         }
         (&Method::POST, "/track/add") => {
             let (tracker_name, window_size) = parse_tracker_query(request.uri());
-            println!("TRACKER ADD QUERY: name = {:?} window_size = {:?}", tracker_name, window_size);
             if let Some(window_size) = window_size {
                 let request = TrackingRequestChoice::AddTracker(
                     AddTrackerRequest {
@@ -110,8 +106,7 @@ pub(crate) async fn parse_http<P: PointParser>(request: Request<Body>, parser: &
             }
         }
         (&Method::POST, "/track/point") => {
-            let (tracker_name, window_size) = parse_tracker_query(request.uri());
-            println!("TRACK POINT QUERY: name = {:?} window_size = {:?}", tracker_name, window_size);
+            let (tracker_name, _window_size) = parse_tracker_query(request.uri());
             let point = parser.point(request).await?;
             let request = TrackingRequestChoice::TrackPoint(
                 TrackPointRequest {
@@ -126,7 +121,6 @@ pub(crate) async fn parse_http<P: PointParser>(request: Request<Body>, parser: &
         }
         (&Method::GET, "/track/stats") => {
             let (tracker_name, window_size) = parse_tracker_query(request.uri());
-            println!("TRACK STATS QUERY: name = {:?} window_size = {:?}", tracker_name, window_size);
             if let Some(window_size) = window_size {
                 let request = TrackingRequestChoice::CurrentStats(
                     CurrentStatsRequest {

@@ -7,7 +7,7 @@ use serve_goko::parsers::MsgPackDense;
 use serve_goko::http::*;
 use serve_goko::core::*;
 use std::sync::Arc;
-
+use goko::plugins::discrete::prelude::GokoDirichlet;
 use hyper::Server;
 
 fn build_tree() -> CoverTreeWriter<DefaultLabeledCloud<L2>> {
@@ -23,8 +23,8 @@ fn build_tree() -> CoverTreeWriter<DefaultLabeledCloud<L2>> {
 #[tokio::main]
 pub async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     pretty_env_logger::init();
-    let ct_writer = build_tree();
-
+    let mut ct_writer = build_tree();
+    ct_writer.add_plugin::<GokoDirichlet>(GokoDirichlet {});
     let goko_server = MakeGokoHttp::<_,MsgPackDense>::new(Arc::new(CoreWriter::new(ct_writer)));
 
     let addr = ([127, 0, 0, 1], 3030).into();

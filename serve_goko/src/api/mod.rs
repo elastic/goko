@@ -58,12 +58,12 @@ pub struct TrackingRequest<T> {
 
 #[derive(Deserialize, Serialize)]
 pub enum TrackingRequestChoice<T> {
-    /// Track a point, send a `POST` request to `/track/point?tracker_name=TRACKER_NAMEE` with a set of features in the body for this query. 
+    /// Track a point, send a `POST` request to `/track/point?tracker_name=TRACKER_NAME` with a set of features in the body for this query. 
     /// Omit the `TRACKER_NAME` query to use the default. You
     /// 
     /// See the chosen body parser for how to encode the body.
     /// 
-    /// Response: [`TrackPointResponse`]
+    /// Response: [`TrackPathResponse`]
     TrackPoint(TrackPointRequest<T>),
     /// Unsupported for HTTP
     /// 
@@ -133,7 +133,6 @@ where P: Deref<Target = D::Point> + Send + Sync + 'static {
             },
             GokoRequest::Tracking(p) => {
                 if let Some(tracker_name) = &p.tracker_name {
-                    println!("=== in tracker {}", tracker_name);
                     if let TrackingRequestChoice::AddTracker(_) = p.request {
                         self.trackers.write().await.entry(tracker_name.clone()).or_insert_with(|| TrackerWorker::operator(self.tree.clone()));
                     }
@@ -142,7 +141,6 @@ where P: Deref<Target = D::Point> + Send + Sync + 'static {
                         None => Ok(GokoResponse::Tracking(TrackingResponse::Unknown(Some(tracker_name.clone()), None))),
                     }
                 } else {
-                    println!("=== in MAIN tracker");
                     self.main_tracker.message(p).await.map(|r| GokoResponse::Tracking(r))
                 }
             }

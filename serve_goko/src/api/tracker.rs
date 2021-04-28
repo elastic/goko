@@ -75,7 +75,6 @@ impl<D: PointCloud> TrackerWorker<D> {
 
 impl<D: PointCloud, T: Deref<Target = D::Point> + Send + Sync> InternalService<TrackingRequest<T>, TrackingResponse> for TrackerWorker<D> {
     fn process(&mut self, request: TrackingRequest<T>) -> Result<TrackingResponse, GokoError> {
-        println!("====== Tracker Status: {:?}", self.trackers.keys());
         use TrackingRequestChoice::*;
         match request.request {
             TrackPoint(req) => {
