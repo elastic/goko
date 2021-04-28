@@ -2,13 +2,14 @@
 
 members = [
     "goko",
-    "pointcloud",
     "pygoko",
+    "pointcloud",
     "serve_goko",
 ]
 default-members = [
     "goko", 
     "pointcloud",
+    "serve_goko",
 ]
 
 [profile.dev]
