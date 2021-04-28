@@ -1,46 +1,45 @@
 use pointcloud::PointCloud;
 use goko::{CoverTreeReader,CoverTreeWriter};
-use std::sync::RwLock;
-use crate::{GokoRequest, GokoResponse};
+use std::sync::Arc;
+use tokio::sync::RwLock;
+use std::collections::HashMap;
 use std::ops::Deref;
-use goko::errors::GokoError;
 
-pub struct CoreWriter<D: PointCloud> {
-    pub(crate) tree: RwLock<CoverTreeWriter<D>>,
-    pub(crate) tracker: Arc<RwLock<CoverTreeWriter<D>>>,
+pub(crate) mod internal_service;
+use internal_service::InternalServiceOperator;
+use crate::api::{TrackerWorker, TrackingRequest, TrackingResponse};
+
+
+pub struct CoreWriter<D: PointCloud, T: Send + 'static> {
+    pub(crate) tree: CoverTreeWriter<D>,
+    pub(crate) trackers: Arc<RwLock<HashMap<String,InternalServiceOperator<TrackingRequest<T>, TrackingResponse>>>>,
+    pub(crate) main_tracker: Arc<InternalServiceOperator<TrackingRequest<T>, TrackingResponse>>,
 }
 
-impl<D: PointCloud> CoreWriter<D> {
+impl<D: PointCloud, T: Deref<Target = D::Point> + Send + Sync> CoreWriter<D,T> {
     pub fn new(writer: CoverTreeWriter<D>) -> Self {
-        
+        let trackers = Arc::new(RwLock::new(HashMap::new()));
+        let main_tracker = Arc::new(TrackerWorker::operator(writer.reader()));
         CoreWriter {
-            tree: RwLock::new(writer),
+            trackers,
+            main_tracker,
+            tree: writer,
         }
     }
 
-    pub fn reader(&self) -> CoreReader<D> {
-        let tree = self.tree.read().unwrap().reader();
+    pub fn reader(&self) -> CoreReader<D,T> {
+        let tree = self.tree.reader();
         CoreReader {
+            trackers: Arc::clone(&self.trackers),
+            main_tracker: Arc::clone(&self.main_tracker),
             tree,
         }
     }
 }
 
-pub struct CoreReader<D: PointCloud> {
+pub struct CoreReader<D: PointCloud, T: Send + 'static> {
     pub(crate) tree: CoverTreeReader<D>,
+    pub(crate) trackers: Arc<RwLock<HashMap<String,InternalServiceOperator<TrackingRequest<T>, TrackingResponse>>>>,
+    pub(crate) main_tracker: Arc<InternalServiceOperator<TrackingRequest<T>, TrackingResponse>>,
 }
 
-impl<D: PointCloud> CoreReader<D> {
-    pub async fn process<P>(&mut self, request: GokoRequest<P>) -> Result<GokoResponse,GokoError>
-    where P: Deref<Target = D::Point> + Send + Sync + 'static {
-        match request {
-            GokoRequest::Parameters(p) => p.process(self).map(|p| GokoResponse::Parameters(p)),
-            GokoRequest::Knn(p) => p.process(self).map(|p| GokoResponse::Knn(p)),
-            GokoRequest::RoutingKnn(p) => p.process(self).map(|p| GokoResponse::RoutingKnn(p)),
-            GokoRequest::Path(p) => p.process(self).map(|p| GokoResponse::Path(p)),
-            GokoRequest::Unknown(response_string, status) => {
-                Ok(GokoResponse::Unknown(response_string, status))
-            }
-        }
-    }
-}

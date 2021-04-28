@@ -309,7 +309,7 @@ if __name__ == "__main__":
     tree.fit(data)
     path = tree.path(np.array([0.5], dtype=np.float32))
 
-    run_tracker = tree.kl_div_dirichlet(1.0, 2.0, 0)
+    run_tracker = tree.kl_div_dirichlet(0)
     for i, t in enumerate(test_set):
         run_tracker.push(t)
         show1D(

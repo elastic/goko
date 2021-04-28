@@ -22,7 +22,7 @@ pub struct KnnResponse {
 }
 
 impl<T> KnnRequest<T> {
-    pub fn process<D>(self, reader: &mut CoreReader<D>) -> Result<KnnResponse, GokoError> 
+    pub fn process<D>(self, reader: &mut CoreReader<D,T>) -> Result<KnnResponse, GokoError> 
     where 
         D: PointCloud, 
         T: Deref<Target = D::Point> + Send + Sync,
@@ -57,7 +57,7 @@ pub struct RoutingKnnResponse {
 }
 
 impl<T> RoutingKnnRequest<T> {
-    pub fn process<D>(self, reader: &CoreReader<D>) -> Result<RoutingKnnResponse, GokoError> 
+    pub fn process<D>(self, reader: &CoreReader<D, T>) -> Result<RoutingKnnResponse, GokoError> 
     where 
         D: PointCloud, 
         T: Deref<Target = D::Point> + Send + Sync,

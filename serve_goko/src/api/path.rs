@@ -20,7 +20,7 @@ pub struct PathResponse {
 }
 
 impl<T> PathRequest<T> {
-    pub fn process<D>(self, reader: &mut CoreReader<D>) -> Result<PathResponse, GokoError> 
+    pub fn process<D>(self, reader: &mut CoreReader<D, T>) -> Result<PathResponse, GokoError> 
     where 
         D: PointCloud, 
         T: Deref<Target = D::Point> + Send + Sync,

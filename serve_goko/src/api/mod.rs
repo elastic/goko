@@ -1,6 +1,7 @@
-use pointcloud::*;
-use goko::errors::GokoError;
-use crate::core::*;
+use std::ops::Deref;
+use pointcloud::PointCloud;
+use crate::errors::InternalServiceError;
+use crate::core::CoreReader;
 
 use serde::{Deserialize, Serialize};
 //use std::convert::Infallible;
@@ -8,18 +9,12 @@ use serde::{Deserialize, Serialize};
 mod parameters;
 mod path;
 mod knn;
+mod tracker;
 
 pub use parameters::*;
 pub use path::*;
+pub use tracker::*;
 pub use knn::*;
-
-//use crate::parser::{parse_body, ParserService};
-
-/// How the server processes the request, under the hood.
-pub(crate) trait Process<D: PointCloud> {
-    type Response: Serialize;
-    fn process(self, reader: &CoreReader<D>) -> Result<Self::Response, GokoError>;
-}
 
 /// A summary for a small number of categories.
 #[derive(Deserialize, Serialize)]
@@ -47,8 +42,52 @@ pub enum GokoRequest<T> {
     /// 
     /// Response: [`PathResponse`]
     Path(PathRequest<T>),
+    /// The queries to manipulate the trackers, all under /track/
+    /// 
+    /// See : [`TrackingRequest`]
+    Tracking(TrackingRequest<T>),
     /// The catch-all for errors
     Unknown(String, u16),
+}
+#[derive(Deserialize, Serialize)]
+pub struct TrackingRequest<T> {
+    tracker_name: Option<String>,
+    request: TrackingRequestChoice<T>,
+}
+
+
+#[derive(Deserialize, Serialize)]
+pub enum TrackingRequestChoice<T> {
+    /// Track a point, send a `POST` request to `/track/point/TRACKER_NAME` with a set of features in the body for this query. 
+    /// Omit the `TRACKER_NAME` query to use the default. You
+    /// 
+    /// See the chosen body parser for how to encode the body.
+    /// 
+    /// Response: [`TrackPointResponse`]
+    TrackPoint(TrackPointRequest<T>),
+    /// Track a point, send a `POST` request to `/track/path/TRACKER_NAME` with the path encoded in json for this query. 
+    /// Omit the `TRACKER_NAME` query to use the default.
+    /// 
+    /// Path Example: 
+    /// 
+    /// ```json
+    /// [[0.0,[0,0]] , [0.0,[1,0]], [0.0,[2,0]]] >]
+    /// ```
+    /// It is a list of 2-tuples, the first entry is the distance, the second entry is the address. The address is also a 2-tuple with 
+    /// the scale index first and the central point index second. 
+    /// 
+    /// Response: [`TrackPathResponse`]
+    TrackPath(TrackPathRequest),
+    /// Add a tracker, send a `POST` request to `/track/add/WINDOW_SIZE/TRACKER_NAME` with a set of features in the body for this query. 
+    /// Omit the `TRACKER_NAME` query to use the default.
+    /// 
+    /// Response: [`AddTrackerResponse`]
+    AddTracker(AddTrackerRequest),
+    /// Get the status of a tracker, send a `GET` request to `/track/stats/WINDOW_SIZE/TRACKER_NAME`.
+    /// Omit the `TRACKER_NAME` query to use the default.
+    /// 
+    /// Response: [`CurrentStatsResponse`]
+    CurrentStats(CurrentStatsRequest),
 }
 
 /// The response one gets back from the core server loop.
@@ -58,7 +97,16 @@ pub enum GokoResponse {
     Knn(KnnResponse),
     RoutingKnn(RoutingKnnResponse),
     Path(PathResponse),
+    Tracking(TrackingResponse),
     Unknown(String, u16),
+}
+
+#[derive(Deserialize, Serialize)]
+pub enum TrackingResponse {
+    TrackPath(TrackPathResponse),
+    AddTracker(AddTrackerResponse),
+    CurrentStats(CurrentStatsResponse),
+    Unknown(Option<String>,Option<usize>),
 }
 
 /// Response for KNN type queries, usually in a vec
@@ -79,4 +127,33 @@ pub struct NodeDistance {
     pub layer: i32,
     /// The distance to the central node
     pub distance: f32,
+}
+
+impl<D: PointCloud, P> CoreReader<D, P>
+where P: Deref<Target = D::Point> + Send + Sync + 'static {
+    pub async fn process(&mut self, request: GokoRequest<P>) -> Result<GokoResponse,InternalServiceError> {
+        match request {
+            GokoRequest::Parameters(p) => p.process(self).map(|p| GokoResponse::Parameters(p)).map_err(|e| e.into()),
+            GokoRequest::Knn(p) => p.process(self).map(|p| GokoResponse::Knn(p)).map_err(|e| e.into()),
+            GokoRequest::RoutingKnn(p) => p.process(self).map(|p| GokoResponse::RoutingKnn(p)).map_err(|e| e.into()),
+            GokoRequest::Path(p) => p.process(self).map(|p| GokoResponse::Path(p)).map_err(|e| e.into()),
+            GokoRequest::Unknown(response_string, status) => {
+                Ok(GokoResponse::Unknown(response_string, status))
+            },
+            GokoRequest::Tracking(p) => {
+                if let Some(tracker_name) = &p.tracker_name {
+
+                    if let TrackingRequestChoice::AddTracker(_) = p.request {
+                        self.trackers.write().await.entry(tracker_name.clone()).or_insert_with(|| TrackerWorker::operator(self.tree.clone()));
+                    }
+                    match self.trackers.read().await.get(tracker_name) {
+                        Some(t) => t.message(p).await.map(|r| GokoResponse::Tracking(r)),
+                        None => Ok(GokoResponse::Tracking(TrackingResponse::Unknown(Some(tracker_name.clone()), None))),
+                    }
+                } else {
+                    self.main_tracker.message(p).await.map(|r| GokoResponse::Tracking(r))
+                }
+            }
+        }
+    }
 }

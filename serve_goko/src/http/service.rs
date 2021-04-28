@@ -20,7 +20,7 @@ use std::ops::Deref;
 use regex::Regex;
 use lazy_static::lazy_static;
 use super::message::*;
-use super::GokoHttpError;
+use crate::errors::InternalServiceError;
 use crate::PointParser;
 use crate::parsers::PointBuffer;
 use crate::errors::*;
@@ -30,7 +30,7 @@ use crate::core::*;
 
 pub struct GokoHttp<D: PointCloud, P: PointParser> {
     in_flight: Arc<atomic::AtomicU32>,
-    request_snd: CoreRequestSender,
+    request_snd: HttpRequestSender,
     pointcloud: PhantomData<D>,
     parser: PhantomData<P>,
     global_error: Arc<Mutex<Option<Box<dyn std::error::Error + Send>>>>,
@@ -80,6 +80,7 @@ pub(crate) fn into_http(response: GokoResponse) -> Result<Response<Body>, GokoCl
         GokoResponse::Knn(p) => serde_json::to_string(&p).unwrap(),
         GokoResponse::RoutingKnn(p) => serde_json::to_string(&p).unwrap(),
         GokoResponse::Path(p) => serde_json::to_string(&p).unwrap(),
+        GokoResponse::Tracking(p) => serde_json::to_string(&p).unwrap(),
         GokoResponse::Unknown(response_string, status) => {
             builder = builder.status(status);
             response_string
@@ -94,8 +95,8 @@ where
     P: PointParser,
     P::Point: Deref<Target = D::Point> + Send + Sync + 'static,
 {
-    pub(crate) fn new(mut reader: CoreReader<D>, mut parser: PointBuffer<P>) -> GokoHttp<D, P> {
-        let (request_snd, mut request_rcv): (CoreRequestSender, CoreRequestReciever) =
+    pub(crate) fn new(mut reader: CoreReader<D, P::Point>, mut parser: PointBuffer<P>) -> GokoHttp<D, P> {
+        let (request_snd, mut request_rcv): (HttpRequestSender, HttpRequestReciever) =
             mpsc::unbounded_channel();
         tokio::spawn(async move {
             while let Some(mut msg) = request_rcv.recv().await {
@@ -110,7 +111,7 @@ where
                         Err(e) => msg.respond(Err(e)),
                     };
                 } else {
-                    msg.error(GokoHttpError::DoubleRead)
+                    msg.error(GokoClientError::Underlying(InternalServiceError::DoubleRead))
                 }
             }
         });
@@ -128,15 +129,15 @@ where
     pub(crate) fn message(&self, request: Request<Body>) -> ResponseFuture {
         let flight_counter = Arc::clone(&self.in_flight);
         self.in_flight.fetch_add(1, atomic::Ordering::SeqCst);
-        let (reply, response): (CoreResponseSender, CoreResponseReciever) = oneshot::channel();
+        let (reply, response): (HttpResponseSender, HttpResponseReciever) = oneshot::channel();
         
-        let msg = Message {
+        let msg = HttpMessage {
             request: Some(request),
             reply: Some(reply),
             global_error: Arc::clone(&self.global_error),
         };
 
-        let error = self.request_snd.send(msg).err().map(|_e| GokoHttpError::FailedSend); 
+        let error = self.request_snd.send(msg).err().map(|_e| GokoClientError::Underlying(InternalServiceError::FailedSend)); 
         ResponseFuture {
             response,
             flight_counter,
@@ -152,12 +153,12 @@ where
     P::Point: Deref<Target = D::Point> + Send + Sync + 'static,
 {
     type Response = Response<Body>;
-    type Error = GokoHttpError;
+    type Error = GokoClientError;
     type Future = ResponseFuture;
 
     fn poll_ready(&mut self, _: &mut Context) -> Poll<Result<(), Self::Error>> {
         if self.request_snd.is_closed() {
-            Poll::Ready(Err(GokoHttpError::ClientDropped))
+            Poll::Ready(Err(GokoClientError::Underlying(InternalServiceError::ClientDropped)))
         } else {
             Poll::Ready(Ok(()))
         }

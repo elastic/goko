@@ -29,7 +29,7 @@ pub struct ParametersResponse {
 }
 
 impl ParametersRequest {
-    pub fn process<D: PointCloud>(self, reader: &mut CoreReader<D>) -> Result<ParametersResponse, GokoError> {
+    pub fn process<D: PointCloud, T: Send + 'static>(self, reader: &mut CoreReader<D, T>) -> Result<ParametersResponse, GokoError> {
         let params = reader.tree.parameters();
         Ok(ParametersResponse {
             scale_base: params.scale_base,

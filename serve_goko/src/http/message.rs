@@ -11,22 +11,21 @@ use std::task::Poll;
 
 use std::sync::{atomic, Arc, Mutex};
 
-use crate::errors::GokoClientError;
-use super::*;
+use crate::errors::{GokoClientError, InternalServiceError};
 
-pub(crate) type CoreResponseSender = oneshot::Sender<Result<Response<Body>, GokoClientError>>;
-pub(crate) type CoreResponseReciever = oneshot::Receiver<Result<Response<Body>, GokoClientError>>;
-pub(crate) type CoreRequestSender = mpsc::UnboundedSender<Message>;
-pub(crate) type CoreRequestReciever = mpsc::UnboundedReceiver<Message>;
+pub(crate) type HttpResponseSender = oneshot::Sender<Result<Response<Body>, GokoClientError>>;
+pub(crate) type HttpResponseReciever = oneshot::Receiver<Result<Response<Body>, GokoClientError>>;
+pub(crate) type HttpRequestSender = mpsc::UnboundedSender<HttpMessage>;
+pub(crate) type HttpRequestReciever = mpsc::UnboundedReceiver<HttpMessage>;
 
 #[pin_project]
-pub(crate) struct Message {
+pub(crate) struct HttpMessage {
     pub(crate) request: Option<Request<Body>>,
-    pub(crate) reply: Option<CoreResponseSender>,
+    pub(crate) reply: Option<HttpResponseSender>,
     pub(crate) global_error: Arc<Mutex<Option<Box<dyn std::error::Error + Send>>>>,
 }
 
-impl Message {
+impl HttpMessage {
     pub(crate) fn request(&mut self) -> Option<Request<Body>> {
         self.request.take()
     }
@@ -37,11 +36,11 @@ impl Message {
                 match reply.send(response) {
                     Ok(_) => (),
                     Err(_) => {
-                        *self.global_error.lock().unwrap() = Some(Box::new(GokoHttpError::FailedRespSend));
+                        *self.global_error.lock().unwrap() = Some(Box::new(GokoClientError::Underlying(InternalServiceError::FailedRespSend)));
                     }
                 }
             }
-            None => *self.global_error.lock().unwrap() = Some(Box::new(GokoHttpError::DoubleRead)),
+            None => *self.global_error.lock().unwrap() = Some(Box::new(GokoClientError::Underlying(InternalServiceError::DoubleRead))),
         }
     }
     pub(crate) fn error(&mut self, error: impl std::error::Error + Send + 'static) {
@@ -52,13 +51,13 @@ impl Message {
 #[pin_project]
 pub struct ResponseFuture {
     #[pin]
-    pub(crate) response: CoreResponseReciever,
+    pub(crate) response: HttpResponseReciever,
     pub(crate) flight_counter: Arc<atomic::AtomicU32>,
-    pub(crate) error: Option<GokoHttpError>,
+    pub(crate) error: Option<GokoClientError>,
 }
 
 impl Future for ResponseFuture {
-    type Output = Result<Response<Body>, GokoHttpError>;
+    type Output = Result<Response<Body>, GokoClientError>;
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.project();
         if let Some(err) = this.error.take() {
@@ -67,8 +66,8 @@ impl Future for ResponseFuture {
         else {
             let res = this.response.poll(cx).map(|r| {
                 match r {
-                    Ok(r) => r.map_err(|e| e.into()),
-                    Err(e) => Err(e.into())
+                    Ok(r) => r.map_err(|e| GokoClientError::from(e)),
+                    Err(e) => Err(GokoClientError::from(e))
                 }
             });
             this.flight_counter.fetch_sub(1, atomic::Ordering::SeqCst);

@@ -20,6 +20,8 @@ pub struct BayesCategoricalTracker<D: PointCloud> {
     sequence_queue: VecDeque<Vec<(f32, NodeAddress)>>,
     sequence_count: usize,
     window_size: usize,
+    prior_weight: f64,
+    observation_weight: f64,
     reader: CoverTreeReader<D>,
 }
 
@@ -27,8 +29,8 @@ impl<D: PointCloud> fmt::Debug for BayesCategoricalTracker<D> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "PointCloud {{ sequence_queue: {:?}, window_size: {}, running_evidence: {:?}}}",
-            self.sequence_queue, self.window_size, self.running_evidence,
+            "PointCloud {{ sequence_queue: {:?}, window_size: {} prior_weight: {}, observation_weight: {}, running_evidence: {:?}}}",
+            self.sequence_queue, self.window_size, self.prior_weight, self.observation_weight, self.running_evidence,
         )
     }
 }
@@ -36,6 +38,8 @@ impl<D: PointCloud> fmt::Debug for BayesCategoricalTracker<D> {
 impl<D: PointCloud> BayesCategoricalTracker<D> {
     /// Creates a new blank thing with capacity `size`, input 0 for unlimited.
     pub fn new(
+        prior_weight: f64,
+        observation_weight: f64,
         window_size: usize,
         reader: CoverTreeReader<D>,
     ) -> BayesCategoricalTracker<D> {
@@ -44,6 +48,8 @@ impl<D: PointCloud> BayesCategoricalTracker<D> {
             sequence_queue: VecDeque::new(),
             sequence_count: 0,
             window_size,
+            prior_weight,
+            observation_weight,
             reader,
         }
     }
@@ -71,6 +77,7 @@ impl<D: PointCloud> BayesCategoricalTracker<D> {
         if total > self.window_size as f64 {
             prob.weight((total.ln() * self.window_size as f64) / total)
         }
+        prob.weight(self.prior_weight);
         prob
     }
 
@@ -82,13 +89,13 @@ impl<D: PointCloud> BayesCategoricalTracker<D> {
             self.running_evidence
                 .entry(*parent)
                 .or_default()
-                .add_child_pop(Some(*child), 1.0);
+                .add_child_pop(Some(*child), self.observation_weight);
         }
         let last = trace.last().unwrap().1;
         self.running_evidence
             .entry(last)
             .or_default()
-            .add_child_pop(None, 1.0);
+            .add_child_pop(None, self.observation_weight);
     }
 
     fn remove_trace_from_pdfs(&mut self, trace: &[(f32, NodeAddress)]) {
@@ -97,13 +104,13 @@ impl<D: PointCloud> BayesCategoricalTracker<D> {
         child_address_iter.next();
         for (parent, child) in parent_address_iter.zip(child_address_iter) {
             let parent_evidence = self.running_evidence.get_mut(parent).unwrap();
-            parent_evidence.remove_child_pop(Some(*child), 1.0);
+            parent_evidence.remove_child_pop(Some(*child), self.observation_weight);
         }
         let last = trace.last().unwrap().1;
         self.running_evidence
             .get_mut(&last)
             .unwrap()
-            .remove_child_pop(None, 1.0);
+            .remove_child_pop(None, self.observation_weight);
     }
 
     /// Gives the probability vector for this
@@ -305,7 +312,7 @@ pub(crate) mod tests {
     fn dirichlet_tree_probs_test() {
         let mut tree = build_basic_tree();
         tree.add_plugin::<GokoDirichlet>(GokoDirichlet::default());
-        let mut tracker = BayesCategoricalTracker::new(0, tree.reader());
+        let mut tracker = BayesCategoricalTracker::new(1.0, 1.0, 0, tree.reader());
         assert_approx_eq!(tracker.kl_div(), 0.0);
         tracker.add_path(vec![
             (0.0, (-1, 4)),
@@ -339,7 +346,7 @@ pub(crate) mod tests {
     fn dirichlet_tree_append_test() {
         let mut tree = build_basic_tree();
         tree.add_plugin::<GokoDirichlet>(GokoDirichlet::default());
-        let mut tracker = BayesCategoricalTracker::new(0, tree.reader());
+        let mut tracker = BayesCategoricalTracker::new(1.0, 1.0, 0, tree.reader());
         assert_approx_eq!(tracker.kl_div(), 0.0);
         tracker.add_path(vec![
             (0.0, (-1, 4)),
@@ -351,14 +358,14 @@ pub(crate) mod tests {
         tracker.add_path(vec![(0.0, (-1, 4))]);
         println!("KL Div: {}", tracker.kl_div());
 
-        let mut tracker1 = BayesCategoricalTracker::new(0, tree.reader());
+        let mut tracker1 = BayesCategoricalTracker::new(1.0, 1.0, 0, tree.reader());
         tracker1.add_path(vec![
             (0.0, (-1, 4)),
             (0.0, (-2, 2)),
             (0.0, (-5, 2)),
             (0.0, (-6, 2)),
         ]);
-        let mut tracker2 = BayesCategoricalTracker::new(0, tree.reader());
+        let mut tracker2 = BayesCategoricalTracker::new(1.0, 1.0, 0, tree.reader());
         tracker2.add_path(vec![(0.0, (-1, 4))]);
         tracker1 = tracker1.append(&tracker2);
 
