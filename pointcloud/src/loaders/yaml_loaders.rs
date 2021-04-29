@@ -156,7 +156,7 @@ pub fn labels_from_yaml<P: AsRef<Path>>(path: P) -> PointCloudResult<SmallIntLab
 
     Ok(label_set
         .drain(0..)
-        .fold_first(|mut a, b| {
+        .reduce(|mut a, b| {
             a.merge(&b);
             a
         })

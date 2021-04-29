@@ -30,25 +30,24 @@ path = "src/lib.rs"
 test = true
 
 [dependencies]
-protobuf = "2.18.1"
-rand = { version = "0.7.3", features = ["small_rng"]}
-rand_distr = "0.3.0"
-yaml-rust = "0.4.4"
-pbr = "1.0.3"
+protobuf = "2.23.0"
+rand = { version = "0.8.3", features = ["small_rng"]}
+rand_distr = "0.4.0"
+yaml-rust = "0.4.5"
+pbr = "1.0.4"
 fxhash = "0.2.1"
 rayon = "1.5.0"
-hashbrown = { version = "0.9.1", features = ["rayon"] }
-crossbeam-channel = "0.5.0"
+hashbrown = { version = "0.11.2", features = ["rayon"] }
+crossbeam-channel = "0.5.1"
 pointcloud = { version = "0.5.4", path = "../pointcloud" }
-serde = { version = "1.0.117", features = ["derive"] }
-#evmap = { git = "https://github.com/comath/rust-evmap" }
-smallvec = "1.5.0"
-type-map = "0.3.0"
+serde = { version = "1.0.125", features = ["derive"] }
+smallvec = "1.6.1"
+type-map = "0.5.0"
 statrs = "0.13.0"
 ndarray = "0.14.0"
 
 [dev-dependencies]
-criterion = "0.3"
+criterion = "0.3.4"
 assert_approx_eq = "1.0.0"
 
 [[bench]]
@@ -57,7 +56,7 @@ path = "benches/path_bench.rs"
 harness = false
 
 [build-dependencies]
-protoc-rust = "2.18.1"
+protoc-rust = "2.23.0"
 
 [package.metadata.docs.rs]
 features = [ "docs-only" ]

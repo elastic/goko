@@ -38,7 +38,7 @@ fn build_tree() -> CoverTreeWriter<SimpleLabeledCloud<DataRam<L2>, VecLabels>> {
     let file_name = "data/ember_complex.yml";
     let path = Path::new(file_name);
     if !path.exists() {
-        panic!(file_name.to_owned() + &" does not exist".to_string());
+        panic!("{} does not exist", file_name);
     }
     let builder = CoverTreeBuilder::from_yaml(&path);
     let point_cloud = vec_labeled_ram_from_yaml("data/ember_complex.yml").unwrap();

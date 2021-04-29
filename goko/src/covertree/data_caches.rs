@@ -78,7 +78,7 @@ impl UncoveredData {
         point_cloud: &Arc<D>,
         rng: &mut SmallRng,
     ) -> GokoResult<FirstCoveredData> {
-        let new_center: usize = rng.gen_range(0, self.coverage.len());
+        let new_center: usize = rng.gen_range(0..self.coverage.len());
         let center_index = self.coverage.remove(new_center);
         let dists = point_cloud.distances_to_point_index(center_index, &self.coverage)?;
 

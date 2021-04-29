@@ -128,7 +128,7 @@ pub fn load_tree<P: AsRef<Path>, D: PointCloud>(
             Some(expr) => expr,
             None => panic!("Unicode error with the tree path"),
         };
-        panic!(tree_path_str.to_string() + &" does not exist\n".to_string());
+        panic!("{} does not exist\n", tree_path_str);
     }
 
     let mut cover_proto = CoreProto::new();

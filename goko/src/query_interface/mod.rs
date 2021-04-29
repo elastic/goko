@@ -31,7 +31,7 @@ impl<D: PointCloud> BulkInterface<D> {
             .collect();
         chunked_results
             .drain(..)
-            .fold_first(|mut a, mut x| {
+            .reduce(|mut a, mut x| {
                 a.extend(x.drain(..));
                 a
             })
@@ -56,7 +56,7 @@ impl<D: PointCloud> BulkInterface<D> {
             .collect();
         chunked_results
             .drain(..)
-            .fold_first(|mut a, mut x| {
+            .reduce(|mut a, mut x| {
                 a.extend(x.drain(..));
                 a
             })
@@ -126,7 +126,7 @@ impl<D: PointCloud<Point = [f32]>> BulkInterface<D> {
             .collect();
         chunked_results
             .drain(..)
-            .fold_first(|mut a, mut x| {
+            .reduce(|mut a, mut x| {
                 a.extend(x.drain(..));
                 a
             })
