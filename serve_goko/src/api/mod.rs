@@ -1,5 +1,5 @@
 use std::ops::Deref;
-use pointcloud::PointCloud;
+use pointcloud::{PointCloud, SummaryCounter, Summary};
 use crate::errors::InternalServiceError;
 use crate::core::CoreReader;
 
@@ -83,11 +83,11 @@ pub enum TrackingRequestChoice<T> {
 
 /// The response one gets back from the core server loop.
 #[derive(Deserialize, Serialize)]
-pub enum GokoResponse {
+pub enum GokoResponse<L: Summary> {
     Parameters(ParametersResponse),
     Knn(KnnResponse),
     RoutingKnn(RoutingKnnResponse),
-    Path(PathResponse),
+    Path(PathResponse<L>),
     Tracking(TrackingResponse),
     Unknown(String, u16),
 }
@@ -111,18 +111,19 @@ pub struct NamedDistance {
 
 /// Response for queries that include distances to nodes, usually in a vec
 #[derive(Deserialize, Serialize)]
-pub struct NodeDistance {
+pub struct NodeDistance<L: Summary + Clone> {
     /// The name of the center point of the node we're refering to
     pub name: String,
     /// The level the node is at
     pub layer: i32,
     /// The distance to the central node
     pub distance: f32,
+    pub label_summary: Option<SummaryCounter<L>>,
 }
 
 impl<D: PointCloud, P> CoreReader<D, P>
 where P: Deref<Target = D::Point> + Send + Sync + 'static {
-    pub async fn process(&mut self, request: GokoRequest<P>) -> Result<GokoResponse,InternalServiceError> {
+    pub async fn process(&mut self, request: GokoRequest<P>) -> Result<GokoResponse<D::LabelSummary>,InternalServiceError> {
         match request {
             GokoRequest::Parameters(p) => p.process(self).map(|p| GokoResponse::Parameters(p)).map_err(|e| e.into()),
             GokoRequest::Knn(p) => p.process(self).map(|p| GokoResponse::Knn(p)).map_err(|e| e.into()),

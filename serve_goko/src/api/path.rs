@@ -15,25 +15,28 @@ pub struct PathRequest<T> {
 
 /// Request: [`PathRequest`]
 #[derive(Deserialize, Serialize)]
-pub struct PathResponse {
-    pub path: Vec<NodeDistance>,
+pub struct PathResponse<L: Summary> {
+    pub path: Vec<NodeDistance<L>>,
 }
 
 impl<T> PathRequest<T> {
-    pub fn process<D>(self, reader: &mut CoreReader<D, T>) -> Result<PathResponse, GokoError> 
+    pub fn process<D>(self, reader: &mut CoreReader<D, T>) -> Result<PathResponse<D::LabelSummary>, GokoError> 
     where 
         D: PointCloud, 
         T: Deref<Target = D::Point> + Send + Sync,
     {
         let knn = reader.tree.path(&self.point)?;
         let pc = &reader.tree.parameters().point_cloud;
-        let resp: Result<Vec<NodeDistance>, GokoError> = knn
+        
+        let resp: Result<Vec<NodeDistance<D::LabelSummary>>, GokoError> = knn
             .iter()
             .map(|(distance, (layer, pi))| {
+                let label_summary = reader.tree.get_node_label_summary((*layer, *pi)).map(|s| (*s).clone());
                 Ok(NodeDistance {
                     name: pc.name(*pi)?,
                     layer: *layer,
                     distance: *distance,
+                    label_summary,
                 })
             })
             .collect();

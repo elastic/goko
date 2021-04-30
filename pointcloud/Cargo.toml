@@ -27,8 +27,9 @@ channel = "nightly"
 default = []
 
 [dependencies]
+log = "0.4"
 csv = "1.1.6"
-libc = "0.2.94"
+libc = "0.2"
 yaml-rust = "0.4"
 rayon = "1.4.0"
 packed_simd = { version = "0.3.4", package = "packed_simd_2" }

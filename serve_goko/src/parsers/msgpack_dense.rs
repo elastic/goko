@@ -10,7 +10,7 @@ use flate2::read::{DeflateDecoder, ZlibDecoder};
 use rmp_serde;
 use std::io::Read;
 use crate::PointParser;
-
+use log::trace;
 use crate::errors::*;
 
 pub trait ParserService: Send + Sync + 'static {
@@ -64,6 +64,7 @@ impl PointParser for MsgPackDense {
         if scratch_buffer.len() > 0 {
             let point: Vec<f32> =
                 rmp_serde::from_read_ref(scratch_buffer).map_err(|e| GokoClientError::Parse(Box::new(e)))?;
+            trace!("Initial Buffer len: {}, Scratch Buffer Len: {}, Final point lenght: {}", body_buffer.len(), scratch_buffer.len(), point.len());
             Ok(point)
         } else {
             Err(GokoClientError::MissingBody)

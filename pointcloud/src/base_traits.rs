@@ -54,11 +54,11 @@ pub trait PointCloud: Send + Sync + 'static {
     type Metric: Metric<Self::Point>;
     /// The label type.
     /// Summary of a set of labels
-    type Label: ?Sized;
+    type Label: ?Sized + Serialize;
     /// Summary of a set of labels
     type LabelSummary: Summary<Label = Self::Label>;
     /// Underlying metadata
-    type Metadata: ?Sized;
+    type Metadata: ?Sized + Serialize;
     /// A summary of the underlying metadata
     type MetaSummary: Summary<Label = Self::Metadata>;
 
@@ -336,7 +336,7 @@ impl AdjMatrix {
 }
 
 /// A summary for labels and metadata. You can make this an empty zero sized type for when you don't need it.
-pub trait Summary: Debug + Default + Send + Sync + 'static {
+pub trait Summary: Serialize + Clone + Debug + Default + Send + Sync + 'static {
     /// Underlying type.
     type Label: ?Sized;
     /// Adding a single value to the summary.
@@ -361,7 +361,7 @@ impl Summary for () {
 /// and easy label or metadata object.
 pub trait LabelSet: Debug + Send + Sync + 'static {
     /// Underlying type.
-    type Label: ?Sized;
+    type Label: ?Sized + Serialize;
     /// Summary of a set of labels
     type LabelSummary: Summary<Label = Self::Label>;
 
@@ -377,8 +377,8 @@ pub trait LabelSet: Debug + Send + Sync + 'static {
 }
 
 /// Simply shoves together a point cloud and a label set, for a modular label system
-#[derive(Default, Debug, Serialize, Deserialize)]
-pub struct SummaryCounter<S: Summary> {
+#[derive(Default, Debug, Clone, Serialize, Deserialize)]
+pub struct SummaryCounter<S: Summary + Clone> {
     /// The categorical summary
     pub summary: S,
     /// How many unlabeled elements this summary covers
@@ -387,7 +387,7 @@ pub struct SummaryCounter<S: Summary> {
     pub errors: usize,
 }
 
-impl<S: Summary> SummaryCounter<S> {
+impl<S: Summary + Clone> SummaryCounter<S> {
     /// adds an element to the summary, handling errors
     pub fn add(&mut self, v: PointCloudResult<Option<&S::Label>>) {
         if let Ok(vv) = v {
@@ -604,7 +604,7 @@ impl<D: PointCloud, N: NamedSet> PointCloud for SimpleNamedCloud<D, N> {
 /// Allows for expensive metadata, this is identical to the label trait, but enables slower update
 pub trait MetaSet {
     /// Underlying metadata
-    type Metadata: ?Sized;
+    type Metadata: ?Sized + Serialize;
     /// A summary of the underlying metadata
     type MetaSummary: Summary<Label = Self::Metadata>;
 

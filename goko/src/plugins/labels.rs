@@ -8,12 +8,12 @@ use std::sync::Arc;
 
 /// Wrapper around the summary found in the point cloud
 #[derive(Debug, Default)]
-pub struct NodeLabelSummary<T: Summary> {
+pub struct NodeLabelSummary<T: Summary + Clone> {
     /// The summary object, refenced counted to eliminate duplicates
     pub summary: Arc<SummaryCounter<T>>,
 }
 
-impl<T: Summary> Clone for NodeLabelSummary<T> {
+impl<T: Summary + Clone> Clone for NodeLabelSummary<T> {
     fn clone(&self) -> Self {
         NodeLabelSummary {
             summary: Arc::clone(&self.summary),
@@ -67,12 +67,12 @@ impl<D: PointCloud> GokoPlugin<D> for LabelSummaryPlugin {
 
 /// Wrapper around the summary found in the point cloud
 #[derive(Debug, Default)]
-pub struct NodeMetaSummary<T: Summary> {
+pub struct NodeMetaSummary<T: Summary + Clone> {
     /// The summary object, refenced counted to eliminate duplicates
     pub summary: Arc<SummaryCounter<T>>,
 }
 
-impl<T: Summary> Clone for NodeMetaSummary<T> {
+impl<T: Summary + Clone> Clone for NodeMetaSummary<T> {
     fn clone(&self) -> Self {
         NodeMetaSummary {
             summary: Arc::clone(&self.summary),

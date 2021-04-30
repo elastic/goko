@@ -6,7 +6,7 @@ use hyper::Body;
 use crate::{GokoRequest,GokoResponse};
 
 use pointcloud::*;
-
+use serde::Serialize;
 use tower::load::Load;
 use tower::Service;
 
@@ -141,7 +141,7 @@ pub(crate) async fn parse_http<P: PointParser>(request: Request<Body>, parser: &
     }
 }
 
-pub(crate) fn into_http(response: GokoResponse) -> Result<Response<Body>, GokoClientError> {
+pub(crate) fn into_http<L: Summary + Serialize>(response: GokoResponse<L>) -> Result<Response<Body>, GokoClientError> {
     let mut builder = http::response::Builder::new();
     let json_str = match response {
         GokoResponse::Parameters(p) => serde_json::to_string(&p).unwrap(),
@@ -162,6 +162,7 @@ where
     D: PointCloud,
     P: PointParser,
     P::Point: Deref<Target = D::Point> + Send + Sync + 'static,
+    D::LabelSummary: Serialize,
 {
     pub(crate) fn new(mut reader: CoreReader<D, P::Point>, mut parser: PointBuffer<P>) -> GokoHttp<D, P> {
         let (request_snd, mut request_rcv): (HttpRequestSender, HttpRequestReciever) =
@@ -225,6 +226,7 @@ where
     D: PointCloud,
     P: PointParser,
     P::Point: Deref<Target = D::Point> + Send + Sync + 'static,
+    D::LabelSummary: Serialize,
 {
     type Response = Response<Body>;
     type Error = GokoClientError;
