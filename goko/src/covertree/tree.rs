@@ -45,8 +45,10 @@ use std::sync::{atomic, Arc, RwLock};
 use super::query_tools::{KnnQueryHeap, RoutingQueryHeap};
 use crate::plugins::{GokoPlugin, TreePluginSet};
 use errors::{GokoError, GokoResult};
+use serde::{Deserialize, Serialize};
 use std::iter::Iterator;
 use std::iter::Rev;
+use std::ops::Deref;
 use std::ops::Range;
 use std::slice::Iter;
 
@@ -55,7 +57,7 @@ use plugins::labels::*;
 /// When 2 spheres overlap under a node, and there is a point in the overlap we have to decide
 /// to which sphere it belongs. As we create the nodes in a particular sequence, we can assign them
 /// to the first to be created or we can assign it to the nearest.
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub enum PartitionType {
     /// Conflicts assigning a point to several eligible nodes are assigned to the nearest node.
     Nearest,
@@ -79,14 +81,14 @@ pub struct CoverTreeParameters<D: PointCloud> {
     pub use_singletons: bool,
     /// The partition type of the tree
     pub partition_type: PartitionType,
-    /// The point cloud this tree references
-    pub point_cloud: Arc<D>,
     /// This should be replaced by a logging solution
     pub verbosity: u32,
     /// The seed to use for deterministic trees. This is xor-ed with the point index to create a seed for `rand::rngs::SmallRng`.
-    /// 
-    /// Pass in None if you want to use the host os's entropy instead. 
+    ///
+    /// Pass in None if you want to use the host os's entropy instead.
     pub rng_seed: Option<u64>,
+    /// The point cloud this tree references
+    pub point_cloud: Arc<D>,
     /// This is where the base plugins are are stored.
     pub plugins: RwLock<TreePluginSet>,
 }
@@ -133,7 +135,12 @@ impl<D: PointCloud> Clone for CoverTreeReader<D> {
     }
 }
 
-impl<D: PointCloud + LabeledCloud> CoverTreeReader<D> {
+impl<D: PointCloud> CoverTreeReader<D> {
+    /// A reference to the point cloud the tree was built on.
+    pub fn point_cloud(&self) -> &Arc<D> {
+        &self.parameters.point_cloud
+    }
+
     /// Reads the contents of a plugin, due to the nature of the plugin map we have to access it with a
     /// closure.
     pub fn get_node_label_summary(
@@ -144,9 +151,7 @@ impl<D: PointCloud + LabeledCloud> CoverTreeReader<D> {
             .get_node_and(node_address.1, |n| n.label_summary())
             .flatten()
     }
-}
 
-impl<D: PointCloud + MetaCloud> CoverTreeReader<D> {
     /// Reads the contents of a plugin, due to the nature of the plugin map we have to access it with a
     /// closure.
     pub fn get_node_metasummary(
@@ -156,13 +161,6 @@ impl<D: PointCloud + MetaCloud> CoverTreeReader<D> {
         self.layers[self.parameters.internal_index(node_address.0)]
             .get_node_and(node_address.1, |n| n.metasummary())
             .flatten()
-    }
-}
-
-impl<D: PointCloud> CoverTreeReader<D> {
-    /// A reference to the point cloud the tree was built on.
-    pub fn point_cloud(&self) -> &Arc<D> {
-        &self.parameters.point_cloud
     }
 
     /// Returns a borrowed reader for a cover layer.
@@ -279,29 +277,33 @@ impl<D: PointCloud> CoverTreeReader<D> {
     ///
     /// See `query_tools::KnnQueryHeap` for the pair of heaps and mechanisms for tracking the minimum distance and the current knn set.
     /// See the `nodes::CoverNode::singleton_knn` and `nodes::CoverNode::child_knn` for the brute force node based knn.
-    pub fn knn<'a>(&self, point: &D::PointRef<'a>, k: usize) -> GokoResult<Vec<(f32, usize)>> {
+    pub fn knn<P: Deref<Target = D::Point> + Send + Sync>(
+        &self,
+        point: &P,
+        k: usize,
+    ) -> GokoResult<Vec<(f32, usize)>> {
         let mut query_heap = KnnQueryHeap::new(k, self.parameters.scale_base);
 
         let root_center = self.parameters.point_cloud.point(self.root_address.1)?;
         let dist_to_root = D::Metric::dist(&root_center, &point);
         query_heap.push_nodes(&[self.root_address], &[dist_to_root], None);
-        self.greedy_knn_nodes(&point, &mut query_heap);
+        self.greedy_knn_nodes(point, &mut query_heap);
 
         while let Some((_dist, address)) = query_heap.closest_unvisited_singleton_covering_address()
         {
             self.get_node_and(address, |n| {
-                n.singleton_knn(&point, &self.parameters.point_cloud, &mut query_heap)
+                n.singleton_knn(point, &self.parameters.point_cloud, &mut query_heap)
             });
-            self.greedy_knn_nodes(&point, &mut query_heap);
+            self.greedy_knn_nodes(point, &mut query_heap);
         }
 
         Ok(query_heap.unpack())
     }
 
     /// Same as knn, but only deals with non-singleton points
-    pub fn routing_knn<'a>(
+    pub fn routing_knn<P: Deref<Target = D::Point> + Send + Sync>(
         &self,
-        point: &D::PointRef<'a>,
+        point: &P,
         k: usize,
     ) -> GokoResult<Vec<(f32, usize)>> {
         let mut query_heap = KnnQueryHeap::new(k, self.parameters.scale_base);
@@ -315,7 +317,11 @@ impl<D: PointCloud> CoverTreeReader<D> {
         Ok(query_heap.unpack())
     }
 
-    fn greedy_knn_nodes<'a>(&self, point: &D::PointRef<'a>, query_heap: &mut KnnQueryHeap) -> bool {
+    fn greedy_knn_nodes<P: Deref<Target = D::Point> + Send + Sync>(
+        &self,
+        point: &P,
+        query_heap: &mut KnnQueryHeap,
+    ) -> bool {
         let mut did_something = false;
         while let Some((dist, nearest_address)) =
             query_heap.closest_unvisited_child_covering_address()
@@ -327,7 +333,7 @@ impl<D: PointCloud> CoverTreeReader<D> {
                 break;
             } else {
                 self.get_node_and(nearest_address, |n| {
-                    n.child_knn(Some(dist), &point, &self.parameters.point_cloud, query_heap)
+                    n.child_knn(Some(dist), point, &self.parameters.point_cloud, query_heap)
                 });
             }
             did_something = true;
@@ -336,7 +342,10 @@ impl<D: PointCloud> CoverTreeReader<D> {
     }
 
     /// # Dry Insert Query
-    pub fn path<'a>(&self, point: &D::PointRef<'a>) -> GokoResult<Vec<(f32, NodeAddress)>> {
+    pub fn path<P: Deref<Target = D::Point> + Send + Sync>(
+        &self,
+        point: &P,
+    ) -> GokoResult<Vec<(f32, NodeAddress)>> {
         let root_center = self.parameters.point_cloud.point(self.root_address.1)?;
         let mut current_distance = D::Metric::dist(&root_center, &point);
         let mut current_address = self.root_address;
@@ -517,21 +526,17 @@ pub struct CoverTreeWriter<D: PointCloud> {
     pub(crate) final_addresses: MonoWriteHandle<usize, NodeAddress>,
 }
 
-impl<D: PointCloud + LabeledCloud> CoverTreeWriter<D> {
-    ///
-    pub fn generate_summaries(&mut self) {
-        self.add_plugin::<LabelSummaryPlugin>(LabelSummaryPlugin::default())
-    }
-}
-
-impl<D: PointCloud + MetaCloud> CoverTreeWriter<D> {
+impl<D: PointCloud> CoverTreeWriter<D> {
     ///
     pub fn generate_meta_summaries(&mut self) {
         self.add_plugin::<MetaSummaryPlugin>(MetaSummaryPlugin::default())
     }
-}
 
-impl<D: PointCloud> CoverTreeWriter<D> {
+    ///
+    pub fn generate_summaries(&mut self) {
+        self.add_plugin::<LabelSummaryPlugin>(LabelSummaryPlugin::default())
+    }
+
     ///
     pub fn add_plugin<P: GokoPlugin<D>>(&mut self, plug_in: P) {
         P::prepare_tree(&plug_in, self);
@@ -665,6 +670,14 @@ impl<D: PointCloud> CoverTreeWriter<D> {
         cover_proto.set_root_scale(self.root_address.0);
         cover_proto.set_root_index(self.root_address.1 as u64);
         cover_proto.set_layers(self.layers.iter().map(|l| l.save()).collect());
+        let name_map: std::collections::HashMap<String, u64> =
+            self.final_addresses.map_into(|k, _v| {
+                (
+                    self.parameters.point_cloud.name(*k).unwrap().to_string(),
+                    *k as u64,
+                )
+            });
+        cover_proto.set_name_map(name_map);
         cover_proto
     }
 
@@ -686,7 +699,7 @@ pub(crate) mod tests {
         let file_name = "../data/mnist_complex.yml";
         let path = Path::new(file_name);
         if !path.exists() {
-            panic!(file_name.to_owned() + &" does not exist".to_string());
+            panic!("{} does not exist", file_name);
         }
 
         cover_tree_from_labeled_yaml(&path).unwrap()

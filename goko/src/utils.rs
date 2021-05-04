@@ -128,15 +128,12 @@ pub fn load_tree<P: AsRef<Path>, D: PointCloud>(
             Some(expr) => expr,
             None => panic!("Unicode error with the tree path"),
         };
-        panic!(tree_path_str.to_string() + &" does not exist\n".to_string());
+        panic!("{} does not exist\n", tree_path_str);
     }
 
     let mut cover_proto = CoreProto::new();
 
-    let mut file = match File::open(&tree_path_ref) {
-        Ok(file) => file,
-        Err(e) => panic!("Unable to open file {:#?}", e),
-    };
+    let mut file = File::open(&tree_path_ref).map_err(GokoError::from)?;
     let mut cis = CodedInputStream::new(&mut file);
     if let Err(e) = cover_proto.merge_from(&mut cis) {
         panic!("Proto buff was unable to read {:#?}", e)

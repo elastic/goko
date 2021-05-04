@@ -17,22 +17,16 @@
 * under the License.
 */
 
-extern crate protobuf;
-extern crate rand;
-extern crate yaml_rust;
-use std::path::Path;
-#[allow(dead_code)]
-extern crate goko;
-extern crate pointcloud;
 use goko::utils::*;
 use goko::CoverTreeWriter;
 use pointcloud::*;
+use std::path::Path;
 
 fn build_tree() -> CoverTreeWriter<DefaultLabeledCloud<L2>> {
     let file_name = "../data/ember_complex.yml";
     let path = Path::new(file_name);
     if !path.exists() {
-        panic!(file_name.to_owned() + &" does not exist".to_string());
+        panic!("{} does not exist", file_name);
     }
 
     cover_tree_from_labeled_yaml(&path).unwrap()

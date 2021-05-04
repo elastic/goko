@@ -25,7 +25,6 @@
 #![allow(clippy::cast_ptr_alignment)]
 #![feature(result_flattening)]
 #![feature(is_sorted)]
-#![feature(iterator_fold_self)]
 #![feature(generic_associated_types)]
 
 #[cfg(test)]

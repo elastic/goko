@@ -3,6 +3,8 @@ use std::cmp::Ordering;
 use std::fs;
 use yaml_rust::YamlLoader;
 
+use log::{info, trace};
+
 use super::*;
 use crate::metrics::L2;
 use crate::DefaultLabeledCloud;
@@ -37,6 +39,7 @@ pub fn labeled_ram_from_yaml<P: AsRef<Path>, M: Metric<[f32]>>(
 pub fn vec_labeled_ram_from_yaml<P: AsRef<Path>, M: Metric<[f32]>>(
     path: P,
 ) -> PointCloudResult<SimpleLabeledCloud<DataRam<M>, VecLabels>> {
+    info!("Opening labeled pointcloud yaml with path {:?}", &path.as_ref());
     let config = fs::read_to_string(&path)
         .unwrap_or_else(|_| panic!("Unable to read config file {:?}", &path.as_ref()));
 
@@ -78,6 +81,7 @@ pub fn vec_labeled_ram_from_yaml<P: AsRef<Path>, M: Metric<[f32]>>(
 /// data_dim: 784
 /// ```
 pub fn ram_from_yaml<P: AsRef<Path>, M: Metric<[f32]>>(path: P) -> PointCloudResult<DataRam<M>> {
+    info!("Opening unlabeled pointcloud yaml with path {:?}", &path.as_ref());
     let config = fs::read_to_string(&path)
         .unwrap_or_else(|_| panic!("Unable to read config file {:?}", &path.as_ref()));
 
@@ -108,17 +112,20 @@ pub fn ram_from_yaml<P: AsRef<Path>, M: Metric<[f32]>>(path: P) -> PointCloudRes
 /// label_csv_index: 2
 /// ```
 pub fn labels_from_yaml<P: AsRef<Path>>(path: P) -> PointCloudResult<SmallIntLabels> {
+    info!("Opening labels yaml with path {:?}", &path.as_ref());
     let config = fs::read_to_string(&path)
         .unwrap_or_else(|_| panic!("Unable to read config file {:?}", &path.as_ref()));
     let path: &Path = path.as_ref();
     let params_files = &YamlLoader::load_from_str(&config).unwrap()[0];
 
+    trace!("Label path list, pre glob: {:?}", params_files["labels_path"]);
     let labels_path = &get_file_list(
         params_files["labels_path"]
             .as_str()
             .expect("Unable to read the 'labels_path'"),
         path,
     );
+    trace!("Label path list, post glob: {:?}", labels_path);
 
     let labels_index = params_files["labels_index"].as_i64().map(|i| i as usize);
     let labels_dim = params_files["labels_dim"].as_i64().map(|i| i as usize);
@@ -126,6 +133,7 @@ pub fn labels_from_yaml<P: AsRef<Path>>(path: P) -> PointCloudResult<SmallIntLab
     let mut label_set: Vec<SmallIntLabels> = labels_path
         .iter()
         .map(|path| {
+            info!("Opening label file with path {:?}", path);
             match (
                 path.extension().unwrap().to_str().unwrap(),
                 labels_index,
@@ -156,7 +164,7 @@ pub fn labels_from_yaml<P: AsRef<Path>>(path: P) -> PointCloudResult<SmallIntLab
 
     Ok(label_set
         .drain(0..)
-        .fold_first(|mut a, b| {
+        .reduce(|mut a, b| {
             a.merge(&b);
             a
         })
@@ -172,11 +180,13 @@ fn get_file_list(files_reg: &str, yaml_path: &Path) -> Vec<PathBuf> {
     let glob_paths;
     let files_reg_path = Path::new(files_reg);
     if files_reg_path.is_absolute() {
+        trace!("label path is absolute {:?}", files_reg_path);
         glob_paths = match glob_with(&files_reg_path.to_str().unwrap(), options) {
             Ok(expr) => expr,
             Err(e) => panic!("Pattern reading error {:?}", e),
         };
     } else {
+        trace!("label path is not absolute, joining it with the yaml path files: {:?} , yaml: {:?}", files_reg_path, yaml_path);
         glob_paths = match glob_with(
             &yaml_path
                 .parent()

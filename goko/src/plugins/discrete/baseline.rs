@@ -69,8 +69,6 @@ impl DirichletBaseline {
         let results: Vec<Vec<KLDivergenceStats>> = repeatn(reader, self.num_sequences)
             .map(|reader| {
                 let mut tracker = BayesCategoricalTracker::new(
-                    self.prior_weight,
-                    self.observation_weight,
                     0,
                     reader,
                 );

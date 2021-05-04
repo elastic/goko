@@ -11,7 +11,7 @@ mod diag_gaussian;
 pub use diag_gaussian::*;
 
 /*
-There's an issue with rust-numpy and ndarray causing the linear algebra package for ndarray to fail. 
+There's an issue with rust-numpy and ndarray causing the linear algebra package for ndarray to fail.
 
 Temporary removal
 

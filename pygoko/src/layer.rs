@@ -103,13 +103,7 @@ impl PyLayer {
         let mut centers_indexes = Vec::with_capacity(self.layer().len());
         self.layer().for_each_node(|pi, _n| {
             centers_indexes.push(*pi);
-            centers.extend(
-                self.parameters
-                    .point_cloud
-                    .point(*pi)
-                    .unwrap()
-                    .dense_iter(),
-            );
+            centers.extend(self.parameters.point_cloud.point(*pi).unwrap().dense_iter());
         });
         let py_center_indexes = Array::from(centers_indexes);
         let py_centers = Array2::from_shape_vec(
@@ -160,13 +154,7 @@ impl PyLayer {
             let singletons = node.singletons();
             let mut centers: Vec<f32> = Vec::with_capacity(singletons.len() * dim);
             for pi in singletons {
-                centers.extend(
-                    self.parameters
-                        .point_cloud
-                        .point(*pi)
-                        .unwrap()
-                        .dense_iter(),
-                );
+                centers.extend(self.parameters.point_cloud.point(*pi).unwrap().dense_iter());
             }
             let py_centers = Array2::from_shape_vec((singletons.len(), dim), centers).unwrap();
             let gil = pyo3::Python::acquire_gil();

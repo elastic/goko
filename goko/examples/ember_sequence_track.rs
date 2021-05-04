@@ -38,7 +38,7 @@ fn build_tree() -> CoverTreeWriter<SimpleLabeledCloud<DataRam<L2>, VecLabels>> {
     let file_name = "data/ember_complex.yml";
     let path = Path::new(file_name);
     if !path.exists() {
-        panic!(file_name.to_owned() + &" does not exist".to_string());
+        panic!("{} does not exist", file_name);
     }
     let builder = CoverTreeBuilder::from_yaml(&path);
     let point_cloud = vec_labeled_ram_from_yaml("data/ember_complex.yml").unwrap();
@@ -57,19 +57,15 @@ fn main() {
     ct.refresh();
     let ct_reader = ct.reader();
     println!("Tree has {} nodes", ct_reader.node_count());
-    let prior_weight = 1.0;
-    let observation_weight = 1.3;
     let window_size = 0;
     let num_sequence = 8;
 
     let mut baseline = DirichletBaseline::default();
-    baseline.set_observation_weight(observation_weight);
-    baseline.set_prior_weight(prior_weight);
     baseline.set_sequence_len(test_set.len());
     baseline.set_num_sequences(num_sequence);
     println!(
-        "Gathering baseline with prior_weight: {}, observation_weight: {}, and window_size: {}",
-        prior_weight, observation_weight, window_size
+        "Gathering baseline with window_size: {}",
+        window_size
     );
     let baseline_start = time::Instant::now();
     let _baseline_data = baseline.train(ct.reader());
@@ -82,7 +78,7 @@ fn main() {
     );
 
     let mut tracker =
-        BayesCategoricalTracker::new(prior_weight, observation_weight, window_size, ct.reader());
+        BayesCategoricalTracker::new( window_size, ct.reader());
     let start = time::Instant::now();
 
     let points: Vec<&[f32]> = (0..test_set.len())

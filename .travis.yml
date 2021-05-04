@@ -1,4 +1,9 @@
-language: rust
-rust:
-  - nightly
-fast_finish: true
+jobs:
+  include:
+    - language: rust
+      rust:
+        - nightly
+      fast_finish: true
+      script:
+        - cargo build --verbose
+        - cargo test --verbose

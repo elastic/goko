@@ -59,7 +59,7 @@ pub fn convert_glued_memmap_to_ram<M: Metric<[f32]>>(
         .take_data_sources()
         .drain(0..)
         .map(|ds| ds.convert_to_ram())
-        .fold_first(|mut a, b| {
+        .reduce(|mut a, b| {
             a.merge(b);
             a
         })

@@ -1,10 +1,10 @@
-//! f32 implementations of the L1 metric. 
+//! f32 implementations of the L1 metric.
 
+use super::L1;
 use crate::base_traits::Metric;
-use std::ops::Deref;
 use crate::points::*;
 use packed_simd::*;
-use super::L1;
+use std::ops::Deref;
 
 impl Metric<[f32]> for L1 {
     fn dist(x: &[f32], y: &[f32]) -> f32 {
@@ -30,7 +30,7 @@ impl<'a> Metric<RawSparse<f32, u8>> for L1 {
     }
 }
 
-/// 
+///
 pub fn l1_dense_f32(mut x: &[f32], mut y: &[f32]) -> f32 {
     let mut d_acc_16 = f32x16::splat(0.0);
     while y.len() > 16 {

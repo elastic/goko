@@ -1,0 +1,29 @@
+[package]
+name = "serve_goko"
+version = "0.1.0"
+authors = ["sven <sven@endgame.com>"]
+edition = "2018"
+
+[dependencies]
+pin-project = "1.0"
+futures-util = { version = "0.3", features = [ "sink" ] }
+log = "0.4"
+env_logger = "0.7.1"
+http = "0.2.3"
+warp = "0.3"
+bytes = "1.0.1"
+hyper = { version = "0.14", features = ["full"] }
+tower = { version = "0.4.4", features = ["make", "load", "balance", "util"] }
+tokio = { version = "1.1.1", features = ["full"] }
+goko = { path = "../goko" }
+pointcloud = { path = "../pointcloud" }
+serde_json = "1.0.61"
+serde = { version = "1.0.123", features = ["derive"] }
+indexmap = {version = "1.0.2", features = ["serde-1"]}
+rayon = "*"
+futures = "0.3.12"
+flate2 = "1.0.20"
+lazy_static = "*"
+rmp-serde = "0.15"
+regex = "1.4.3"
+base64 = "*"

@@ -22,7 +22,6 @@
 #![warn(missing_docs)]
 #![doc(test(attr(allow(unused_variables), deny(warnings))))]
 #![feature(binary_heap_into_iter_sorted)]
-#![feature(iterator_fold_self)]
 #![feature(associated_type_defaults)]
 
 //! # Goko

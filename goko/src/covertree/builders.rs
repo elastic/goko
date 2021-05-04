@@ -23,9 +23,9 @@ use super::*;
 use crate::plugins::TreePluginSet;
 use crate::*;
 use pbr::ProgressBar;
-use std::cmp::{max, min};
 use rand::rngs::SmallRng;
 use rand::SeedableRng;
+use std::cmp::{max, min};
 use std::fs::read_to_string;
 use std::path::Path;
 use std::sync::{atomic, Arc, RwLock};
@@ -161,7 +161,8 @@ impl BuilderNode {
             None => SmallRng::from_entropy(),
         };
         let next_scale = parameters.scale_base.powi(split_scale_index);
-        let (nested_potential, mut splits) = covered.split(next_scale, &parameters.point_cloud, &mut small_rng)?;
+        let (nested_potential, mut splits) =
+            covered.split(next_scale, &parameters.point_cloud, &mut small_rng)?;
         let mut new_nodes = Vec::new();
 
         let mut inserts = Vec::new();
@@ -255,7 +256,8 @@ impl BuilderNode {
         */
 
         while fars.len() > 0 {
-            let new_close = fars.pick_center(next_scale, &parameters.point_cloud, &mut small_rng)?;
+            let new_close =
+                fars.pick_center(next_scale, &parameters.point_cloud, &mut small_rng)?;
             //println!("\t\t [{}] New Covered: {:?}",split_count, new_close);
             if new_close.len() == 1 && parameters.use_singletons {
                 /*
@@ -286,7 +288,7 @@ impl BuilderNode {
     }
 }
 
-/// A construction object for a covertree. See [`crate::covertree::tree::CoverTreeParameters`] for docs
+/// A construction object for a covertree. See [`crate::covertree::CoverTreeParameters`] for docs
 #[derive(Debug)]
 pub struct CoverTreeBuilder {
     pub(crate) scale_base: f32,
@@ -347,32 +349,32 @@ impl CoverTreeBuilder {
         }
     }
 
-    /// See [`crate::covertree::tree::CoverTreeParameters`] for docs
+    /// See [`crate::covertree::CoverTreeParameters`] for docs
     pub fn set_scale_base(&mut self, x: f32) -> &mut Self {
         self.scale_base = x;
         self
     }
-    /// See [`crate::covertree::tree::CoverTreeParameters`] for docs
+    /// See [`crate::covertree::CoverTreeParameters`] for docs
     pub fn set_leaf_cutoff(&mut self, x: usize) -> &mut Self {
         self.leaf_cutoff = x;
         self
     }
-    /// See [`crate::covertree::tree::CoverTreeParameters`] for docs
+    /// See [`crate::covertree::CoverTreeParameters`] for docs
     pub fn set_min_res_index(&mut self, x: i32) -> &mut Self {
         self.min_res_index = x;
         self
     }
-    /// See [`crate::covertree::tree::CoverTreeParameters`] for docs
+    /// See [`crate::covertree::CoverTreeParameters`] for docs
     pub fn set_use_singletons(&mut self, x: bool) -> &mut Self {
         self.use_singletons = x;
         self
     }
-    /// See [`crate::covertree::tree::CoverTreeParameters`] for docs
+    /// See [`crate::covertree::CoverTreeParameters`] for docs
     pub fn set_verbosity(&mut self, x: u32) -> &mut Self {
         self.verbosity = x;
         self
     }
-    /// See [`crate::covertree::tree::CoverTreeParameters`] for docs
+    /// See [`crate::covertree::CoverTreeParameters`] for docs
     pub fn set_rng_seed(&mut self, x: u64) -> &mut Self {
         self.rng_seed = Some(x);
         self

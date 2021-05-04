@@ -53,7 +53,7 @@ fn build_tree() -> CoverTreeWriter<DefaultLabeledCloud<L2>> {
     let file_name = "../data/mnist_complex.yml";
     let path = Path::new(file_name);
     if !path.exists() {
-        panic!(file_name.to_owned() + &" does not exist".to_string());
+        panic!("{} does not exist", file_name);
     }
     cover_tree_from_labeled_yaml(&path).unwrap()
 }

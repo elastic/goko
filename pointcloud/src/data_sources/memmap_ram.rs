@@ -29,6 +29,7 @@ use crate::metrics::*;
 
 use crate::base_traits::*;
 use crate::label_sources::VecLabels;
+use crate::pc_errors::ParsingError;
 
 /// A thin wrapper to give a `Box<[f32]>` dimensionality.
 #[derive(Debug)]
@@ -121,6 +122,46 @@ macro_rules! make_point_cloud {
             type Metric = M;
             type Point = [f32];
             type PointRef<'a> = &'a [f32];
+            type LabelSummary = ();
+            type Label = ();
+            type MetaSummary = ();
+            type Metadata = ();
+
+            fn metadata(&self, _pn: usize) -> PointCloudResult<Option<&Self::Metadata>> {
+                Ok(None)
+            }
+            fn metasummary(
+                &self,
+                pns: &[usize],
+            ) -> PointCloudResult<SummaryCounter<Self::MetaSummary>> {
+                Ok(SummaryCounter {
+                    summary: (),
+                    nones: pns.len(),
+                    errors: 0,
+                })
+            }
+            fn label(&self, _pn: usize) -> PointCloudResult<Option<&Self::Label>> {
+                Ok(None)
+            }
+            fn label_summary(
+                &self,
+                pns: &[usize],
+            ) -> PointCloudResult<SummaryCounter<Self::LabelSummary>> {
+                Ok(SummaryCounter {
+                    summary: (),
+                    nones: pns.len(),
+                    errors: 0,
+                })
+            }
+            fn name(&self, pi: usize) -> PointCloudResult<String> {
+                Ok(pi.to_string())
+            }
+            fn index(&self, pn: &str) -> PointCloudResult<usize> {
+                pn.parse::<usize>().map_err(|_| ParsingError::RegularParsingError("Unable to parse your str into an usize").into())
+            }
+            fn names(&self) -> Vec<String> {
+                (0..self.len()).map(|i| i.to_string()).collect()
+            }
 
             #[inline]
             fn dim(&self) -> usize {

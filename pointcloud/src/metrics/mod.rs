@@ -1,4 +1,4 @@
-//! Metrics. 
+//! Metrics.
 
 pub mod l2_misc;
 pub use l2_misc::*;
@@ -14,4 +14,3 @@ pub use l1_f32::*;
 pub struct L2 {}
 /// L1 distance trait
 pub struct L1 {}
-

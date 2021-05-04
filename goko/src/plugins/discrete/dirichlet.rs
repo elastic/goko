@@ -196,7 +196,7 @@ impl Dirichlet {
         None
     }
 
-    /// from http://bariskurt.com/kullback-leibler-divergence-between-two-dirichlet-and-beta-distributions/
+    /// from <http://bariskurt.com/kullback-leibler-divergence-between-two-dirichlet-and-beta-distributions/>
     /// We assume that the Dirichlet distribution passed into this one is conditioned on this one! It assumes they have the same keys!
     pub fn kl_divergence(&self, other: &Dirichlet) -> Option<f64> {
         let my_total = self.total();
@@ -235,13 +235,13 @@ impl Dirichlet {
 
 impl<D: PointCloud> NodePlugin<D> for Dirichlet {}
 
-/// Stores the log probabilities for each node in the tree. 
-/// 
+/// Stores the log probabilities for each node in the tree.
+///
 /// This is the probability that when you sample from the tree you end up at a particular node.
 #[derive(Debug, Clone, Default)]
 pub struct GokoDirichlet {
     // probability that you'd pass thru this node.
-    //pub cond_ln_probs: HashMap<NodeAddress,f64>,
+//pub cond_ln_probs: HashMap<NodeAddress,f64>,
 }
 
 /// Parent trait that make this all work. Ideally this should be included in the `TreePlugin` but rust doesn't like it.
@@ -292,8 +292,6 @@ impl<D: PointCloud> GokoPlugin<D> for GokoDirichlet {
     }
     */
 }
-
-
 
 #[cfg(test)]
 pub(crate) mod tests {

@@ -37,10 +37,10 @@ pub enum GokoError {
     PointCloudError(PointCloudError),
     /// Most common error, the given point name isn't present in the training data
     IndexNotInTree(usize),
-    /// IO error when opening files
-    IoError(io::Error),
     /// Parsing error when loading a CSV file
-    ParsingError(ParsingError),
+    ProtobufError(ProtobufError),
+    /// Parsing error when loading a CSV file
+    IoError(io::Error),
     /// The probability distribution you are trying to sample from is invalid, probably because it was infered from 0 points.
     InvalidProbDistro,
     /// Inserted a nested node into a node that already had a nested child
@@ -52,10 +52,9 @@ pub enum GokoError {
 impl fmt::Display for GokoError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            // not sure that cause should be included in message
-            GokoError::IoError(ref e) => write!(f, "{}", e),
-            GokoError::ParsingError(ref e) => write!(f, "{}", e),
             GokoError::PointCloudError(ref e) => write!(f, "{}", e),
+            GokoError::ProtobufError(ref e) => write!(f, "{}", e),
+            GokoError::IoError(ref e) => write!(f, "{}", e),
             GokoError::IndexNotInTree { .. } => {
                 write!(f, "there was an issue grabbing a name from the known names")
             }
@@ -79,10 +78,9 @@ impl fmt::Display for GokoError {
 impl Error for GokoError {
     fn description(&self) -> &str {
         match *self {
-            // not sure that cause should be included in message
-            GokoError::IoError(ref e) => e.description(),
-            GokoError::ParsingError(ref e) => e.description(),
             GokoError::PointCloudError(ref e) => e.description(),
+            GokoError::ProtobufError(ref e) => e.description(),
+            GokoError::IoError(ref e) => e.description(),
             GokoError::IndexNotInTree { .. } => {
                 "there was an issue grabbing a name from the known names"
             }
@@ -100,9 +98,9 @@ impl Error for GokoError {
 
     fn cause(&self) -> Option<&dyn Error> {
         match *self {
-            GokoError::IoError(ref e) => Some(e),
-            GokoError::ParsingError(ref e) => Some(e),
             GokoError::PointCloudError(ref e) => Some(e),
+            GokoError::ProtobufError(ref e) => Some(e),
+            GokoError::IoError(ref e) => Some(e),
             GokoError::IndexNotInTree { .. } => None,
             GokoError::DoubleNest => None,
             GokoError::InsertBeforeNest => None,
@@ -117,94 +115,14 @@ impl From<PointCloudError> for GokoError {
     }
 }
 
+impl From<ProtobufError> for GokoError {
+    fn from(err: ProtobufError) -> Self {
+        GokoError::ProtobufError(err)
+    }
+}
+
 impl From<io::Error> for GokoError {
     fn from(err: io::Error) -> Self {
         GokoError::IoError(err)
-    }
-}
-
-impl From<ProtobufError> for GokoError {
-    fn from(err: ProtobufError) -> Self {
-        GokoError::ParsingError(ParsingError::ProtobufError(err))
-    }
-}
-
-impl From<GokoError> for io::Error {
-    fn from(err: GokoError) -> Self {
-        match err {
-            GokoError::IoError(e) => e,
-            e => io::Error::new(io::ErrorKind::Other, Box::new(e)),
-        }
-    }
-}
-
-/// A parsing error occored while doing something with text
-#[derive(Debug)]
-pub enum ParsingError {
-    /// Yaml was messed up
-    MalformedYamlError {
-        /// The file that was messed up
-        file_name: String,
-        /// The value that was messed up
-        field: String,
-    },
-    /// A needed field was missing from the file.
-    MissingYamlError {
-        /// The file
-        file_name: String,
-        /// The missing field
-        field: String,
-    },
-    /// Some protobuff error happened
-    ProtobufError(ProtobufError),
-    /// An error reading the CSV
-    CSVReadError {
-        /// The file that the error occored in
-        file_name: String,
-        /// The line that was messed up
-        line_number: usize,
-        /// The column name that was messed up
-        key: String,
-    },
-    /// Something else happened parsing a string
-    RegularParsingError(&'static str),
-}
-
-impl fmt::Display for ParsingError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            // not sure that cause should be included in message
-            ParsingError::ProtobufError(ref e) => write!(f, "{}", e),
-            ParsingError::MalformedYamlError { .. } => {
-                write!(f, "there is a error reading a yaml entry")
-            }
-            ParsingError::MissingYamlError { .. } => write!(f, "not all message fields set"),
-            ParsingError::CSVReadError { .. } => write!(f, "issue reading a CSV entry"),
-            ParsingError::RegularParsingError(..) => write!(f, "Error parsing a string"),
-        }
-    }
-}
-
-#[allow(deprecated)]
-impl Error for ParsingError {
-    fn description(&self) -> &str {
-        match *self {
-            // not sure that cause should be included in message
-            ParsingError::ProtobufError(ref e) => e.description(),
-            ParsingError::MalformedYamlError { .. } => "there is a error reading a yaml entry",
-            ParsingError::MissingYamlError { .. } => "not all message fields set",
-            ParsingError::CSVReadError { .. } => "issue reading a CSV entry",
-            ParsingError::RegularParsingError(..) => "Error parsing a string",
-        }
-    }
-
-    fn cause(&self) -> Option<&dyn Error> {
-        match *self {
-            ParsingError::ProtobufError(ref e) => Some(e),
-            ParsingError::MalformedYamlError { .. } => None,
-            ParsingError::MissingYamlError { .. } => None,
-            ParsingError::CSVReadError { .. } => None,
-            ParsingError::RegularParsingError(..) => None,
-        }
     }
 }

@@ -16,11 +16,9 @@ impl<'a> PointRef for &'a [f32] {
     }
 }
 
-
-
 macro_rules! make_misc_point {
     ($base:ident, $iter_name:ident) => {
-         /// Helper iterator for converting one type into another. Cleans up a really messy map.
+        /// Helper iterator for converting one type into another. Cleans up a really messy map.
         pub struct $iter_name<'a> {
             iter: std::slice::Iter<'a, $base>,
         }
@@ -37,21 +35,18 @@ macro_rules! make_misc_point {
                 self.iter().map(|i| *i as f32).collect()
             }
             fn dense_iter(&self) -> Self::DenseIter {
-                $iter_name {
-                    iter: self.iter(),
-                }
+                $iter_name { iter: self.iter() }
             }
         }
-    }
+    };
 }
 
-make_misc_point!(i8,Converteri8);
-make_misc_point!(u8,Converteru8);
-make_misc_point!(i16,Converteri16);
-make_misc_point!(u16,Converteru16);
-make_misc_point!(i32,Converteri32);
-make_misc_point!(u32,Converteru32);
-
+make_misc_point!(i8, Converteri8);
+make_misc_point!(u8, Converteru8);
+make_misc_point!(i16, Converteri16);
+make_misc_point!(u16, Converteru16);
+make_misc_point!(i32, Converteri32);
+make_misc_point!(u32, Converteru32);
 
 #[derive(Debug)]
 /// Enables iterating thru a sparse vector, like a dense vector without allocating anything
@@ -103,8 +98,8 @@ where
 
 #[derive(Debug)]
 /// The core element of the sparse reference. This has no lifetime information, and you should not build it directly.
-/// SparseRef derefences into this, which as the derefrence is borrowed, has a strictly shorter lifespan, and doesn't 
-/// implement clone or copy, is safe. 
+/// SparseRef derefences into this, which as the derefrence is borrowed, has a strictly shorter lifespan, and doesn't
+/// implement clone or copy, is safe.
 pub struct RawSparse<T, S> {
     dim: usize,
     values_ptr: *const T,
@@ -169,7 +164,7 @@ impl<'a, T, S: TryInto<usize>> SparseRef<'a, T, S> {
         unsafe { std::slice::from_raw_parts::<'a>(self.raw.values_ptr, self.raw.len) }
     }
 
-    /// The dimension of this point. 
+    /// The dimension of this point.
     pub fn dim(&self) -> usize {
         self.raw.dim
     }
