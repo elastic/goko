@@ -246,6 +246,9 @@ def show1D(
             )
     fig, ax = plt.subplots()
 
+    ax.set_xlim((-1.01, 1.01))
+    ax.set_ylim((-0.05, 1.2))
+
     if test_set is not None:
         for c in test_set:
 
@@ -255,29 +258,32 @@ def show1D(
             y = 1 + 0.1 * csi
             x_next = c[0]
             lines.append(
-                mlines.Line2D([x, x_next], [y, 0.0], color=cmap(my_color), linewidth=2)
+                mlines.Line2D([x, x_next], [y, y - 0.05], color=cmap(my_color), linewidth=2)
+            )
+            lines.append(
+                mlines.Line2D([x_next, x_next], [y - 0.05, 0.0], color=cmap(my_color), linewidth=2)
             )
         ax.scatter(
             test_set[:, 0].reshape((test_set.shape[0],)),
             np.zeros([test_set.shape[0]]),
             color="red",
+            zorder=2.5,
         )
-
-    ax.set_xlim((-1.01, 1.01))
-    ax.set_ylim((-0.05, 1.2))
-    ax.scatter(
-        data[:, 0].reshape((data.shape[0],)),
-        np.zeros([data.shape[0]]),
-        color="orange",
-        alpha=0.5,
-    )
+    
     collection = PatchCollection(patches, match_original=True, alpha=0.3)
     for line in lines:
         ax.add_line(line)
     ax.scatter(x_center, y_center)
     ax.add_collection(collection)
-    cax = fig.add_axes([0.9, 0.05, 0.01, 0.9])
-
+    cax = fig.add_axes([0.95, 0.05, 0.01, 0.9])
+    ax.scatter(
+        data[:, 0].reshape((data.shape[0],)),
+        np.zeros([data.shape[0]]),
+        color="orange",
+        alpha=1,
+        zorder=2.5,
+    )
+    
     fig.colorbar(
         cm.ScalarMappable(norm=norm, cmap=cmap), cax=cax, orientation="vertical"
     )

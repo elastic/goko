@@ -48,7 +48,7 @@ metaFile.close()
 x_train, x_test = x_train / 255.0, x_test / 255.0
 x_train = x_train.astype(np.float32)
 x_train = x_train.reshape(-1, 28*28)
-dataFile = open("mnist.dat", "wb")
+dataFile = open("data/mnist.dat", "wb")
 for x in x_train:
     dataFile.write(x.tobytes())
 dataFile.close()
@@ -57,10 +57,10 @@ y_str = [str(y) for y in y_train]
 
 df = pd.DataFrame({"y":y_train,"even":y_bools,"name":y_str})
 df.index.rename('index', inplace=True)
-df.to_csv('mnist.csv')
+df.to_csv('data/mnist.csv')
 
 # KNN data for tests
-data = np.memmap("mnist.dat", dtype=np.float32)
+data = np.memmap("data/mnist.dat", dtype=np.float32)
 data = data.reshape([-1,784])
 
 tree = KDTree(data, leaf_size=2)
@@ -80,4 +80,4 @@ nbrs = {"d0":dist[:,0],
         "i4": ind[:,4],}
 
 csv = pd.DataFrame(nbrs)
-csv.to_csv("mnist_nbrs.csv")
+csv.to_csv("data/mnist_nbrs.csv")

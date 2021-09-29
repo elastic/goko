@@ -12,3 +12,4 @@ add_license.py
 .vscode
 .ipynb_checkpoints
 graphistry_creds.json
+.python-version

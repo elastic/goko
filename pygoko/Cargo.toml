@@ -9,13 +9,13 @@ readme = "../README.md"
 authors = ["Sven Cattell <scattell@gmail.com>"]
 
 documentation = "https://docs.rs/goko"
-homepage = "https://github.com/elastic/goko"
-repository = "https://github.com/elastic/goko.git"
+homepage = "https://github.com/comath/goko"
+repository = "https://github.com/comath/goko.git"
 
 license = "Apache-2.0"
 
 [badges]
-travis-ci = { repository = "https://github.com/elastic/goko.git", branch = "master" }
+travis-ci = { repository = "https://github.com/comath/goko.git", branch = "master" }
 
 [toolchain]
 channel = "nightly"
@@ -23,12 +23,12 @@ channel = "nightly"
 [dependencies]
 goko = { path = "../goko" }
 pointcloud = { path = "../pointcloud" }
-pyo3 = { version = "0.12.4", features = ["extension-module"] }
-numpy = "0.12.1"
-ndarray = "0.14.0"
+pyo3 = { version = "0.14.3", features = ["extension-module"] }
+numpy = "0.14.1"
+ndarray = "0.15.3"
 rayon = "1.4.0"
 rustc-hash = "1.1.0"
-rand = { version = "0.7.3", features = ["small_rng"] }
+rand = { version = "0.8.3", features = ["small_rng"]}
 
 [lib]
 name = "pygoko"

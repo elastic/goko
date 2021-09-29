@@ -130,7 +130,7 @@ impl CoverTree {
         self.writer = Some(builder.unwrap().build(point_cloud).unwrap());
         let writer = self.writer.as_mut().unwrap();
         writer.generate_summaries();
-        writer.add_plugin::<GokoDiagGaussian>(GokoDiagGaussian::singletons());
+        //writer.add_plugin::<GokoDiagGaussian>(GokoDiagGaussian::singletons());
         writer.add_plugin::<GokoDirichlet>(GokoDirichlet {});
         Ok(())
     }
@@ -331,15 +331,11 @@ impl CoverTree {
     pub fn kl_div_dirichlet(
         &self,
         size: u64,
-        prior_weight: Option<f64>,
-        observation_weight: Option<f64>,
     ) -> PyBayesCategoricalTracker {
         let writer = self.writer.as_ref().unwrap();
 
         PyBayesCategoricalTracker {
             hkl: BayesCategoricalTracker::new(
-                prior_weight.unwrap_or(1.0),
-                observation_weight.unwrap_or(1.0),
                 size as usize,
                 writer.reader(),
             ),
@@ -352,13 +348,9 @@ impl CoverTree {
         sequence_len: usize,
         num_sequences: usize,
         sample_rate: usize,
-        prior_weight: Option<f64>,
-        observation_weight: Option<f64>,
     ) -> PyKLDivergenceBaseline {
         let reader = self.writer.as_ref().unwrap().reader();
         let mut trainer = DirichletBaseline::default();
-        trainer.set_prior_weight(prior_weight.unwrap_or(1.0));
-        trainer.set_observation_weight(observation_weight.unwrap_or(1.0));
         trainer.set_sequence_len(sequence_len);
         trainer.set_num_sequences(num_sequences);
         trainer.set_sample_rate(sample_rate);

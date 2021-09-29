@@ -344,7 +344,7 @@ impl CoverTreeBuilder {
             min_res_index: params["min_res_index"].as_i64().unwrap_or(-10) as i32,
             use_singletons: params["use_singletons"].as_bool().unwrap_or(true),
             partition_type,
-            verbosity: params["verbosity"].as_i64().unwrap_or(2) as u32,
+            verbosity: params["verbosity"].as_i64().unwrap_or(0) as u32,
             rng_seed: params["verbosity"].as_i64().map(|i| i as u64),
         }
     }
