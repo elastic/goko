@@ -1,4 +1,5 @@
 use std::iter::Iterator;
+use std::cmp::Ordering;
 
 #[derive(Debug, Clone, Default)]
 pub(crate) struct DiscreteParams {
@@ -45,7 +46,7 @@ impl DiscreteParams {
     /// see the same distribution as before and don't want to do allocations.
     pub(crate) fn zero_copy(&self) -> DiscreteParams {
         let params = self.params.iter().map(|(a, _)| (*a, 0.0f64)).collect();
-        return DiscreteParams { params, total: 0.0 };
+        DiscreteParams { params, total: 0.0 }
     }
 
     /// Multiplies all parameters by this weight
@@ -66,11 +67,6 @@ impl DiscreteParams {
     ///Gives the allocated length of the parameters
     pub(crate) fn len(&self) -> usize {
         self.params.len()
-    }
-
-    /// True if space has been allocated for this
-    pub(crate) fn is_empty(&self) -> bool {
-        self.params.is_empty()
     }
 
     pub(crate) fn add_pop(&mut self, loc: u64, count: f64) -> f64 {
@@ -106,7 +102,7 @@ impl DiscreteParams {
     pub(crate) fn get(&self, loc: u64) -> Option<f64> {
         match self.params.binary_search_by_key(&loc, |&(a, _)| a) {
             Ok(index) => Some(self.params[index].1),
-            Err(index) => None,
+            Err(_index) => None,
         }
     }
 }
@@ -114,7 +110,7 @@ impl DiscreteParams {
 impl<'a> Iterator for DiscreteParamsIter<'a> {
     type Item = (u64, f64);
     fn next(&mut self) -> Option<(u64, f64)> {
-        self.iter.next().map(|a| *a)
+        self.iter.next().copied()
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
@@ -134,28 +130,32 @@ impl<'a, 'b> Iterator for DiscreteParamsDoubleIter<'a, 'b> {
     fn next(&mut self) -> Option<((u64, f64), (u64, f64))> {
         match (self.val_a, self.val_b) {
             (Some((a_loc, a_val)), Some((b_loc, b_val))) => {
-                if a_loc == b_loc {
-                    self.val_a = self.iter_a.next();
-                    self.val_b = self.iter_b.next();
-                    return Some(((*a_loc, *a_val), (*b_loc, *b_val)));
-                } else if a_loc < b_loc {
-                    self.val_a = self.iter_a.next();
-                    return Some(((*a_loc, *a_val), (*a_loc, 0.0)));
-                } else {
-                    self.val_b = self.iter_b.next();
-                    return Some(((*b_loc, 0.0), (*b_loc, *b_val)));
+                match a_loc.cmp(b_loc) {
+                    Ordering::Equal => {
+                        self.val_a = self.iter_a.next();
+                        self.val_b = self.iter_b.next();
+                        Some(((*a_loc, *a_val), (*b_loc, *b_val)))
+                    }
+                    Ordering::Greater => {
+                        self.val_b = self.iter_b.next();
+                        Some(((*b_loc, 0.0), (*b_loc, *b_val)))
+                    }
+                    Ordering::Less => {
+                        self.val_a = self.iter_a.next();
+                        Some(((*a_loc, *a_val), (*a_loc, 0.0)))
+                    }
                 }
             }
             (Some((a_loc, a_val)), None) => {
                 self.val_a = self.iter_a.next();
-                return Some(((*a_loc, *a_val), (*a_loc, 0.0)));
+                Some(((*a_loc, *a_val), (*a_loc, 0.0)))
             }
             (None, Some((b_loc, b_val))) => {
                 self.val_b = self.iter_b.next();
-                return Some(((*b_loc, 0.0), (*b_loc, *b_val)));
+                Some(((*b_loc, 0.0), (*b_loc, *b_val)))
             }
             (None, None) => {
-                return None;
+                None
             }
         }
     }
@@ -173,7 +173,6 @@ pub(crate) mod tests {
         assert_eq!(params.get(1), None);
         assert_eq!(params.total(), 5.0);
         assert_eq!(params.len(), 1);
-        assert_eq!(params.is_empty(), false);
     }
 
     #[test]
@@ -186,7 +185,6 @@ pub(crate) mod tests {
         assert_eq!(params.get(4), None);
         assert_eq!(params.total(), 12.0);
         assert_eq!(params.len(), 3);
-        assert_eq!(params.is_empty(), false);
     }
 
     #[test]
@@ -200,7 +198,6 @@ pub(crate) mod tests {
         assert_eq!(params.get(1), Some(0.0));
         assert_eq!(params.total(), 5.0);
         assert_eq!(params.len(), 3);
-        assert_eq!(params.is_empty(), false);
     }
 
     #[test]
@@ -211,7 +208,6 @@ pub(crate) mod tests {
         assert_eq!(params.get(0), Some(0.0));
         assert_eq!(params.total(), 0.0);
         assert_eq!(params.len(), 1);
-        assert_eq!(params.is_empty(), false);
     }
 
     #[test]
@@ -219,7 +215,6 @@ pub(crate) mod tests {
         let params = DiscreteParams::new();
         assert_eq!(params.total(), 0.0);
         assert_eq!(params.len(), 0);
-        assert_eq!(params.is_empty(), true);
     }
 
     #[test]
@@ -234,7 +229,6 @@ pub(crate) mod tests {
         assert_eq!(zero_params.get(2), Some(0.0));
         assert_eq!(zero_params.total(), 0.0);
         assert_eq!(zero_params.len(), 3);
-        assert_eq!(zero_params.is_empty(), false);
     }
 
     #[test]

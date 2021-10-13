@@ -15,9 +15,10 @@ use statrs::function::gamma::{digamma, ln_gamma};
 
 use rand::distributions::{Distribution, Uniform};
 
-use crate::categorical::Categorical;
-use crate::parameter_store::DiscreteParams;
-use crate::stats_consts::{LN_GAMMA_1024, DIGAMMA_1024};
+use super::categorical::Categorical;
+use super::data::DiscreteData;
+use super::parameter_store::DiscreteParams;
+use super::stats_consts::{LN_GAMMA_1024, DIGAMMA_1024};
 
 fn cached_ln_gamma(x: f64) -> f64 {
     if x.fract() == 0.0 && x < 1023.0 {
@@ -47,8 +48,8 @@ pub struct DiscreteObservations {
     pub(crate) params: DiscreteParams,
 }
 
-impl From<Categorical> for Dirichlet {
-    fn from(item: Categorical) -> Self {
+impl From<DiscreteData> for Dirichlet {
+    fn from(item: DiscreteData) -> Self {
         Dirichlet {
             params: item.params,
         }
@@ -72,39 +73,37 @@ impl Dirichlet {
     }
 
     pub fn ln_pdf(&self, categorical: &Categorical) -> Option<f64> {
-        if (categorical.params.total() - 1.0).abs() < 0.0001 {
-            if self.params.len() != categorical.params.len() || self.params.total() < 0.000000001 {
-                return None;
-            }
-
-            let mut result = ln_gamma(self.params.total()) + (categorical.params.len() as f64) * categorical.params.total().ln();
-            for ((ca, ca_count), (other_ca, other_ca_count)) in
-                self.params.iter().zip(categorical.params.iter())
-            {
-                if ca != other_ca || ca_count <= 0.0 {
-                    return None;
-                }
-                result += ln_gamma(ca_count) + (ca_count - 1.0) * other_ca_count.ln();
-            }
-            Some(result)
-        } else {
-            
-            if self.params.len() != categorical.params.len() || self.params.total() < 0.000000001 {
-                return None;
-            }
-            let mut result = ln_gamma(self.params.total()) + ln_gamma(categorical.params.total() + 1.0) - ln_gamma(categorical.params.total() + self.params.total());
-            for ((ca, ca_count), (other_ca, other_ca_count)) in
-                self.params.iter().zip(categorical.params.iter())
-            {
-                if ca != other_ca || ca_count <= 0.0 {
-                    return None;
-                }
-                if other_ca_count > 0.0 {
-                    result += ln_gamma(ca_count + other_ca_count) - ln_gamma(ca_count) - ln_gamma(other_ca_count);
-                }
-            }
-            Some(result)
+        if self.params.len() != categorical.params.len() || self.params.total() < 0.000000001 {
+            return None;
         }
+        let mut result = cached_ln_gamma(self.params.total()) + (categorical.params.len() as f64) * categorical.params.total().ln();
+        for ((ca, ca_count), (other_ca, other_ca_count)) in
+            self.params.iter().zip(categorical.params.iter())
+        {
+            if ca != other_ca || ca_count <= 0.0 {
+                return None;
+            }
+            result += cached_ln_gamma(ca_count) + (ca_count - 1.0) * other_ca_count.ln();
+        }
+        Some(result)
+    }
+
+    pub fn ln_likelihood(&self, data: &DiscreteData) -> Option<f64> {
+        if self.params.len() != data.params.len() || self.params.total() < 0.000000001 {
+            return None;
+        }
+        let mut result = cached_ln_gamma(self.params.total()) + cached_ln_gamma(data.params.total() + 1.0) - cached_ln_gamma(data.params.total() + self.params.total());
+        for ((ca, ca_count), (other_ca, other_ca_count)) in
+            self.params.iter().zip(data.params.iter())
+        {
+            if ca != other_ca || ca_count <= 0.0 {
+                return None;
+            }
+            if other_ca_count > 0.0 {
+                result += cached_ln_gamma(ca_count + other_ca_count) - cached_ln_gamma(ca_count) - cached_ln_gamma(other_ca_count);
+            }
+        }
+        Some(result)
     }
 
     /// Gives the probability vector for this
@@ -133,14 +132,6 @@ impl Dirichlet {
         }
     }
 
-    fn add_pop(&mut self, loc: u64, count: f64) -> f64 {
-        self.params.add_pop(loc, count)
-    }
-
-    fn remove_pop(&mut self, loc: u64, count: f64) -> f64 {
-        self.params.remove_pop(loc, count)
-    }
-
     /// Adds a single observation to the Dirichlet distribution.
     /// Mutates the distribution in place to the posterior given the new evidence.
     pub fn add_observation(&mut self, loc: u64) {
@@ -149,15 +140,15 @@ impl Dirichlet {
 
     /// Adds a a group of observations to the Dirichlet distribution.
     /// Mutates the distribution in place to the posterior given the new evidence.
-    pub fn add_evidence(&mut self, other: &Categorical) {
+    pub fn add_observations(&mut self, other: &DiscreteData) {
         for (na, c) in other.params.iter() {
-            self.add_pop(na, c);
+            self.params.add_pop(na, c);
         }
     }
 
     /// Computes KL(prior || posterior), where the prior is the distribution
     /// and the posterior is based on the evidence provided.
-    pub fn posterior_kl_divergence(&self, other: &Categorical) -> Option<f64> {
+    pub fn posterior_kl_divergence(&self, other: &DiscreteData) -> Option<f64> {
         let my_total = self.total();
         let other_total = other.total() + my_total;
         let mut my_total_lng = 0.0;
@@ -185,12 +176,12 @@ impl Dirichlet {
         }
     }
 
-    pub fn marginal_aic(&self, data: &Categorical) -> Option<f64> {
-        self.ln_pdf(data).map(|a| 2.0*self.params.len() as f64 - a)
+    pub fn marginal_aic(&self, data: &DiscreteData) -> Option<f64> {
+        self.ln_likelihood(data).map(|a| 2.0*self.params.len() as f64 - a)
     }
 
     /// Samples from the expected PDF of the Dirichlet distribution
-    pub fn sample<R: Rng>(&self, rng: &mut R) -> Option<u64> {
+    pub fn marginal_sample<R: Rng>(&self, rng: &mut R) -> Option<u64> {
         let sum = self.total() as usize;
         let uniform = Uniform::from(0..sum);
         let sample = uniform.sample(rng) as f64;
@@ -252,7 +243,7 @@ impl Dirichlet {
         let mut other_total_lng = 0.0;
         let mut digamma_portion = 0.0;
         for ((ca, ca_count), (other_ca, other_ca_count)) in self.params.double_iter(&other.params) {
-            if ca_count <= 0.0 && other_ca_count > 0.0 {
+            if (ca_count <= 0.0 && other_ca_count > 0.0) || ca != other_ca {
                 return None;
             }
             other_total += other_ca_count;
@@ -276,7 +267,7 @@ impl Dirichlet {
     pub fn tracker(&self) -> DirichletTracker {
         DirichletTracker {
             prior_params: self.clone(),
-            evidence_params: Categorical::new(),
+            observed_data: DiscreteData {params: self.params.zero_copy()},
             kldiv: 0.0,
             digamma_total: digamma(self.total())
         }
@@ -286,7 +277,7 @@ impl Dirichlet {
 #[derive(Debug, Clone, Default)]
 pub struct DirichletTracker {
     pub(crate) prior_params: Dirichlet,
-    pub(crate) evidence_params: Categorical,
+    pub(crate) observed_data: DiscreteData,
     pub(crate) kldiv: f64,
     pub(crate) digamma_total: f64,
 }
@@ -295,18 +286,18 @@ impl DirichletTracker {
     /// Adds a single observation to the Dirichlet distribution.
     /// Mutates the distribution in place to the posterior given the new evidence.
     pub fn add_observation(&mut self, loc: u64) -> f64 {
-        let old_count = self.evidence_params.get(loc);
-        let old_total = self.evidence_params.total();
-        let new_count = self.evidence_params.add_pop(loc, 1.0);
-        let new_total = self.evidence_params.total();
+        let old_count = self.observed_data.get(loc);
+        let old_total = self.observed_data.total();
+        let new_count = self.observed_data.add_pop(loc, 1.0);
+        let new_total = self.observed_data.total();
         self.update_kl_div(loc, old_count, old_total, new_count, new_total)
     }
 
     pub fn remove_observation(&mut self, loc: u64) -> f64 {
-        let old_count = self.evidence_params.get(loc);
-        let old_total = self.evidence_params.total();
-        let new_count = self.evidence_params.remove_pop(loc, 1.0);
-        let new_total = self.evidence_params.total();
+        let old_count = self.observed_data.get(loc);
+        let old_total = self.observed_data.total();
+        let new_count = self.observed_data.remove_pop(loc, 1.0);
+        let new_total = self.observed_data.total();
         assert!(
             old_count.is_some() || old_count == Some(0.0),
             "Can't remove evidence if we've got a 0.0"
@@ -315,7 +306,7 @@ impl DirichletTracker {
     }
 
     pub fn marginal_aic(&self) -> Option<f64> {
-        self.prior_params.marginal_aic(&self.evidence_params)
+        self.prior_params.marginal_aic(&self.observed_data)
     }
 
     fn update_kl_div(
@@ -341,7 +332,7 @@ impl DirichletTracker {
         self.kldiv
     }
 
-    fn kl_divergence(&self) -> f64 {
+    pub fn kl_divergence(&self) -> f64 {
         self.kldiv
     }
 }
@@ -354,7 +345,7 @@ pub(crate) mod tests {
     #[test]
     fn dirichlet_sanity_test() {
         let mut buckets = Dirichlet::new();
-        buckets.add_pop(0, 5.0);
+        buckets.params.add_pop(0, 5.0);
         println!("{:?}", buckets);
         assert_approx_eq!(buckets.params.get(0).unwrap(), 5.0);
         assert_approx_eq!(buckets.supported_kl_divergence(&buckets).unwrap(), 0.0);
@@ -363,8 +354,8 @@ pub(crate) mod tests {
     #[test]
     fn dirichlet_mixed_sanity_test() {
         let mut buckets = Dirichlet::new();
-        buckets.add_pop(0, 5.0);
-        buckets.add_pop(1, 5.0);
+        buckets.params.add_pop(0, 5.0);
+        buckets.params.add_pop(1, 5.0);
         println!("{:?}", buckets);
         assert_approx_eq!(buckets.params.get(0).unwrap(), 5.0);
         assert_approx_eq!(buckets.params.get(1).unwrap(), 5.0);
@@ -374,45 +365,44 @@ pub(crate) mod tests {
     #[test]
     fn dirichlet_posterior_sanity_test() {
         let mut buckets = Dirichlet::new();
-        buckets.add_pop(0, 3.0);
-        buckets.add_pop(1, 5.0);
+        buckets.params.add_pop(0, 3.0);
+        buckets.params.add_pop(1, 5.0);
 
-        let mut categorical = Categorical::new();
-        categorical.add_pop(0, 2.0);
+        let mut data = DiscreteData::new();
+        data.add_pop(0, 2.0);
 
         let mut buckets_posterior = buckets.clone();
-        buckets_posterior.add_evidence(&categorical);
+        buckets_posterior.add_observations(&data);
 
         println!("Buckets: {:?}", buckets);
         println!("Buckets Posterior: {:?}", buckets_posterior);
-        println!("Evidence: {:?}", categorical);
+        println!("Evidence: {:?}", data);
         assert_approx_eq!(buckets_posterior.params.get(0).unwrap(), 5.0);
         assert_approx_eq!(buckets_posterior.params.get(1).unwrap(), 5.0);
         assert_approx_eq!(
             buckets.supported_kl_divergence(&buckets_posterior).unwrap(),
-            buckets.posterior_kl_divergence(&categorical).unwrap()
+            buckets.posterior_kl_divergence(&data).unwrap()
         );
     }
 
     #[test]
     fn dirichlet_posterior_sanity_test_2() {
-        let mut buckets = Dirichlet::new();
-        buckets.add_pop(0, 3.0);
-        buckets.add_pop(1, 2.0);
+        let mut data = DiscreteData::new();
+        data.add_pop(0, 3.0);
+        data.add_pop(1, 2.0);
 
-        let mut categorical = Categorical::new();
-        categorical.add_pop(0, 3.0);
-        categorical.add_pop(1, 2.0);
+        let categorical = Categorical::from(data.clone());
+        let mut buckets = Dirichlet::from(data.clone());
 
         let mut buckets_posterior = buckets.clone();
-        buckets_posterior.add_evidence(&categorical);
+        buckets_posterior.add_observations(&data);
 
         println!("Buckets: {:?}", buckets);
         println!("Buckets Posterior: {:?}", buckets_posterior);
         println!("Evidence: {:?}", categorical);
         assert_approx_eq!(
             buckets.supported_kl_divergence(&buckets_posterior).unwrap(),
-            buckets.posterior_kl_divergence(&categorical).unwrap()
+            buckets.posterior_kl_divergence(&data).unwrap()
         );
         assert_approx_eq!(
             buckets.supported_kl_divergence(&buckets_posterior).unwrap(),
@@ -427,8 +417,8 @@ pub(crate) mod tests {
     #[test]
     fn dirichlet_tracker_sanity_test() {
         let mut buckets = Dirichlet::new();
-        buckets.add_pop(0, 3.0);
-        buckets.add_pop(1, 2.0);
+        buckets.params.add_pop(0, 3.0);
+        buckets.params.add_pop(1, 2.0);
 
         let mut tracker = buckets.tracker();
 
@@ -476,20 +466,20 @@ pub(crate) mod tests {
     #[test]
     fn dirichlet_posterior_sanity_test_3() {
         let mut buckets = Dirichlet::new();
-        buckets.add_pop(0, 3.0);
+        buckets.params.add_pop(0, 3.0);
 
-        let mut categorical = Categorical::new();
-        categorical.add_pop(0, 3.0);
+        let mut data = DiscreteData::new();
+        data.params.add_pop(0, 3.0);
 
         let mut buckets_posterior = buckets.clone();
-        buckets_posterior.add_evidence(&categorical);
+        buckets_posterior.add_observations(&data);
 
         println!("Buckets: {:?}", buckets);
         println!("Buckets Posterior: {:?}", buckets_posterior);
-        println!("Evidence: {:?}", categorical);
+        println!("Evidence: {:?}", data);
         assert_approx_eq!(
             buckets.supported_kl_divergence(&buckets_posterior).unwrap(),
-            buckets.posterior_kl_divergence(&categorical).unwrap()
+            buckets.posterior_kl_divergence(&data).unwrap()
         );
         assert_approx_eq!(
             buckets.supported_kl_divergence(&buckets_posterior).unwrap(),
@@ -500,18 +490,18 @@ pub(crate) mod tests {
     #[test]
     fn dirichlet_kl_sanity_test() {
         let mut bucket1 = Dirichlet::new();
-        bucket1.add_pop(0, 6.0);
-        bucket1.add_pop(1, 6.0);
+        bucket1.params.add_pop(0, 6.0);
+        bucket1.params.add_pop(1, 6.0);
         println!("{:?}", bucket1);
 
         let mut bucket2 = Dirichlet::new();
-        bucket2.add_pop(0, 3.0);
-        bucket2.add_pop(1, 9.0);
+        bucket2.params.add_pop(0, 3.0);
+        bucket2.params.add_pop(1, 9.0);
         println!("{:?}", bucket2);
 
         let mut bucket3 = Dirichlet::new();
-        bucket3.add_pop(0, 5.5);
-        bucket3.add_pop(1, 6.5);
+        bucket3.params.add_pop(0, 5.5);
+        bucket3.params.add_pop(1, 6.5);
         println!("{:?}", bucket3);
         println!(
             "{:?}, {}",
@@ -526,20 +516,20 @@ pub(crate) mod tests {
 
     #[test]
     fn dirichlet_aic_sanity_test() {
-        let mut posterior = Dirichlet::new();
-        posterior.add_pop(0, 2.0);
-        posterior.add_pop(1, 2.0);
-        println!("{:?}", posterior);
-
-        let mut data1 = Categorical::new();
+        let mut data1 = DiscreteData::new();
         data1.add_pop(0, 2.0);
         data1.add_pop(1, 0.0);
         println!("{:?}", data1);
 
-        let mut data2 = Categorical::new();
+        let mut data2 = DiscreteData::new();
         data2.add_pop(0, 2.0);
         data2.add_pop(1, 2.0);
         println!("{:?}", data2);
+
+        let mut posterior = Dirichlet::new();
+        posterior.add_observations(&data2);
+        println!("{:?}", posterior);
+
         println!(
             "{:?}, {}",
             posterior.marginal_aic(&data1).unwrap(),
