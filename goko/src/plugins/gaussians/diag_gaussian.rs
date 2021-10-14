@@ -217,14 +217,8 @@ impl<D: PointCloud> GokoPlugin<D> for GokoDiagGaussian {
             count,
         };
         // If we're a routing node then grab the childen's values
-        if let Some((nested_scale, child_addresses)) = my_node.children() {
+        if let Some(child_addresses) = my_node.children() {
             if parameters.recursive {
-                my_tree.get_node_plugin_and::<Self::NodeComponent, _, _>(
-                    (nested_scale, *my_node.center_index()),
-                    |p| {
-                        my_dg.merge(p);
-                    },
-                );
                 for ca in child_addresses {
                     my_tree.get_node_plugin_and::<Self::NodeComponent, _, _>(*ca, |p| {
                         my_dg.merge(p);
@@ -236,7 +230,7 @@ impl<D: PointCloud> GokoPlugin<D> for GokoDiagGaussian {
                 &my_tree
                     .parameters()
                     .point_cloud
-                    .point(*my_node.center_index())
+                    .point(my_node.center_index())
                     .unwrap(),
             );
         }

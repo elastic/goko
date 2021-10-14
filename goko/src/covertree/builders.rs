@@ -43,7 +43,7 @@ struct BuilderNode {
     covered: CoveredData,
 }
 
-type NodeSplitResult<D> = GokoResult<(i32, usize, CoverNode<D>)>;
+type NodeSplitResult<D> = GokoResult<(NodeAddress, CoverNode<D>)>;
 
 impl BuilderNode {
     fn new<D: PointCloud>(
@@ -59,6 +59,7 @@ impl BuilderNode {
             }
         };
         let scale_index = (covered.max_distance()).log(parameters.scale_base).ceil() as i32;
+        assert!(-64 <= scale_index && scale_index < 447, "Scale index needs to be in [-64, 447], it's {}. Increase the scale base.", scale_index);
         Ok(BuilderNode {
             parent_address: None,
             scale_index,
@@ -68,7 +69,7 @@ impl BuilderNode {
 
     #[inline]
     fn address(&self) -> NodeAddress {
-        (self.scale_index, self.covered.center_index())
+        NodeAddress::new(self.scale_index, self.covered.center_index())
     }
 
     fn split_parallel<D: PointCloud>(
@@ -79,10 +80,10 @@ impl BuilderNode {
         let parameters = Arc::clone(parameters);
         let node_sender = Arc::clone(node_sender);
         rayon::spawn(move || {
-            let (si, pi) = self.address();
+            let na = self.address();
             match self.split(&parameters) {
                 Ok((new_node, mut new_nodes)) => {
-                    node_sender.send(Ok((si, pi, new_node))).unwrap();
+                    node_sender.send(Ok((na, new_node))).unwrap();
                     while let Some(node) = new_nodes.pop() {
                         node.split_parallel(&parameters, &node_sender);
                     }
@@ -97,7 +98,7 @@ impl BuilderNode {
         parameters: &Arc<CoverTreeParameters<D>>,
     ) -> GokoResult<(CoverNode<D>, Vec<BuilderNode>)> {
         let scale_index = self.scale_index;
-        let current_address = (scale_index, self.covered.center_index());
+        let current_address = NodeAddress::new(scale_index, self.covered.center_index());
         let mut node = CoverNode::new(self.parent_address, current_address);
         let radius = self.covered.max_distance();
         node.set_radius(radius);
@@ -157,7 +158,7 @@ impl BuilderNode {
         parameters: &Arc<CoverTreeParameters<D>>,
     ) -> GokoResult<Vec<BuilderNode>> {
         let mut small_rng: SmallRng = match parameters.rng_seed {
-            Some(seed) => SmallRng::seed_from_u64(seed ^ parent_address.1 as u64),
+            Some(seed) => SmallRng::seed_from_u64(seed ^ parent_address.point_index() as u64),
             None => SmallRng::from_entropy(),
         };
         let next_scale = parameters.scale_base.powi(split_scale_index);
@@ -199,7 +200,7 @@ impl BuilderNode {
 
             for ((split_scale_index, potential_center_index), potential_len) in inserts {
                 parent_node
-                    .insert_child((split_scale_index, potential_center_index), potential_len)?;
+                    .insert_child(NodeAddress::new(split_scale_index, potential_center_index), potential_len)?;
             }
         }
 
@@ -214,7 +215,7 @@ impl BuilderNode {
         parameters: &Arc<CoverTreeParameters<D>>,
     ) -> GokoResult<Vec<BuilderNode>> {
         let mut small_rng: SmallRng = match parameters.rng_seed {
-            Some(seed) => SmallRng::seed_from_u64(seed ^ parent_address.1 as u64),
+            Some(seed) => SmallRng::seed_from_u64(seed ^ parent_address),
             None => SmallRng::from_entropy(),
         };
         let mut new_nodes = Vec::new();
@@ -271,7 +272,7 @@ impl BuilderNode {
                 parent_node.insert_singleton(new_close.center_index);
             } else {
                 parent_node
-                    .insert_child((split_scale_index, new_close.center_index), new_close.len())?;
+                    .insert_child(NodeAddress::new(split_scale_index, new_close.center_index), new_close.len())?;
                 let new_node = BuilderNode {
                     parent_address: Some(parent_address),
                     scale_index: split_scale_index,
@@ -397,7 +398,7 @@ impl CoverTreeBuilder {
 
         let root = BuilderNode::new(&parameters, self.partition_type)?;
         let root_address = root.address();
-        let scale_range = root_address.0 - parameters.min_res_index;
+        let scale_range = root_address.scale_index() - parameters.min_res_index;
         let mut layers = Vec::with_capacity(scale_range as usize);
         layers.push(CoverLayerWriter::new(parameters.min_res_index - 1));
         for i in 0..(scale_range + 1) {
@@ -430,19 +431,19 @@ impl CoverTreeBuilder {
         let now = Instant::now();
         loop {
             if let Ok(res) = node_receiver.recv() {
-                let (scale_index, point_index, new_node) = res.unwrap();
+                let (new_addr, new_node) = res.unwrap();
                 for singleton in new_node.singletons() {
                     cover_tree
                         .final_addresses
-                        .insert(*singleton, (scale_index, point_index));
+                        .insert(*singleton, new_addr);
                 }
                 if new_node.is_leaf() {
                     cover_tree
                         .final_addresses
-                        .insert(point_index, (scale_index, point_index));
+                        .insert(new_addr.point_index(), new_addr);
                 }
                 unsafe {
-                    cover_tree.insert_raw(scale_index, point_index, new_node);
+                    cover_tree.insert_raw(new_addr, new_node);
                 }
                 inserted_nodes += 1;
                 if parameters.verbosity > 1 {

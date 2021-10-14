@@ -50,20 +50,14 @@ impl<D: PointCloud> GokoPlugin<D> for GokoCoverageIndexes {
         if my_node.coverage_count() < parameters.max {
             let mut indexes = my_node.singletons().to_vec();
             // If we're a routing node then grab the childen's values
-            if let Some((nested_scale, child_addresses)) = my_node.children() {
-                my_tree.get_node_plugin_and::<Self::NodeComponent, _, _>(
-                    (nested_scale, *my_node.center_index()),
-                    |p| {
-                        indexes.extend(p.point_indexes());
-                    },
-                );
+            if let Some(child_addresses) = my_node.children() {
                 for ca in child_addresses {
                     my_tree.get_node_plugin_and::<Self::NodeComponent, _, _>(*ca, |p| {
                         indexes.extend(p.point_indexes());
                     });
                 }
             } else {
-                indexes.push(*my_node.center_index());
+                indexes.push(my_node.center_index());
             }
             Some(CoverageIndexes {
                 pis: Arc::new(indexes),

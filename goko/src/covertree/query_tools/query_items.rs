@@ -17,7 +17,7 @@
 * under the License.
 */
 
-use crate::NodeAddress;
+use crate::{NodeAddress, NodeAddressBase};
 use std::cmp::Ordering::{self, Less};
 use std::f32;
 
@@ -52,7 +52,7 @@ impl PartialOrd for QueryAddress {
         {
             Ordering::Greater => Some(Ordering::Greater),
             Ordering::Less => Some(Ordering::Less),
-            Ordering::Equal => match other.address.0.cmp(&self.address.0) {
+            Ordering::Equal => match other.address.scale_index().cmp(&self.address.scale_index()) {
                 Ordering::Greater => Some(Ordering::Greater),
                 Ordering::Less => Some(Ordering::Less),
                 Ordering::Equal => other.dist_to_center.partial_cmp(&self.dist_to_center),
@@ -92,7 +92,7 @@ impl PartialOrd for QueryAddressRev {
         {
             Ordering::Greater => Some(Ordering::Greater),
             Ordering::Less => Some(Ordering::Less),
-            Ordering::Equal => match self.address.0.cmp(&other.address.0) {
+            Ordering::Equal => match self.address.scale_index().cmp(&other.address.scale_index()) {
                 Ordering::Greater => Some(Ordering::Greater),
                 Ordering::Less => Some(Ordering::Less),
                 Ordering::Equal => self.dist_to_center.partial_cmp(&other.dist_to_center),

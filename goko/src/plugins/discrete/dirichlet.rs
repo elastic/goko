@@ -255,13 +255,7 @@ impl<D: PointCloud> GokoPlugin<D> for GokoDirichlet {
         let mut bucket = Dirichlet::new();
 
         // If we're a routing node then grab the childen's values
-        if let Some((nested_scale, child_addresses)) = my_node.children() {
-            my_tree.get_node_plugin_and::<Self::NodeComponent, _, _>(
-                (nested_scale, *my_node.center_index()),
-                |p| {
-                    bucket.add_child_pop(Some((nested_scale, *my_node.center_index())), p.total());
-                },
-            );
+        if let Some(child_addresses) = my_node.children() {
             for ca in child_addresses {
                 my_tree.get_node_plugin_and::<Self::NodeComponent, _, _>(*ca, |p| {
                     bucket.add_child_pop(Some(*ca), p.total());

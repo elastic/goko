@@ -2,6 +2,7 @@
 
 use crate::covertree::CoverTreeReader;
 use crate::plugins::*;
+use crate::{NodeAddress, NodeAddressBase};
 use hashbrown::HashMap;
 
 use super::categorical::*;
@@ -242,8 +243,8 @@ impl<D: PointCloud> BayesCategoricalTracker<D> {
         let mut layer_node_counts = vec![Vec::<usize>::new(); self.reader.len()];
         let parameters = self.reader.parameters();
         self.all_node_kl().iter().for_each(|(_kl, address)| {
-            layer_totals[parameters.internal_index(address.0)] += 1;
-            layer_node_counts[parameters.internal_index(address.0)].push(
+            layer_totals[parameters.internal_index(address.scale_index())] += 1;
+            layer_node_counts[parameters.internal_index(address.scale_index())].push(
                 self.reader
                     .get_node_and(*address, |n| n.coverage_count())
                     .unwrap(),

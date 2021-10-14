@@ -19,7 +19,7 @@
 
 //! Tools and data structures for assisting cover tree queries.
 
-use crate::NodeAddress;
+use crate::{NodeAddress, NodeAddressBase};
 use std::collections::{BinaryHeap, HashMap, HashSet};
 use std::f32;
 
@@ -61,25 +61,26 @@ impl RoutingQueryHeap for KnnQueryHeap {
     ) {
         let mut max_dist = self.max_dist();
         let mut parent_est_dist_update = 0.0;
-        for ((si, pi), d) in indexes.iter().zip(dists) {
-            let emd = (d - self.scale_base.powi(*si)).max(0.0);
+        for (na, d) in indexes.iter().zip(dists) {
+            let pi = na.point_index();
+            let emd = (d - self.scale_base.powi(na.scale_index())).max(0.0);
             parent_est_dist_update = emd.max(parent_est_dist_update);
             if emd < max_dist {
                 self.child_heap.push(QueryAddress {
-                    address: (*si, *pi),
+                    address: *na,
                     dist_to_center: *d,
                     min_dist: emd,
                 });
             }
-            if !self.known_indexes.contains(pi) {
-                self.known_indexes.insert(*pi);
+            if !self.known_indexes.contains(&pi) {
+                self.known_indexes.insert(pi);
                 match self.dist_heap.peek() {
                     Some(my_dist) => {
                         if !(my_dist.dist < *d && self.dist_heap.len() >= self.k) {
-                            self.dist_heap.push(QuerySingleton::new(*pi, *d));
+                            self.dist_heap.push(QuerySingleton::new(pi, *d));
                         }
                     }
-                    None => self.dist_heap.push(QuerySingleton::new(*pi, *d)),
+                    None => self.dist_heap.push(QuerySingleton::new(pi, *d)),
                 };
             }
             while self.dist_heap.len() > self.k {

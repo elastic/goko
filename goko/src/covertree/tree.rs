@@ -145,10 +145,10 @@ impl<D: PointCloud> CoverTreeReader<D> {
     /// closure.
     pub fn get_node_label_summary(
         &self,
-        node_address: (i32, usize),
+        node_address: NodeAddress,
     ) -> Option<Arc<SummaryCounter<D::LabelSummary>>> {
-        self.layers[self.parameters.internal_index(node_address.0)]
-            .get_node_and(node_address.1, |n| n.label_summary())
+        self.layers[self.parameters.internal_index(node_address.scale_index())]
+            .get_node_and(node_address.point_index(), |n| n.label_summary())
             .flatten()
     }
 
@@ -156,10 +156,10 @@ impl<D: PointCloud> CoverTreeReader<D> {
     /// closure.
     pub fn get_node_metasummary(
         &self,
-        node_address: (i32, usize),
+        node_address: NodeAddress,
     ) -> Option<Arc<SummaryCounter<D::MetaSummary>>> {
-        self.layers[self.parameters.internal_index(node_address.0)]
-            .get_node_and(node_address.1, |n| n.metasummary())
+        self.layers[self.parameters.internal_index(node_address.scale_index())]
+            .get_node_and(node_address.point_index(), |n| n.metasummary())
             .flatten()
     }
 
@@ -175,22 +175,22 @@ impl<D: PointCloud> CoverTreeReader<D> {
     }
 
     /// Read only access to the internals of a node.
-    pub fn get_node_and<F, T>(&self, node_address: (i32, usize), f: F) -> Option<T>
+    pub fn get_node_and<F, T>(&self, node_address: NodeAddress, f: F) -> Option<T>
     where
         F: FnOnce(&CoverNode<D>) -> T,
     {
-        self.layers[self.parameters.internal_index(node_address.0)]
-            .get_node_and(node_address.1, |n| f(n))
+        self.layers[self.parameters.internal_index(node_address.scale_index())]
+            .get_node_and(node_address.point_index(), |n| f(n))
     }
 
     /// Grabs all children indexes and allows you to query against them. Usually used at the tree level so that you
     /// can access the child nodes as they are not on this layer.
-    pub fn get_node_children_and<F, T>(&self, node_address: (i32, usize), f: F) -> Option<T>
+    pub fn get_node_children_and<F, T>(&self, node_address: NodeAddress, f: F) -> Option<T>
     where
-        F: FnOnce(NodeAddress, &[NodeAddress]) -> T,
+        F: FnOnce(&[NodeAddress]) -> T,
     {
-        self.layers[self.parameters.internal_index(node_address.0)]
-            .get_node_children_and(node_address.1, f)
+        self.layers[self.parameters.internal_index(node_address.scale_index())]
+            .get_node_children_and(node_address.point_index(), f)
     }
 
     /// The root of the tree. Pass this to `get_node_and` to get the root node's content and start a traversal of the tree.
@@ -249,14 +249,14 @@ impl<D: PointCloud> CoverTreeReader<D> {
     /// closure.
     pub fn get_node_plugin_and<T: Send + Sync + 'static, F, S>(
         &self,
-        node_address: (i32, usize),
+        node_address: NodeAddress,
         transform_fn: F,
     ) -> Option<S>
     where
         F: FnOnce(&T) -> S,
     {
-        self.layers[self.parameters.internal_index(node_address.0)]
-            .get_node_and(node_address.1, |n| n.get_plugin_and(transform_fn))
+        self.layers[self.parameters.internal_index(node_address.scale_index())]
+            .get_node_and(node_address.point_index(), |n| n.get_plugin_and(transform_fn))
             .flatten()
     }
 
@@ -284,7 +284,7 @@ impl<D: PointCloud> CoverTreeReader<D> {
     ) -> GokoResult<Vec<(f32, usize)>> {
         let mut query_heap = KnnQueryHeap::new(k, self.parameters.scale_base);
 
-        let root_center = self.parameters.point_cloud.point(self.root_address.1)?;
+        let root_center = self.parameters.point_cloud.point(self.root_address.point_index())?;
         let dist_to_root = D::Metric::dist(&root_center, &point);
         query_heap.push_nodes(&[self.root_address], &[dist_to_root], None);
         self.greedy_knn_nodes(point, &mut query_heap);
@@ -308,7 +308,7 @@ impl<D: PointCloud> CoverTreeReader<D> {
     ) -> GokoResult<Vec<(f32, usize)>> {
         let mut query_heap = KnnQueryHeap::new(k, self.parameters.scale_base);
 
-        let root_center = self.parameters.point_cloud.point(self.root_address.1)?;
+        let root_center = self.parameters.point_cloud.point(self.root_address.point_index())?;
         let dist_to_root = D::Metric::dist(&root_center, &point);
         query_heap.push_nodes(&[self.root_address], &[dist_to_root], None);
         self.greedy_knn_nodes(point, &mut query_heap);
@@ -346,7 +346,7 @@ impl<D: PointCloud> CoverTreeReader<D> {
         &self,
         point: &P,
     ) -> GokoResult<Vec<(f32, NodeAddress)>> {
-        let root_center = self.parameters.point_cloud.point(self.root_address.1)?;
+        let root_center = self.parameters.point_cloud.point(self.root_address.point_index())?;
         let mut current_distance = D::Metric::dist(&root_center, &point);
         let mut current_address = self.root_address;
         let mut trace = vec![(current_distance, current_address)];
@@ -381,14 +381,14 @@ impl<D: PointCloud> CoverTreeReader<D> {
     pub fn known_path(&self, point_index: usize) -> GokoResult<Vec<(f32, NodeAddress)>> {
         self.final_addresses
             .get_and(&point_index, |addr| {
-                let mut path = Vec::with_capacity((self.root_address().0 - addr.0) as usize);
+                let mut path = Vec::with_capacity((self.root_address().scale_index() - addr.scale_index()) as usize);
                 let mut parent = Some(*addr);
                 while let Some(addr) = parent {
                     path.push(addr);
                     parent = self.get_node_and(addr, |n| n.parent_address()).flatten();
                 }
                 (&mut path[..]).reverse();
-                let point_indexes: Vec<usize> = path.iter().map(|na| na.1).collect();
+                let point_indexes: Vec<usize> = path.iter().map(|na| na.point_index()).collect();
                 let dists = self
                     .parameters
                     .point_cloud
@@ -416,20 +416,14 @@ impl<D: PointCloud> CoverTreeReader<D> {
                 let singleton_count = n.singletons().len() as f32;
                 let mut max_pop: usize = 1;
                 let mut weighted_count: f32 = 0.0;
-                if let Some((nested_scale, children)) = n.children() {
-                    let mut pops: Vec<usize> = children
+                if let Some(children) = n.children() {
+                    let pops: Vec<usize> = children
                         .iter()
                         .map(|child_addr| {
                             self.get_node_and(*child_addr, |child| child.coverage_count())
                                 .unwrap()
                         })
                         .collect();
-                    pops.push(
-                        self.get_node_and((nested_scale, node_address.1), |child| {
-                            child.coverage_count()
-                        })
-                        .unwrap(),
-                    );
                     max_pop = *pops.iter().max().unwrap();
                     pops.iter()
                         .for_each(|p| weighted_count += (*p as f32) / (max_pop as f32));
@@ -457,21 +451,15 @@ impl<D: PointCloud> CoverTreeReader<D> {
         let mut parent_coverage_counts: Vec<usize> = Vec::new();
         let mut child_coverage_counts: Vec<usize> = Vec::new();
         let mut singletons_count: f32 = 0.0;
-        parent_layer.for_each_node(|center_index, n| {
+        parent_layer.for_each_node(|_center_index, n| {
             parent_coverage_counts.push(n.coverage_count());
 
             singletons_count += n.singletons().len() as f32;
-            if let Some((nested_scale, children)) = n.children() {
+            if let Some(children) = n.children() {
                 child_coverage_counts.extend(children.iter().map(|child_addr| {
                     self.get_node_and(*child_addr, |child| child.coverage_count())
                         .unwrap()
                 }));
-                child_coverage_counts.push(
-                    self.get_node_and((nested_scale, *center_index), |child| {
-                        child.coverage_count()
-                    })
-                    .unwrap(),
-                );
             }
         });
         // Get the maximum count
@@ -500,13 +488,11 @@ impl<D: PointCloud> CoverTreeReader<D> {
             println!("checking {:?}", node_addr);
             println!("refs_to_check: {:?}", refs_to_check);
             let node_exists = self.get_node_and(node_addr, |n| {
-                if let Some((nested_scale, other_children)) = n.children() {
+                if let Some(other_children) = n.children() {
                     println!(
-                        "Pushing: {:?}, {:?}",
-                        (nested_scale, other_children),
+                        "Pushing: {:?}",
                         other_children
                     );
-                    refs_to_check.push((nested_scale, node_addr.1));
                     refs_to_check.extend(&other_children[..]);
                 }
             });
@@ -563,7 +549,7 @@ impl<D: PointCloud> CoverTreeWriter<D> {
     where
         F: Fn(&mut CoverNode<D>) + 'static + Send + Sync,
     {
-        self.layers[self.parameters.internal_index(address.0)].update_node(address.1, update_fn);
+        self.layers[self.parameters.internal_index(address.scale_index())].update_node(address.point_index(), update_fn);
     }
 
     /// Creates a reader for queries.
@@ -578,11 +564,10 @@ impl<D: PointCloud> CoverTreeWriter<D> {
 
     pub(crate) unsafe fn insert_raw(
         &mut self,
-        scale_index: i32,
-        point_index: usize,
+        node_address: NodeAddress,
         node: CoverNode<D>,
     ) {
-        self.layers[self.parameters.internal_index(scale_index)].insert_raw(point_index, node);
+        self.layers[self.parameters.internal_index(node_address.scale_index())].insert_raw(node_address.point_index(), node);
     }
 
     /// Loads a tree from a protobuf. There's a `load_tree` in `utils` that handles loading from a path to a protobuf file.
@@ -605,7 +590,7 @@ impl<D: PointCloud> CoverTreeWriter<D> {
             plugins: RwLock::new(TreePluginSet::new()),
             rng_seed: None,
         });
-        let root_address = (
+        let root_address = NodeAddress::new(
             cover_proto.get_root_scale(),
             cover_proto.get_root_index() as usize,
         );
@@ -640,11 +625,10 @@ impl<D: PointCloud> CoverTreeWriter<D> {
                     for singleton in n.singletons() {
                         self.final_addresses.insert(*singleton, cur_add);
                     }
-                    if let Some((nested_si, child_addresses)) = n.children() {
+                    if let Some(child_addresses) = n.children() {
                         unvisited_nodes.extend(child_addresses);
-                        unvisited_nodes.push((nested_si, cur_add.1));
                     } else {
-                        self.final_addresses.insert(cur_add.1, cur_add);
+                        self.final_addresses.insert(cur_add.point_index(), cur_add);
                     }
                 })
                 .unwrap();
@@ -667,8 +651,8 @@ impl<D: PointCloud> CoverTreeWriter<D> {
         cover_proto.set_use_singletons(self.parameters.use_singletons);
         cover_proto.set_dim(self.parameters.point_cloud.dim() as u64);
         cover_proto.set_count(self.parameters.point_cloud.len() as u64);
-        cover_proto.set_root_scale(self.root_address.0);
-        cover_proto.set_root_index(self.root_address.1 as u64);
+        cover_proto.set_root_scale(self.root_address.scale_index());
+        cover_proto.set_root_index(self.root_address.point_index() as u64);
         cover_proto.set_layers(self.layers.iter().map(|l| l.save()).collect());
         let name_map: std::collections::HashMap<String, u64> =
             self.final_addresses.map_into(|k, _v| {

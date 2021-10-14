@@ -26,21 +26,15 @@ use crate::plugins::{
     labels::{NodeLabelSummary, NodeMetaSummary},
     NodePlugin, NodePluginSet,
 };
+use smallvec::smallvec;
 use crate::tree_file_format::*;
-use crate::NodeAddress;
+use crate::{NodeAddress, NodeAddressBase};
 use std::ops::Deref;
 
 use pointcloud::*;
 use smallvec::SmallVec;
 use std::marker::PhantomData;
 use std::sync::Arc;
-/// The node children. This is a separate struct from the `CoverNode` to use the rust compile time type checking and
-/// `Option` data structure to ensure that all nodes with children are valid and cover their nested child.
-#[derive(Debug, Clone)]
-pub(crate) struct NodeChildren {
-    nested_scale: i32,
-    addresses: SmallVec<[NodeAddress; 10]>,
-}
 
 /// The actual cover node. The fields can be separated into three piles. The first two consist of node `address` for testing and reference
 /// when working and the `radius`, `coverage_count`, and `singles_summary` for a query various properties of the node.
@@ -57,8 +51,8 @@ pub struct CoverNode<D: PointCloud> {
     radius: f32,
     coverage_count: usize,
     /// Children
-    children: Option<NodeChildren>,
-    singles_indexes: SmallVec<[usize; 20]>,
+    children: Option<SmallVec<[NodeAddress; 2]>>,
+    singles_indexes: SmallVec<[usize; 5]>,
     plugins: NodePluginSet,
     metic: PhantomData<D>,
 }
@@ -132,7 +126,7 @@ impl<D: PointCloud> CoverNode<D> {
     }
 
     /// Removes all children and returns them to us.
-    pub(crate) fn remove_children(&mut self) -> Option<NodeChildren> {
+    pub(crate) fn remove_children(&mut self) -> Option<SmallVec<[NodeAddress; 2]>> {
         self.children.take()
     }
 
@@ -152,33 +146,28 @@ impl<D: PointCloud> CoverNode<D> {
     }
 
     ///
+    pub fn center_index(&self) -> usize {
+        self.address.point_index()
+    }
+
+    ///
     pub fn parent_address(&self) -> Option<NodeAddress> {
         self.parent_address
     }
 
     ///
-    pub fn center_index(&self) -> &usize {
-        &self.address.1
-    }
-
-    ///
-    pub fn scale_index(&self) -> &i32 {
-        &self.address.0
-    }
-
-    ///
     pub fn children_len(&self) -> usize {
         match &self.children {
-            Some(children) => children.addresses.len() + 1,
+            Some(children) => children.len(),
             None => 0,
         }
     }
 
     /// If the node is not a leaf this unpacks the child struct to a more publicly consumable format.
-    pub fn children(&self) -> Option<(i32, &[NodeAddress])> {
+    pub fn children(&self) -> Option<&[NodeAddress]> {
         self.children
             .as_ref()
-            .map(|c| (c.nested_scale, &c.addresses[..]))
+            .map(|c| &c[..])
     }
 
     /// Performs the `singleton_knn` and `child_knn` with a provided query heap. If you have the distance
@@ -196,11 +185,11 @@ impl<D: PointCloud> CoverNode<D> {
         self.singleton_knn(point, point_cloud, query_heap)?;
 
         let dist_to_center =
-            dist_to_center.unwrap_or(point_cloud.distances_to_point(point, &[self.address.1])?[0]);
+            dist_to_center.unwrap_or(point_cloud.distances_to_point(point, &[self.address.point_index()])?[0]);
         self.child_knn(Some(dist_to_center), point, point_cloud, query_heap)?;
 
         if self.children.is_none() {
-            query_heap.push_outliers(&[self.address.1], &[dist_to_center]);
+            query_heap.push_outliers(&[self.address.point_index()], &[dist_to_center]);
         }
         Ok(())
     }
@@ -227,18 +216,18 @@ impl<D: PointCloud> CoverNode<D> {
         query_heap: &mut T,
     ) -> GokoResult<()> {
         let dist_to_center =
-            dist_to_center.unwrap_or(point_cloud.distances_to_point(point, &[self.address.1])?[0]);
+            dist_to_center.unwrap_or(point_cloud.distances_to_point(point, &[self.address.point_index()])?[0]);
 
         if let Some(children) = &self.children {
             query_heap.push_nodes(
-                &[(children.nested_scale, self.address.1)],
+                &[children[0]],
                 &[dist_to_center],
                 None,
             );
             let children_indexes: Vec<usize> =
-                children.addresses.iter().map(|(_si, pi)| *pi).collect();
+                children[1..].iter().map(|na| na.point_index()).collect();
             let distances = point_cloud.distances_to_point(point, &children_indexes[..])?;
-            query_heap.push_nodes(&children.addresses[..], &distances, Some(self.address));
+            query_heap.push_nodes(&children[1..], &distances, Some(self.address));
         }
         Ok(())
     }
@@ -253,7 +242,7 @@ impl<D: PointCloud> CoverNode<D> {
     ) -> GokoResult<Option<(f32, NodeAddress)>> {
         if let Some(children) = &self.children {
             let children_indexes: Vec<usize> =
-                children.addresses.iter().map(|(_si, pi)| *pi).collect();
+                children[1..].iter().map(|na| na.point_index()).collect();
             let distances = point_cloud.distances_to_point(point, &children_indexes[..])?;
             let (min_index, min_dist) = distances
                 .iter()
@@ -261,16 +250,16 @@ impl<D: PointCloud> CoverNode<D> {
                 .min_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
                 .unwrap_or((0, &std::f32::MAX));
             if dist_to_center < *min_dist {
-                if dist_to_center < scale_base.powi(children.nested_scale) {
+                if dist_to_center < scale_base.powi(children[0].scale_index()) {
                     Ok(Some((
                         dist_to_center,
-                        (children.nested_scale, self.address.1),
+                        children[0],
                     )))
                 } else {
                     Ok(None)
                 }
-            } else if *min_dist < scale_base.powi(children.addresses[min_index].0) {
-                Ok(Some((*min_dist, children.addresses[min_index])))
+            } else if *min_dist < scale_base.powi(children[min_index].scale_index()) {
+                Ok(Some((*min_dist, children[min_index])))
             } else {
                 Ok(None)
             }
@@ -290,17 +279,17 @@ impl<D: PointCloud> CoverNode<D> {
         point_cloud: &D,
     ) -> GokoResult<Option<(f32, NodeAddress)>> {
         if let Some(children) = &self.children {
-            if dist_to_center < scale_base.powi(children.nested_scale) {
+            if dist_to_center < scale_base.powi(children[0].scale_index()) {
                 return Ok(Some((
                     dist_to_center,
-                    (children.nested_scale, self.address.1),
+                    children[0],
                 )));
             }
             let children_indexes: Vec<usize> =
-                children.addresses.iter().map(|(_si, pi)| *pi).collect();
+                children[1..].iter().map(|na| na.point_index()).collect();
             let distances = point_cloud.distances_to_point(point, &children_indexes[..])?;
-            for (ca, d) in children.addresses.iter().zip(distances) {
-                if d < scale_base.powi(ca.0) {
+            for (ca, d) in children[1..].iter().zip(distances) {
+                if d < scale_base.powi(ca.scale_index()) {
                     return Ok(Some((d, *ca)));
                 }
             }
@@ -323,10 +312,7 @@ impl<D: PointCloud> CoverNode<D> {
         if self.children.is_some() {
             Err(GokoError::DoubleNest)
         } else {
-            self.children = Some(NodeChildren {
-                nested_scale: scale_index,
-                addresses: SmallVec::new(),
-            });
+            self.children = Some(smallvec![NodeAddress::new(scale_index, self.address.point_index())]);
             Ok(())
         }
     }
@@ -335,7 +321,7 @@ impl<D: PointCloud> CoverNode<D> {
     pub(crate) fn insert_child(&mut self, address: NodeAddress, coverage: usize) -> GokoResult<()> {
         self.coverage_count += coverage;
         if let Some(children) = &mut self.children {
-            children.addresses.push(address);
+            children.push(address);
             Ok(())
         } else {
             Err(GokoError::InsertBeforeNest)
@@ -370,7 +356,7 @@ impl<D: PointCloud> CoverNode<D> {
             .map(|i| *i as usize)
             .collect();
         let radius = node_proto.get_radius();
-        let address = (
+        let address = NodeAddress::new(
             node_proto.get_scale_index(),
             node_proto.get_center_index() as usize,
         );
@@ -380,23 +366,18 @@ impl<D: PointCloud> CoverNode<D> {
             if parent_scale_index == std::i32::MIN && parent_center_index == std::u64::MAX {
                 None
             } else {
-                Some((parent_scale_index, parent_center_index as usize))
+                Some(NodeAddress::new(parent_scale_index, parent_center_index as usize))
             };
         let coverage_count = node_proto.get_coverage_count() as usize;
         let children = if node_proto.get_is_leaf() {
             None
         } else {
-            let nested_scale = node_proto.get_nested_scale_index() as i32;
-            let addresses = node_proto
+            Some(node_proto
                 .get_children_scale_indexes()
                 .iter()
                 .zip(node_proto.get_children_point_indexes())
-                .map(|(si, pi)| (*si as i32, *pi as usize))
-                .collect();
-            Some(NodeChildren {
-                nested_scale,
-                addresses,
-            })
+                .map(|(si, pi)| NodeAddress::new(*si as i32, *pi as usize))
+                .collect())
         };
         CoverNode {
             parent_address,
@@ -413,13 +394,13 @@ impl<D: PointCloud> CoverNode<D> {
     pub(crate) fn save(&self) -> NodeProto {
         let mut proto = NodeProto::new();
         proto.set_coverage_count(self.coverage_count as u64);
-        proto.set_scale_index(self.address.0);
-        proto.set_center_index(self.address.1 as u64);
+        proto.set_scale_index(self.address.scale_index());
+        proto.set_center_index(self.address.point_index() as u64);
 
         match self.parent_address {
             Some(parent_address) => {
-                proto.set_parent_scale_index(parent_address.0);
-                proto.set_parent_center_index(parent_address.1 as u64);
+                proto.set_parent_scale_index(parent_address.scale_index());
+                proto.set_parent_center_index(parent_address.point_index() as u64);
             }
             None => {
                 proto.set_parent_scale_index(std::i32::MIN);
@@ -433,15 +414,13 @@ impl<D: PointCloud> CoverNode<D> {
         match &self.children {
             Some(children) => {
                 proto.set_is_leaf(false);
-                proto.set_nested_scale_index(children.nested_scale);
                 proto.set_children_scale_indexes(
-                    children.addresses.iter().map(|(si, _pi)| *si).collect(),
+                    children.iter().map(|na| na.scale_index()).collect(),
                 );
                 proto.set_children_point_indexes(
                     children
-                        .addresses
                         .iter()
-                        .map(|(_si, pi)| *pi as u64)
+                        .map(|na| na.point_index() as u64)
                         .collect(),
                 );
             }

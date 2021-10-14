@@ -40,12 +40,7 @@ impl<D: PointCloud> GokoPlugin<D> for LabelSummaryPlugin {
             .label_summary(my_node.singletons())
             .unwrap();
         // If we're a routing node then grab the childen's values
-        if let Some((nested_scale, child_addresses)) = my_node.children() {
-            my_tree.get_node_plugin_and::<Self::NodeComponent, _, _>(
-                (nested_scale, *my_node.center_index()),
-                |p| bucket.combine(p.summary.as_ref()),
-            );
-
+        if let Some(child_addresses) = my_node.children() {
             for ca in child_addresses {
                 my_tree.get_node_plugin_and::<Self::NodeComponent, _, _>(*ca, |p| {
                     bucket.combine(p.summary.as_ref())
@@ -56,7 +51,7 @@ impl<D: PointCloud> GokoPlugin<D> for LabelSummaryPlugin {
                 my_tree
                     .parameters()
                     .point_cloud
-                    .label(*my_node.center_index()),
+                    .label(my_node.center_index()),
             );
         }
         Some(NodeLabelSummary {
@@ -99,12 +94,7 @@ impl<D: PointCloud> GokoPlugin<D> for MetaSummaryPlugin {
             .metasummary(my_node.singletons())
             .unwrap();
         // If we're a routing node then grab the childen's values
-        if let Some((nested_scale, child_addresses)) = my_node.children() {
-            my_tree.get_node_plugin_and::<Self::NodeComponent, _, _>(
-                (nested_scale, *my_node.center_index()),
-                |p| bucket.combine(p.summary.as_ref()),
-            );
-
+        if let Some(child_addresses) = my_node.children() {
             for ca in child_addresses {
                 my_tree.get_node_plugin_and::<Self::NodeComponent, _, _>(*ca, |p| {
                     bucket.combine(p.summary.as_ref())
@@ -115,7 +105,7 @@ impl<D: PointCloud> GokoPlugin<D> for MetaSummaryPlugin {
                 my_tree
                     .parameters()
                     .point_cloud
-                    .metadata(*my_node.center_index()),
+                    .metadata(my_node.center_index()),
             );
         }
         Some(NodeMetaSummary {

@@ -25,8 +25,6 @@ pub(crate) mod query_items;
 
 pub(crate) mod knn_query_heap;
 pub use knn_query_heap::KnnQueryHeap;
-pub(crate) mod trace_query_heap;
-pub use trace_query_heap::MultiscaleQueryHeap;
 
 /// If you have a algorithm that does local brute force KNN on just the children,
 /// implement this to use the node fn

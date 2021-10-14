@@ -101,10 +101,10 @@ impl<D: PointCloud> CoverLayerReader<D> {
     /// can access the child nodes as they are not on this layer.
     pub fn get_node_children_and<F, T>(&self, pi: usize, f: F) -> Option<T>
     where
-        F: FnOnce(NodeAddress, &[NodeAddress]) -> T,
+        F: FnOnce(&[NodeAddress]) -> T,
     {
         self.node_reader
-            .get_and(&pi, |n| n.children().map(|(si, c)| f((si, pi), c)))
+            .get_and(&pi, |n| n.children().map(f))
             .flatten()
     }
 
