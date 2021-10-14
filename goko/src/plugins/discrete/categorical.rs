@@ -189,7 +189,7 @@ pub(crate) mod tests {
     fn empty_bucket_sanity_test() {
         let buckets = Categorical::new();
         assert_eq!(buckets.ln_pdf(None), None);
-        assert_eq!(buckets.ln_pdf(Some(&(0, 0))), None);
+        assert_eq!(buckets.ln_pdf(Some(&(0, 0).into())), None);
         assert_eq!(buckets.kl_divergence(&buckets), None)
     }
 
@@ -199,14 +199,17 @@ pub(crate) mod tests {
         buckets.add_child_pop(None, 5.0);
         assert_approx_eq!(buckets.ln_pdf(None).unwrap(), 0.0);
         assert_approx_eq!(buckets.kl_divergence(&buckets).unwrap(), 0.0);
-        assert_eq!(buckets.ln_pdf(Some(&(0, 0))), Some(std::f64::NEG_INFINITY));
+        assert_eq!(
+            buckets.ln_pdf(Some(&(0, 0).into())),
+            Some(std::f64::NEG_INFINITY)
+        );
     }
 
     #[test]
     fn child_bucket_sanity_test() {
         let mut buckets = Categorical::new();
-        buckets.add_child_pop(Some((0, 0)), 5.0);
-        assert_approx_eq!(buckets.ln_pdf(Some(&(0, 0))).unwrap(), 0.0);
+        buckets.add_child_pop(Some((0, 0).into()), 5.0);
+        assert_approx_eq!(buckets.ln_pdf(Some(&(0, 0).into())).unwrap(), 0.0);
         assert_approx_eq!(buckets.kl_divergence(&buckets).unwrap(), 0.0);
         assert_eq!(buckets.ln_pdf(None).unwrap(), std::f64::NEG_INFINITY);
     }
@@ -215,17 +218,17 @@ pub(crate) mod tests {
     fn mixed_bucket_sanity_test() {
         let mut bucket1 = Categorical::new();
         bucket1.add_child_pop(None, 6.0);
-        bucket1.add_child_pop(Some((0, 0)), 6.0);
+        bucket1.add_child_pop(Some((0, 0).into()), 6.0);
         println!("{:?}", bucket1);
 
         let mut bucket2 = Categorical::new();
         bucket2.add_child_pop(None, 4.0);
-        bucket2.add_child_pop(Some((0, 0)), 8.0);
+        bucket2.add_child_pop(Some((0, 0).into()), 8.0);
         println!("{:?}", bucket2);
 
         assert_approx_eq!(bucket1.ln_pdf(None).unwrap(), (0.5f64).ln());
         assert_approx_eq!(
-            bucket2.ln_pdf(Some(&(0, 0))).unwrap(),
+            bucket2.ln_pdf(Some(&(0, 0).into())).unwrap(),
             (0.666666666f64).ln()
         );
         assert_approx_eq!(bucket1.kl_divergence(&bucket1).unwrap(), 0.0);

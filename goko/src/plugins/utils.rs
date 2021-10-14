@@ -87,8 +87,7 @@ pub(crate) mod tests {
                 assert_eq!(n.coverage_count(), count, "Node: {:?}", n)
             });
 
-            ct_reader.get_node_children_and(addr, |covered, children| {
-                untested_addresses.push(covered);
+            ct_reader.get_node_children_and(addr, |children| {
                 untested_addresses.extend(children);
             });
         }

@@ -50,7 +50,7 @@ use pointcloud::*;
 use std::env;
 
 fn build_tree() -> CoverTreeWriter<DefaultLabeledCloud<L2>> {
-    let file_name = "../data/mnist_complex.yml";
+    let file_name = "../data/mnist.yml";
     let path = Path::new(file_name);
     if !path.exists() {
         panic!("{} does not exist", file_name);
@@ -88,12 +88,12 @@ fn test_path(ct_reader: &CoverTreeReader<DefaultLabeledCloud<L2>>, query_index: 
         )
         .unwrap();
     println!("{:?}", trace);
-    assert_eq!((trace[0].1).1, ct_reader.root_address().1);
+    assert_eq!((trace[0].1), ct_reader.root_address());
     let (_dist, last_node_address) = trace.last().unwrap();
     let singleton_condition = ct_reader
         .get_node_and(*last_node_address, |n| n.singletons().contains(&0))
         .unwrap();
-    assert!(last_node_address.1 == query_index || singleton_condition);
+    assert!(last_node_address.point_index() == query_index || singleton_condition);
 }
 //Cover tree on MNIST builds and is queryable
 #[test]
@@ -142,8 +142,7 @@ fn gaussian_is_not_nan() {
                 .unwrap();
             ct_reader.get_node_and(addr, |n| assert_eq!(n.coverage_count(), count));
 
-            ct_reader.get_node_children_and(addr, |covered, children| {
-                untested_addresses.push(covered);
+            ct_reader.get_node_children_and(addr, |children| {
                 untested_addresses.extend(children);
             });
         }

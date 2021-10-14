@@ -58,8 +58,9 @@ fn main() {
     let ct_reader = ct.reader();
     println!("Tree has {} nodes", ct_reader.node_count());
     let window_size = 0;
-    let num_sequence = 8;
 
+    /*
+    let num_sequence = 8;
     let mut baseline = DirichletBaseline::default();
     baseline.set_sequence_len(test_set.len());
     baseline.set_num_sequences(num_sequence);
@@ -76,9 +77,9 @@ fn main() {
         baseline_elapse,
         (baseline_elapse as f64) / ((test_set.len() * num_sequence) as f64)
     );
+    */
 
-    let mut tracker =
-        BayesCategoricalTracker::new( window_size, ct.reader());
+    let mut tracker = BayesCategoricalTracker::new(window_size, ct.reader());
     let start = time::Instant::now();
 
     let points: Vec<&[f32]> = (0..test_set.len())

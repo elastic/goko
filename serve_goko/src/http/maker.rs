@@ -6,16 +6,16 @@ use tower::Service;
 
 use std::convert::Infallible;
 
-use futures::future;
 use core::task::Context;
+use futures::future;
 use std::task::Poll;
 
 use std::marker::PhantomData;
 use std::ops::Deref;
 
 use super::GokoHttp;
-use crate::parsers::{PointParser, PointBuffer};
 use crate::core::*;
+use crate::parsers::{PointBuffer, PointParser};
 
 pub struct MakeGokoHttp<D: PointCloud, P: PointParser> {
     writer: Arc<CoreWriter<D, P::Point>>,
@@ -29,7 +29,7 @@ where
     P::Point: Deref<Target = D::Point> + Send + Sync,
 {
     pub fn new(writer: Arc<CoreWriter<D, P::Point>>) -> MakeGokoHttp<D, P> {
-        MakeGokoHttp { 
+        MakeGokoHttp {
             writer,
             parser: PhantomData,
         }

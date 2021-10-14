@@ -10,7 +10,6 @@
 //! bayesian way. There may be more applications of this idea, but defending against
 //! attackers has been proven.
 
-pub mod baseline;
 pub mod categorical;
 pub mod dirichlet;
 pub mod tracker;
@@ -18,7 +17,6 @@ pub mod tracker;
 #[allow(unused_imports)]
 pub mod prelude {
     //! Easy way of importing everything
-    pub use super::baseline::*;
     pub use super::categorical::*;
     pub use super::dirichlet::*;
     pub use super::tracker::*;

@@ -59,7 +59,11 @@ impl BuilderNode {
             }
         };
         let scale_index = (covered.max_distance()).log(parameters.scale_base).ceil() as i32;
-        assert!(-64 <= scale_index && scale_index < 447, "Scale index needs to be in [-64, 447], it's {}. Increase the scale base.", scale_index);
+        assert!(
+            -64 <= scale_index && scale_index < 447,
+            "Scale index needs to be in [-64, 447], it's {}. Increase the scale base.",
+            scale_index
+        );
         Ok(BuilderNode {
             parent_address: None,
             scale_index,
@@ -69,7 +73,7 @@ impl BuilderNode {
 
     #[inline]
     fn address(&self) -> NodeAddress {
-        NodeAddress::new(self.scale_index, self.covered.center_index())
+        (self.scale_index, self.covered.center_index()).into()
     }
 
     fn split_parallel<D: PointCloud>(
@@ -98,7 +102,8 @@ impl BuilderNode {
         parameters: &Arc<CoverTreeParameters<D>>,
     ) -> GokoResult<(CoverNode<D>, Vec<BuilderNode>)> {
         let scale_index = self.scale_index;
-        let current_address = NodeAddress::new(scale_index, self.covered.center_index());
+        let current_address =
+            unsafe { NodeAddress::new_unchecked(scale_index, self.covered.center_index()) };
         let mut node = CoverNode::new(self.parent_address, current_address);
         let radius = self.covered.max_distance();
         node.set_radius(radius);
@@ -199,8 +204,12 @@ impl BuilderNode {
                 .fetch_add(1, atomic::Ordering::SeqCst);
 
             for ((split_scale_index, potential_center_index), potential_len) in inserts {
-                parent_node
-                    .insert_child(NodeAddress::new(split_scale_index, potential_center_index), potential_len)?;
+                parent_node.insert_child(
+                    unsafe {
+                        NodeAddress::new_unchecked(split_scale_index, potential_center_index)
+                    },
+                    potential_len,
+                )?;
             }
         }
 
@@ -215,7 +224,7 @@ impl BuilderNode {
         parameters: &Arc<CoverTreeParameters<D>>,
     ) -> GokoResult<Vec<BuilderNode>> {
         let mut small_rng: SmallRng = match parameters.rng_seed {
-            Some(seed) => SmallRng::seed_from_u64(seed ^ parent_address),
+            Some(seed) => SmallRng::seed_from_u64(seed ^ parent_address.raw()),
             None => SmallRng::from_entropy(),
         };
         let mut new_nodes = Vec::new();
@@ -271,8 +280,12 @@ impl BuilderNode {
                 */
                 parent_node.insert_singleton(new_close.center_index);
             } else {
-                parent_node
-                    .insert_child(NodeAddress::new(split_scale_index, new_close.center_index), new_close.len())?;
+                parent_node.insert_child(
+                    unsafe {
+                        NodeAddress::new_unchecked(split_scale_index, new_close.center_index)
+                    },
+                    new_close.len(),
+                )?;
                 let new_node = BuilderNode {
                     parent_address: Some(parent_address),
                     scale_index: split_scale_index,
@@ -433,9 +446,7 @@ impl CoverTreeBuilder {
             if let Ok(res) = node_receiver.recv() {
                 let (new_addr, new_node) = res.unwrap();
                 for singleton in new_node.singletons() {
-                    cover_tree
-                        .final_addresses
-                        .insert(*singleton, new_addr);
+                    cover_tree.final_addresses.insert(*singleton, new_addr);
                 }
                 if new_node.is_leaf() {
                     cover_tree
@@ -507,7 +518,7 @@ mod tests {
 
         let test_parameters = create_test_parameters(data, 1);
         let build_node = BuilderNode::new(&test_parameters, PartitionType::Nearest).unwrap();
-        let (scale_index, center_index) = build_node.address();
+        let (scale_index, center_index) = build_node.address().into();
 
         println!("{:?}", build_node);
         println!(
@@ -545,7 +556,7 @@ mod tests {
 
         let test_parameters = create_test_parameters(data, 1);
         let build_node = BuilderNode::new(&test_parameters, PartitionType::First).unwrap();
-        let (scale_index, center_index) = build_node.address();
+        let (scale_index, center_index) = build_node.address().into();
 
         println!("{:?}", build_node);
         println!(
@@ -580,8 +591,8 @@ mod tests {
         let build_node = BuilderNode::new(&test_parameters, PartitionType::First).unwrap();
 
         let (node_sender, node_receiver): (
-            Sender<GokoResult<(i32, usize, CoverNode<DefaultCloud<L2>>)>>,
-            Receiver<GokoResult<(i32, usize, CoverNode<DefaultCloud<L2>>)>>,
+            Sender<GokoResult<(NodeAddress, CoverNode<DefaultCloud<L2>>)>>,
+            Receiver<GokoResult<(NodeAddress, CoverNode<DefaultCloud<L2>>)>>,
         ) = unbounded();
         let node_sender = Arc::new(node_sender);
 
@@ -596,9 +607,9 @@ mod tests {
         assert!(split_count + 1 == node_receiver.len());
         assert!(split_count == 3);
         while let Ok(pat) = node_receiver.try_recv() {
-            let (scale_index, center_index, node) = pat.unwrap();
+            let (na, node) = pat.unwrap();
             println!("{:?}", node);
-            match (scale_index, center_index) {
+            match na.into() {
                 (-1, 3) => assert!(!node.is_leaf()),
                 (-2, 3) => assert!(node.is_leaf()),
                 (-2, 2) => assert!(node.is_leaf()),
@@ -617,8 +628,8 @@ mod tests {
         let build_node = BuilderNode::new(&test_parameters, PartitionType::Nearest).unwrap();
 
         let (node_sender, node_receiver): (
-            Sender<GokoResult<(i32, usize, CoverNode<DefaultCloud<L2>>)>>,
-            Receiver<GokoResult<(i32, usize, CoverNode<DefaultCloud<L2>>)>>,
+            Sender<GokoResult<(NodeAddress, CoverNode<DefaultCloud<L2>>)>>,
+            Receiver<GokoResult<(NodeAddress, CoverNode<DefaultCloud<L2>>)>>,
         ) = unbounded();
         let node_sender = Arc::new(node_sender);
 
@@ -633,10 +644,10 @@ mod tests {
         assert!(split_count + 1 == node_receiver.len());
         assert!(split_count == 3);
         while let Ok(pat) = node_receiver.try_recv() {
-            let (scale_index, center_index, node) = pat.unwrap();
+            let (na, node) = pat.unwrap();
             println!("{:?}", node);
 
-            match (scale_index, center_index) {
+            match na.into() {
                 (-1, 3) => assert!(!node.is_leaf()),
                 (-2, 3) => assert!(node.is_leaf()),
                 (-2, 2) => assert!(node.is_leaf()),
@@ -669,10 +680,12 @@ mod tests {
         println!("Should only be one node");
         assert!(top_layer.len() == 1);
         println!("The root should not be a leaf");
-        assert!(reader.get_node_and((-1, 3), |n| !n.is_leaf()).unwrap());
+        assert!(reader
+            .get_node_and((-1, 3).into(), |n| !n.is_leaf())
+            .unwrap());
         println!("The root should have children");
         assert!(reader
-            .get_node_and((-1, 3), |n| n.children().is_some())
+            .get_node_and((-1, 3).into(), |n| n.children().is_some())
             .unwrap());
 
         println!("Testing Mid Layer");
@@ -680,13 +693,17 @@ mod tests {
         println!("Should have 2 nodes");
         assert!(mid_layer.len() == 2);
         println!("Nested child of root should leafify");
-        assert!(reader.get_node_and((-2, 3), |n| n.is_leaf()).unwrap());
+        assert!(reader
+            .get_node_and((-2, 3).into(), |n| n.is_leaf())
+            .unwrap());
         println!("Nested child of root should not have any children");
         assert!(reader
-            .get_node_and((-2, 3), |n| n.children().is_none())
+            .get_node_and((-2, 3).into(), |n| n.children().is_none())
             .unwrap());
         println!("-0.49 is a singleton that shouldn't be here.");
-        assert!(reader.get_node_and((-2, 2), |n| n.is_leaf()).is_none());
+        assert!(reader
+            .get_node_and((-2, 2).into(), |n| n.is_leaf())
+            .is_none());
         assert!(reader.no_dangling_refs());
     }
 
@@ -709,7 +726,9 @@ mod tests {
         let reader = tree.reader();
 
         println!("-0.49 is a singleton that should be here.");
-        assert!(reader.get_node_and((-2, 2), |n| n.is_leaf()).is_some());
+        assert!(reader
+            .get_node_and((-2, 2).into(), |n| n.is_leaf())
+            .is_some());
         assert!(reader.no_dangling_refs());
     }
 }

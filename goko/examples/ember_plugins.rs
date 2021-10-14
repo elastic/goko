@@ -24,16 +24,13 @@ use std::path::Path;
 #[allow(dead_code)]
 extern crate goko;
 extern crate pointcloud;
-use goko::*;
 use goko::plugins::discrete::prelude::*;
+use goko::*;
 use pointcloud::*;
 use pointcloud::{data_sources::*, label_sources::*, loaders::*};
 
-use std::collections::HashMap;
 use std::sync::Arc;
 use std::time;
-
-use goko::query_interface::BulkInterface;
 
 fn build_tree() -> CoverTreeWriter<SimpleLabeledCloud<DataRam<L2>, SmallIntLabels>> {
     let file_name = "../data/sorel_validation_memmap.yml";
@@ -54,8 +51,5 @@ fn main() {
     ct.refresh();
 
     let elapse = start.elapsed().as_millis();
-    println!(
-        "Time elapsed {:?} milliseconds",
-        elapse,
-    );
+    println!("Time elapsed {:?} milliseconds", elapse,);
 }

@@ -1,5 +1,5 @@
-use std::iter::Iterator;
 use std::cmp::Ordering;
+use std::iter::Iterator;
 
 #[derive(Debug, Clone, Default)]
 pub(crate) struct DiscreteParams {
@@ -53,10 +53,6 @@ impl DiscreteParams {
     pub(crate) fn weight(&mut self, weight: f64) {
         self.params.iter_mut().for_each(|(_, p)| *p *= weight);
         self.total *= weight;
-    }
-
-    pub(crate) fn normalize(&mut self) {
-        self.weight(1.0 / self.total);
     }
 
     /// The total of the parameters. This is a proxy for the total count, and the "concentration" of the distribution
@@ -129,23 +125,21 @@ impl<'a, 'b> Iterator for DiscreteParamsDoubleIter<'a, 'b> {
     type Item = ((u64, f64), (u64, f64));
     fn next(&mut self) -> Option<((u64, f64), (u64, f64))> {
         match (self.val_a, self.val_b) {
-            (Some((a_loc, a_val)), Some((b_loc, b_val))) => {
-                match a_loc.cmp(b_loc) {
-                    Ordering::Equal => {
-                        self.val_a = self.iter_a.next();
-                        self.val_b = self.iter_b.next();
-                        Some(((*a_loc, *a_val), (*b_loc, *b_val)))
-                    }
-                    Ordering::Greater => {
-                        self.val_b = self.iter_b.next();
-                        Some(((*b_loc, 0.0), (*b_loc, *b_val)))
-                    }
-                    Ordering::Less => {
-                        self.val_a = self.iter_a.next();
-                        Some(((*a_loc, *a_val), (*a_loc, 0.0)))
-                    }
+            (Some((a_loc, a_val)), Some((b_loc, b_val))) => match a_loc.cmp(b_loc) {
+                Ordering::Equal => {
+                    self.val_a = self.iter_a.next();
+                    self.val_b = self.iter_b.next();
+                    Some(((*a_loc, *a_val), (*b_loc, *b_val)))
                 }
-            }
+                Ordering::Greater => {
+                    self.val_b = self.iter_b.next();
+                    Some(((*b_loc, 0.0), (*b_loc, *b_val)))
+                }
+                Ordering::Less => {
+                    self.val_a = self.iter_a.next();
+                    Some(((*a_loc, *a_val), (*a_loc, 0.0)))
+                }
+            },
             (Some((a_loc, a_val)), None) => {
                 self.val_a = self.iter_a.next();
                 Some(((*a_loc, *a_val), (*a_loc, 0.0)))
@@ -154,9 +148,7 @@ impl<'a, 'b> Iterator for DiscreteParamsDoubleIter<'a, 'b> {
                 self.val_b = self.iter_b.next();
                 Some(((*b_loc, 0.0), (*b_loc, *b_val)))
             }
-            (None, None) => {
-                None
-            }
+            (None, None) => None,
         }
     }
 }

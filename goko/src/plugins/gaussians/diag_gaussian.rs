@@ -7,7 +7,6 @@
 use super::*;
 use crate::covertree::node::CoverNode;
 use crate::covertree::CoverTreeReader;
-
 use rand::prelude::*;
 use rand_distr::StandardNormal;
 use std::f32::consts::PI;
@@ -279,9 +278,9 @@ pub(crate) mod tests {
                             .iter()
                             .map(|i| basic_tree_data[*i as usize])
                             .fold(0.0, |a, x| a + x * x);
-                        s_moment1 += basic_tree_data[*n.center_index() as usize];
-                        s_moment2 += basic_tree_data[*n.center_index() as usize]
-                            * basic_tree_data[*n.center_index() as usize];
+                        s_moment1 += basic_tree_data[n.center_index() as usize];
+                        s_moment2 += basic_tree_data[n.center_index() as usize]
+                            * basic_tree_data[n.center_index() as usize];
                         let s_count = singles.len() + 1;
                         println!(
                             "First moment, expected: {:?}, calculated: {:?}",
@@ -355,8 +354,7 @@ pub(crate) mod tests {
                 assert_eq!(n.coverage_count(), count, "Node: {:?}", n)
             });
 
-            ct_reader.get_node_children_and(addr, |covered, children| {
-                untested_addresses.push(covered);
+            ct_reader.get_node_children_and(addr, |children| {
                 untested_addresses.extend(children);
             });
         }

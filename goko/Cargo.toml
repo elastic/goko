@@ -39,7 +39,8 @@ fxhash = "0.2.1"
 rayon = "1.5.0"
 hashbrown = { version = "0.11.2", features = ["rayon"] }
 crossbeam-channel = "0.5.1"
-pointcloud = { version = "0.5.4", path = "../pointcloud" }
+pointcloud = { path = "../pointcloud" }
+stats_goko = { path = "../stats_goko" }
 serde = { version = "1.0.125", features = ["derive"] }
 smallvec = "1.6.1"
 type-map = "0.5.0"

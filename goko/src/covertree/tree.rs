@@ -256,7 +256,9 @@ impl<D: PointCloud> CoverTreeReader<D> {
         F: FnOnce(&T) -> S,
     {
         self.layers[self.parameters.internal_index(node_address.scale_index())]
-            .get_node_and(node_address.point_index(), |n| n.get_plugin_and(transform_fn))
+            .get_node_and(node_address.point_index(), |n| {
+                n.get_plugin_and(transform_fn)
+            })
             .flatten()
     }
 
@@ -284,7 +286,10 @@ impl<D: PointCloud> CoverTreeReader<D> {
     ) -> GokoResult<Vec<(f32, usize)>> {
         let mut query_heap = KnnQueryHeap::new(k, self.parameters.scale_base);
 
-        let root_center = self.parameters.point_cloud.point(self.root_address.point_index())?;
+        let root_center = self
+            .parameters
+            .point_cloud
+            .point(self.root_address.point_index())?;
         let dist_to_root = D::Metric::dist(&root_center, &point);
         query_heap.push_nodes(&[self.root_address], &[dist_to_root], None);
         self.greedy_knn_nodes(point, &mut query_heap);
@@ -308,7 +313,10 @@ impl<D: PointCloud> CoverTreeReader<D> {
     ) -> GokoResult<Vec<(f32, usize)>> {
         let mut query_heap = KnnQueryHeap::new(k, self.parameters.scale_base);
 
-        let root_center = self.parameters.point_cloud.point(self.root_address.point_index())?;
+        let root_center = self
+            .parameters
+            .point_cloud
+            .point(self.root_address.point_index())?;
         let dist_to_root = D::Metric::dist(&root_center, &point);
         query_heap.push_nodes(&[self.root_address], &[dist_to_root], None);
         self.greedy_knn_nodes(point, &mut query_heap);
@@ -346,7 +354,10 @@ impl<D: PointCloud> CoverTreeReader<D> {
         &self,
         point: &P,
     ) -> GokoResult<Vec<(f32, NodeAddress)>> {
-        let root_center = self.parameters.point_cloud.point(self.root_address.point_index())?;
+        let root_center = self
+            .parameters
+            .point_cloud
+            .point(self.root_address.point_index())?;
         let mut current_distance = D::Metric::dist(&root_center, &point);
         let mut current_address = self.root_address;
         let mut trace = vec![(current_distance, current_address)];
@@ -366,6 +377,7 @@ impl<D: PointCloud> CoverTreeReader<D> {
                 ),
             })
         {
+            println!("Trace: {:?}", trace);
             if let Some(nearest) = nearest? {
                 trace.push(nearest);
                 current_distance = nearest.0;
@@ -381,7 +393,9 @@ impl<D: PointCloud> CoverTreeReader<D> {
     pub fn known_path(&self, point_index: usize) -> GokoResult<Vec<(f32, NodeAddress)>> {
         self.final_addresses
             .get_and(&point_index, |addr| {
-                let mut path = Vec::with_capacity((self.root_address().scale_index() - addr.scale_index()) as usize);
+                let mut path = Vec::with_capacity(
+                    (self.root_address().scale_index() - addr.scale_index()) as usize,
+                );
                 let mut parent = Some(*addr);
                 while let Some(addr) = parent {
                     path.push(addr);
@@ -489,10 +503,7 @@ impl<D: PointCloud> CoverTreeReader<D> {
             println!("refs_to_check: {:?}", refs_to_check);
             let node_exists = self.get_node_and(node_addr, |n| {
                 if let Some(other_children) = n.children() {
-                    println!(
-                        "Pushing: {:?}",
-                        other_children
-                    );
+                    println!("Pushing: {:?}", other_children);
                     refs_to_check.extend(&other_children[..]);
                 }
             });
@@ -549,7 +560,8 @@ impl<D: PointCloud> CoverTreeWriter<D> {
     where
         F: Fn(&mut CoverNode<D>) + 'static + Send + Sync,
     {
-        self.layers[self.parameters.internal_index(address.scale_index())].update_node(address.point_index(), update_fn);
+        self.layers[self.parameters.internal_index(address.scale_index())]
+            .update_node(address.point_index(), update_fn);
     }
 
     /// Creates a reader for queries.
@@ -562,12 +574,9 @@ impl<D: PointCloud> CoverTreeWriter<D> {
         }
     }
 
-    pub(crate) unsafe fn insert_raw(
-        &mut self,
-        node_address: NodeAddress,
-        node: CoverNode<D>,
-    ) {
-        self.layers[self.parameters.internal_index(node_address.scale_index())].insert_raw(node_address.point_index(), node);
+    pub(crate) unsafe fn insert_raw(&mut self, node_address: NodeAddress, node: CoverNode<D>) {
+        self.layers[self.parameters.internal_index(node_address.scale_index())]
+            .insert_raw(node_address.point_index(), node);
     }
 
     /// Loads a tree from a protobuf. There's a `load_tree` in `utils` that handles loading from a path to a protobuf file.
@@ -590,10 +599,11 @@ impl<D: PointCloud> CoverTreeWriter<D> {
             plugins: RwLock::new(TreePluginSet::new()),
             rng_seed: None,
         });
-        let root_address = NodeAddress::new(
+        let root_address: NodeAddress = (
             cover_proto.get_root_scale(),
             cover_proto.get_root_index() as usize,
-        );
+        )
+            .into();
         let layers: Vec<CoverLayerWriter<D>> = cover_proto
             .get_layers()
             .par_iter()
@@ -680,7 +690,7 @@ pub(crate) mod tests {
     use std::path::Path;
 
     pub(crate) fn build_mnist_tree() -> CoverTreeWriter<DefaultLabeledCloud<L2>> {
-        let file_name = "../data/mnist_complex.yml";
+        let file_name = "../data/mnist.yml";
         let path = Path::new(file_name);
         if !path.exists() {
             panic!("{} does not exist", file_name);
@@ -759,7 +769,7 @@ pub(crate) mod tests {
         let dist_to_root = reader
             .parameters
             .point_cloud
-            .distances_to_point(&point.as_ref(), &[reader.root_address().1])
+            .distances_to_point(&point.as_ref(), &[reader.root_address().point_index()])
             .unwrap()[0];
         query_heap.push_nodes(&[reader.root_address()], &[dist_to_root], None);
 
@@ -784,10 +794,14 @@ pub(crate) mod tests {
         let writer = build_basic_tree();
         let reader = writer.reader();
         let trace = reader.path(&[0.495f32].as_ref()).unwrap();
-        assert!(trace.len() == 4 || trace.len() == 3);
         println!("{:?}", trace);
+        assert!(
+            trace.len() == 4 || trace.len() == 3,
+            "Trace should be either 3 or 4 long, is {}",
+            trace.len()
+        );
         for i in 0..(trace.len() - 1) {
-            assert!((trace[i].1).0 > (trace[i + 1].1).0);
+            assert!((trace[i].1).scale_index() > (trace[i + 1].1).scale_index());
         }
     }
 
@@ -809,8 +823,8 @@ pub(crate) mod tests {
                         assert!(n.singletons().contains(&i));
                     } else {
                         assert!(
-                            (ad.1 != i && n.singletons().contains(&i))
-                                || (ad.1 == i && !n.singletons().contains(&i))
+                            (ad.point_index() != i && n.singletons().contains(&i))
+                                || (ad.point_index() == i && !n.singletons().contains(&i))
                         );
                     }
                 })

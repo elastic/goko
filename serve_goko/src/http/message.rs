@@ -1,5 +1,5 @@
-use tokio::sync::{mpsc, oneshot};
 use pin_project::pin_project;
+use tokio::sync::{mpsc, oneshot};
 
 use http::{Request, Response};
 use hyper::Body;
@@ -30,23 +30,27 @@ impl HttpMessage {
         self.request.take()
     }
 
-    pub(crate) fn respond(&mut self, response: Result<Response<Body>,GokoClientError>) {
+    pub(crate) fn respond(&mut self, response: Result<Response<Body>, GokoClientError>) {
         match self.reply.take() {
-            Some(reply) => {
-                match reply.send(response) {
-                    Ok(_) => (),
-                    Err(_) => {
-                        *self.global_error.lock().unwrap() = Some(Box::new(GokoClientError::Underlying(InternalServiceError::FailedRespSend)));
-                    }
+            Some(reply) => match reply.send(response) {
+                Ok(_) => (),
+                Err(_) => {
+                    *self.global_error.lock().unwrap() = Some(Box::new(
+                        GokoClientError::Underlying(InternalServiceError::FailedRespSend),
+                    ));
                 }
+            },
+            None => {
+                *self.global_error.lock().unwrap() = Some(Box::new(GokoClientError::Underlying(
+                    InternalServiceError::DoubleRead,
+                )))
             }
-            None => *self.global_error.lock().unwrap() = Some(Box::new(GokoClientError::Underlying(InternalServiceError::DoubleRead))),
         }
     }
     pub(crate) fn error(&mut self, error: impl std::error::Error + Send + 'static) {
         *self.global_error.lock().unwrap() = Some(Box::new(error));
     }
-} 
+}
 
 #[pin_project]
 pub struct ResponseFuture {
@@ -62,13 +66,10 @@ impl Future for ResponseFuture {
         let this = self.project();
         if let Some(err) = this.error.take() {
             return core::task::Poll::Ready(Err(err));
-        }
-        else {
-            let res = this.response.poll(cx).map(|r| {
-                match r {
-                    Ok(r) => r.map_err(|e| GokoClientError::from(e)),
-                    Err(e) => Err(GokoClientError::from(e))
-                }
+        } else {
+            let res = this.response.poll(cx).map(|r| match r {
+                Ok(r) => r.map_err(|e| GokoClientError::from(e)),
+                Err(e) => Err(GokoClientError::from(e)),
             });
             this.flight_counter.fetch_sub(1, atomic::Ordering::SeqCst);
             res

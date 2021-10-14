@@ -1,6 +1,6 @@
+use goko::errors::GokoError;
 use std::error::Error;
 use std::fmt;
-use goko::errors::GokoError;
 use tokio::sync::oneshot;
 
 pub enum InternalServiceError {

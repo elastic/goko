@@ -19,7 +19,7 @@
 
 //! Tools and data structures for assisting cover tree queries.
 
-use crate::{NodeAddress, NodeAddressBase};
+use crate::NodeAddress;
 use std::collections::{BinaryHeap, HashMap, HashSet};
 use std::f32;
 
@@ -223,7 +223,7 @@ pub(crate) mod tests {
         let mut heap = KnnQueryHeap::new(4, 2.0);
         heap.push_outliers(&[2, 4, 6, 8], &[0.2, 0.4, 0.6, 0.8]);
         heap.push_nodes(
-            &[(0, 1), (0, 3), (1, 5), (1, 7)],
+            &[(0, 1).into(), (0, 3).into(), (1, 5).into(), (1, 7).into()],
             &[0.1, 0.3, 0.5, 0.7],
             None,
         );
@@ -247,7 +247,7 @@ pub(crate) mod tests {
             let mut heap = KnnQueryHeap::new_scale_aware(4, 2.0);
             heap.push_outliers(&[2, 4, 6, 8], &[0.2, 0.4, 0.6, 0.8]);
             heap.push_nodes(
-                &[(-4, 1), (0, 3), (0, 5), (-4, 7), (0, 8)],
+                &[(-4, 1).into(), (0, 3).into(), (0, 5).into(), (-4, 7).into(), (0, 8).into()],
                 &[0.1, 0.3, 0.5, 0.7, 1.1],
                 None,
             );

@@ -5,8 +5,8 @@ pub fn ks_test<T: Ord + Clone>(x: &[T], y: &[T]) -> f64 {
     x_sorted.sort();
     let mut y_sorted: Vec<T> = Vec::from(y);
     y_sorted.sort();
-    let x_inc = 1.0/(x.len() as f64);
-    let y_inc = 1.0/(y.len() as f64);
+    let x_inc = 1.0 / (x.len() as f64);
+    let y_inc = 1.0 / (y.len() as f64);
     let mut curr_diff = 0.0;
     let mut max_cdf_diff = 0.0;
     let mut x_iter = x_sorted.iter();

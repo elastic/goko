@@ -72,30 +72,23 @@ pub(crate) mod tests {
             );
             let cover_count = match my_node.children() {
                 None => my_node.singletons_len(),
-                Some((nested_scale, child_addresses)) => {
-                    println!(
-                        "trying to get at the nodes at {:?}",
-                        (nested_scale, child_addresses)
-                    );
-                    let mut cover_count = my_tree
-                        .get_node_plugin_and::<Self::NodeComponent, _, _>(
-                            (nested_scale, *my_node.center_index()),
-                            |p| p.cover_count,
-                        )
-                        .unwrap();
-                    for ca in child_addresses {
-                        cover_count += my_tree
-                            .get_node_plugin_and::<Self::NodeComponent, _, _>(*ca, |p| {
-                                p.cover_count
-                            })
-                            .unwrap();
-                    }
-                    cover_count
+                Some(child_addresses) => {
+                    println!("trying to get at the nodes at {:?}", child_addresses);
+                    child_addresses
+                        .iter()
+                        .map(|ca| {
+                            my_tree
+                                .get_node_plugin_and::<Self::NodeComponent, _, _>(*ca, |p| {
+                                    p.cover_count
+                                })
+                                .unwrap()
+                        })
+                        .sum()
                 }
             };
             Some(DumbNode1 {
                 id: parameters.id,
-                pi: *my_node.center_index(),
+                pi: my_node.center_index(),
                 cover_count,
             })
         }

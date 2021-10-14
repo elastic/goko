@@ -79,4 +79,4 @@ pub mod plugins;
 
 /// The data structure explicitly seperates the covertree by layer, and the addressing schema for nodes
 /// is a pair for the layer index and the center point index of that node.
-pub use node_address::{NodeAddress, NodeAddressBase};
+pub use node_address::NodeAddress;

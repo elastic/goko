@@ -1,8 +1,8 @@
-use pointcloud::*;
-use goko::{NodeAddress, CoverTreeReader};
-use goko::plugins::discrete::tracker::BayesCategoricalTracker;
 use crate::core::internal_service::*;
 use goko::errors::GokoError;
+use goko::plugins::discrete::tracker::BayesCategoricalTracker;
+use goko::{CoverTreeReader, NodeAddress};
+use pointcloud::*;
 use std::ops::Deref;
 
 use serde::{Deserialize, Serialize};
@@ -17,7 +17,7 @@ pub struct TrackPointRequest<T> {
 
 #[derive(Deserialize, Serialize)]
 pub struct TrackPathRequest {
-    pub path:  Vec<(f32, NodeAddress)>,
+    pub path: Vec<(f32, NodeAddress)>,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -50,7 +50,6 @@ pub struct CurrentStatsResponse {
     pub sequence_len: usize,
 }
 
-
 pub struct TrackerWorker<D: PointCloud> {
     reader: CoverTreeReader<D>,
     trackers: HashMap<usize, BayesCategoricalTracker<D>>,
@@ -64,7 +63,9 @@ impl<D: PointCloud> TrackerWorker<D> {
         }
     }
 
-    pub(crate) fn operator<T: Deref<Target = D::Point> + Send + Sync + 'static>(reader: CoverTreeReader<D>) -> InternalServiceOperator<TrackingRequest<T>, TrackingResponse> {
+    pub(crate) fn operator<T: Deref<Target = D::Point> + Send + Sync + 'static>(
+        reader: CoverTreeReader<D>,
+    ) -> InternalServiceOperator<TrackingRequest<T>, TrackingResponse> {
         let worker = TrackerWorker {
             reader,
             trackers: HashMap::new(),
@@ -73,7 +74,9 @@ impl<D: PointCloud> TrackerWorker<D> {
     }
 }
 
-impl<D: PointCloud, T: Deref<Target = D::Point> + Send + Sync> InternalService<TrackingRequest<T>, TrackingResponse> for TrackerWorker<D> {
+impl<D: PointCloud, T: Deref<Target = D::Point> + Send + Sync>
+    InternalService<TrackingRequest<T>, TrackingResponse> for TrackerWorker<D>
+{
     fn process(&mut self, request: TrackingRequest<T>) -> Result<TrackingResponse, GokoError> {
         use TrackingRequestChoice::*;
         match request.request {
@@ -101,7 +104,10 @@ impl<D: PointCloud, T: Deref<Target = D::Point> + Send + Sync> InternalService<T
                         success: false,
                     }))
                 } else {
-                    self.trackers.insert(req.window_size, BayesCategoricalTracker::new(req.window_size, self.reader.clone()));
+                    self.trackers.insert(
+                        req.window_size,
+                        BayesCategoricalTracker::new(req.window_size, self.reader.clone()),
+                    );
                     Ok(TrackingResponse::AddTracker(AddTrackerResponse {
                         success: true,
                     }))
@@ -121,7 +127,10 @@ impl<D: PointCloud, T: Deref<Target = D::Point> + Send + Sync> InternalService<T
                         sequence_len: stats.sequence_len,
                     }))
                 } else {
-                    Ok(TrackingResponse::Unknown(request.tracker_name.clone(),Some(req.window_size)))
+                    Ok(TrackingResponse::Unknown(
+                        request.tracker_name.clone(),
+                        Some(req.window_size),
+                    ))
                 }
             }
         }

@@ -10,16 +10,20 @@ use crate::errors::*;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
-use serde::Serialize;
 use hyper::body::HttpBody;
 use pin_project::pin_project;
+use serde::Serialize;
 
 mod msgpack_dense;
 pub use msgpack_dense::MsgPackDense;
 
 pub trait PointParser: Send + 'static {
     type Point: Serialize + Send + Sync + Debug + 'static;
-    fn parse(body_buffer: &[u8], scratch_buffer: &mut Vec<u8>, request: &Request<Body>) -> Result<Self::Point, GokoClientError>;
+    fn parse(
+        body_buffer: &[u8],
+        scratch_buffer: &mut Vec<u8>,
+        request: &Request<Body>,
+    ) -> Result<Self::Point, GokoClientError>;
 }
 
 #[pin_project]
@@ -33,8 +37,8 @@ pub(crate) struct PointBuffer<P: PointParser> {
 impl<P: PointParser> PointBuffer<P> {
     pub(crate) fn new() -> Self {
         PointBuffer {
-            body_buffer: Vec::with_capacity(8*1024),
-            point_buffer: Vec::with_capacity(8*1024),
+            body_buffer: Vec::with_capacity(8 * 1024),
+            point_buffer: Vec::with_capacity(8 * 1024),
             request: Request::default(),
             parser: PhantomData,
         }
@@ -45,7 +49,10 @@ impl<P: PointParser> PointBuffer<P> {
         self.point_buffer.clear();
     }
 
-    pub(crate) fn poll_point(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Result<P::Point, GokoClientError>> {
+    pub(crate) fn poll_point(
+        self: Pin<&mut Self>,
+        cx: &mut Context,
+    ) -> Poll<Result<P::Point, GokoClientError>> {
         let this = self.project();
         let mut body = this.request.body_mut();
         loop {
@@ -62,8 +69,8 @@ impl<P: PointParser> PointBuffer<P> {
                         this.body_buffer.clear();
                         this.point_buffer.clear();
                         *this.request = Request::default();
-                        return Poll::Ready(Err(e.into()))
-                    },
+                        return Poll::Ready(Err(e.into()));
+                    }
                 }
             } else {
                 match Pin::new(&mut body).poll_trailers(cx) {
@@ -77,25 +84,23 @@ impl<P: PointParser> PointBuffer<P> {
                 this.body_buffer.clear();
                 this.point_buffer.clear();
                 *this.request = Request::default();
-                return Poll::Ready(point_res)
+                return Poll::Ready(point_res);
             }
         }
     }
 
-    pub(crate) fn point(&mut self, req: Request<Body>) -> PointFuture<'_, P> 
-    where 
-    Self: Unpin + Sized,
+    pub(crate) fn point(&mut self, req: Request<Body>) -> PointFuture<'_, P>
+    where
+        Self: Unpin + Sized,
     {
         self.switch(req);
-        PointFuture{
-            req: self,
-        }
+        PointFuture { req: self }
     }
 }
 
 #[pin_project]
 /// Future that resolves to the next data chunk from `Body`
-pub(crate) struct PointFuture<'a, P: PointParser> { 
+pub(crate) struct PointFuture<'a, P: PointParser> {
     req: &'a mut PointBuffer<P>,
 }
 

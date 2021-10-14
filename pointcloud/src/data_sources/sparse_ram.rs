@@ -1,7 +1,7 @@
+use crate::pc_errors::ParsingError;
 use crate::pc_errors::PointCloudResult;
 use std::convert::TryInto;
 use std::marker::PhantomData;
-use crate::pc_errors::ParsingError;
 
 use crate::base_traits::*;
 use crate::metrics::*;
@@ -76,7 +76,9 @@ where
         Ok(pi.to_string())
     }
     fn index(&self, pn: &str) -> PointCloudResult<usize> {
-        pn.parse::<usize>().map_err(|_| ParsingError::RegularParsingError("Unable to parse your str into an usize").into())
+        pn.parse::<usize>().map_err(|_| {
+            ParsingError::RegularParsingError("Unable to parse your str into an usize").into()
+        })
     }
     fn names(&self) -> Vec<String> {
         (0..self.len()).map(|i| i.to_string()).collect()

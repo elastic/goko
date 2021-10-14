@@ -39,7 +39,10 @@ pub fn labeled_ram_from_yaml<P: AsRef<Path>, M: Metric<[f32]>>(
 pub fn vec_labeled_ram_from_yaml<P: AsRef<Path>, M: Metric<[f32]>>(
     path: P,
 ) -> PointCloudResult<SimpleLabeledCloud<DataRam<M>, VecLabels>> {
-    info!("Opening labeled pointcloud yaml with path {:?}", &path.as_ref());
+    info!(
+        "Opening labeled pointcloud yaml with path {:?}",
+        &path.as_ref()
+    );
     let config = fs::read_to_string(&path)
         .unwrap_or_else(|_| panic!("Unable to read config file {:?}", &path.as_ref()));
 
@@ -81,7 +84,10 @@ pub fn vec_labeled_ram_from_yaml<P: AsRef<Path>, M: Metric<[f32]>>(
 /// data_dim: 784
 /// ```
 pub fn ram_from_yaml<P: AsRef<Path>, M: Metric<[f32]>>(path: P) -> PointCloudResult<DataRam<M>> {
-    info!("Opening unlabeled pointcloud yaml with path {:?}", &path.as_ref());
+    info!(
+        "Opening unlabeled pointcloud yaml with path {:?}",
+        &path.as_ref()
+    );
     let config = fs::read_to_string(&path)
         .unwrap_or_else(|_| panic!("Unable to read config file {:?}", &path.as_ref()));
 
@@ -118,7 +124,10 @@ pub fn labels_from_yaml<P: AsRef<Path>>(path: P) -> PointCloudResult<SmallIntLab
     let path: &Path = path.as_ref();
     let params_files = &YamlLoader::load_from_str(&config).unwrap()[0];
 
-    trace!("Label path list, pre glob: {:?}", params_files["labels_path"]);
+    trace!(
+        "Label path list, pre glob: {:?}",
+        params_files["labels_path"]
+    );
     let labels_path = &get_file_list(
         params_files["labels_path"]
             .as_str()
@@ -186,7 +195,11 @@ fn get_file_list(files_reg: &str, yaml_path: &Path) -> Vec<PathBuf> {
             Err(e) => panic!("Pattern reading error {:?}", e),
         };
     } else {
-        trace!("label path is not absolute, joining it with the yaml path files: {:?} , yaml: {:?}", files_reg_path, yaml_path);
+        trace!(
+            "label path is not absolute, joining it with the yaml path files: {:?} , yaml: {:?}",
+            files_reg_path,
+            yaml_path
+        );
         glob_paths = match glob_with(
             &yaml_path
                 .parent()

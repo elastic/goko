@@ -1,9 +1,9 @@
 use tokio::sync::{mpsc, oneshot};
 
-use http::{Uri, Method, Request, Response};
+use http::{Method, Request, Response, Uri};
 use hyper::Body;
 
-use crate::{GokoRequest,GokoResponse};
+use crate::{GokoRequest, GokoResponse};
 
 use pointcloud::*;
 use serde::Serialize;
@@ -15,18 +15,17 @@ use std::task::Poll;
 
 use std::sync::{atomic, Arc, Mutex};
 
-use std::marker::PhantomData;
-use std::ops::Deref;
-use regex::Regex;
-use lazy_static::lazy_static;
 use super::message::*;
-use crate::errors::InternalServiceError;
-use crate::PointParser;
-use crate::parsers::PointBuffer;
-use crate::errors::*;
 use crate::api::*;
 use crate::core::*;
-
+use crate::errors::InternalServiceError;
+use crate::errors::*;
+use crate::parsers::PointBuffer;
+use crate::PointParser;
+use lazy_static::lazy_static;
+use regex::Regex;
+use std::marker::PhantomData;
+use std::ops::Deref;
 
 pub struct GokoHttp<D: PointCloud, P: PointParser> {
     in_flight: Arc<atomic::AtomicU32>,
@@ -35,7 +34,6 @@ pub struct GokoHttp<D: PointCloud, P: PointParser> {
     parser: PhantomData<P>,
     global_error: Arc<Mutex<Option<Box<dyn std::error::Error + Send>>>>,
 }
-
 
 fn parse_knn_query(uri: &Uri) -> usize {
     lazy_static! {
@@ -68,7 +66,10 @@ fn parse_tracker_query(uri: &Uri) -> (Option<String>, Option<usize>) {
     (tracker_name, window_size)
 }
 
-pub(crate) async fn parse_http<P: PointParser>(request: Request<Body>, parser: &mut PointBuffer<P>) -> Result<GokoRequest<P::Point>, GokoClientError> {
+pub(crate) async fn parse_http<P: PointParser>(
+    request: Request<Body>,
+    parser: &mut PointBuffer<P>,
+) -> Result<GokoRequest<P::Point>, GokoClientError> {
     match (request.method(), request.uri().path()) {
         // Serve some instructions at /
         (&Method::GET, "/") => Ok(GokoRequest::Parameters(ParametersRequest)),
@@ -81,38 +82,30 @@ pub(crate) async fn parse_http<P: PointParser>(request: Request<Body>, parser: &
             let k = parse_knn_query(request.uri());
             let point = parser.point(request).await?;
             Ok(GokoRequest::RoutingKnn(RoutingKnnRequest { point, k }))
-
         }
         (&Method::GET, "/path") => {
             let point = parser.point(request).await?;
             Ok(GokoRequest::Path(PathRequest { point }))
-
         }
         (&Method::POST, "/track/add") => {
             let (tracker_name, window_size) = parse_tracker_query(request.uri());
             if let Some(window_size) = window_size {
-                let request = TrackingRequestChoice::AddTracker(
-                    AddTrackerRequest {
-                        window_size,
-                    }
-                );
+                let request = TrackingRequestChoice::AddTracker(AddTrackerRequest { window_size });
                 let tracking_request = TrackingRequest {
                     tracker_name,
                     request,
                 };
                 Ok(GokoRequest::Tracking(tracking_request))
             } else {
-                Err(GokoClientError::MalformedQuery("Unable to parse window_size."))
+                Err(GokoClientError::MalformedQuery(
+                    "Unable to parse window_size.",
+                ))
             }
         }
         (&Method::POST, "/track/point") => {
             let (tracker_name, _window_size) = parse_tracker_query(request.uri());
             let point = parser.point(request).await?;
-            let request = TrackingRequestChoice::TrackPoint(
-                TrackPointRequest {
-                    point,
-                }
-            );
+            let request = TrackingRequestChoice::TrackPoint(TrackPointRequest { point });
             let tracking_request = TrackingRequest {
                 tracker_name,
                 request,
@@ -122,18 +115,17 @@ pub(crate) async fn parse_http<P: PointParser>(request: Request<Body>, parser: &
         (&Method::GET, "/track/stats") => {
             let (tracker_name, window_size) = parse_tracker_query(request.uri());
             if let Some(window_size) = window_size {
-                let request = TrackingRequestChoice::CurrentStats(
-                    CurrentStatsRequest {
-                        window_size,
-                    }
-                );
+                let request =
+                    TrackingRequestChoice::CurrentStats(CurrentStatsRequest { window_size });
                 let tracking_request = TrackingRequest {
                     tracker_name,
                     request,
                 };
                 Ok(GokoRequest::Tracking(tracking_request))
             } else {
-                Err(GokoClientError::MalformedQuery("Unable to parse window_size."))
+                Err(GokoClientError::MalformedQuery(
+                    "Unable to parse window_size.",
+                ))
             }
         }
         // The 404 Not Found route...
@@ -141,7 +133,9 @@ pub(crate) async fn parse_http<P: PointParser>(request: Request<Body>, parser: &
     }
 }
 
-pub(crate) fn into_http<L: Summary + Serialize>(response: GokoResponse<L>) -> Result<Response<Body>, GokoClientError> {
+pub(crate) fn into_http<L: Summary + Serialize>(
+    response: GokoResponse<L>,
+) -> Result<Response<Body>, GokoClientError> {
     let mut builder = http::response::Builder::new();
     let json_str = match response {
         GokoResponse::Parameters(p) => serde_json::to_string(&p).unwrap(),
@@ -164,7 +158,10 @@ where
     P::Point: Deref<Target = D::Point> + Send + Sync + 'static,
     D::LabelSummary: Serialize,
 {
-    pub(crate) fn new(mut reader: CoreReader<D, P::Point>, mut parser: PointBuffer<P>) -> GokoHttp<D, P> {
+    pub(crate) fn new(
+        mut reader: CoreReader<D, P::Point>,
+        mut parser: PointBuffer<P>,
+    ) -> GokoHttp<D, P> {
         let (request_snd, mut request_rcv): (HttpRequestSender, HttpRequestReciever) =
             mpsc::unbounded_channel();
         tokio::spawn(async move {
@@ -179,14 +176,16 @@ where
                             } else {
                                 Err(e)
                             }
-                        },
+                        }
                     };
                     match response {
                         Ok(resp) => msg.respond(into_http(resp)),
                         Err(e) => msg.respond(Err(e)),
                     };
                 } else {
-                    msg.error(GokoClientError::Underlying(InternalServiceError::DoubleRead))
+                    msg.error(GokoClientError::Underlying(
+                        InternalServiceError::DoubleRead,
+                    ))
                 }
             }
         });
@@ -205,14 +204,18 @@ where
         let flight_counter = Arc::clone(&self.in_flight);
         self.in_flight.fetch_add(1, atomic::Ordering::SeqCst);
         let (reply, response): (HttpResponseSender, HttpResponseReciever) = oneshot::channel();
-        
+
         let msg = HttpMessage {
             request: Some(request),
             reply: Some(reply),
             global_error: Arc::clone(&self.global_error),
         };
 
-        let error = self.request_snd.send(msg).err().map(|_e| GokoClientError::Underlying(InternalServiceError::FailedSend)); 
+        let error = self
+            .request_snd
+            .send(msg)
+            .err()
+            .map(|_e| GokoClientError::Underlying(InternalServiceError::FailedSend));
         ResponseFuture {
             response,
             flight_counter,
@@ -221,7 +224,7 @@ where
     }
 }
 
-impl<D,P> Service<Request<Body>> for GokoHttp<D, P> 
+impl<D, P> Service<Request<Body>> for GokoHttp<D, P>
 where
     D: PointCloud,
     P: PointParser,
@@ -234,7 +237,9 @@ where
 
     fn poll_ready(&mut self, _: &mut Context) -> Poll<Result<(), Self::Error>> {
         if self.request_snd.is_closed() {
-            Poll::Ready(Err(GokoClientError::Underlying(InternalServiceError::ClientDropped)))
+            Poll::Ready(Err(GokoClientError::Underlying(
+                InternalServiceError::ClientDropped,
+            )))
         } else {
             Poll::Ready(Ok(()))
         }
@@ -245,7 +250,7 @@ where
     }
 }
 
-impl<D: PointCloud,P: PointParser> Load for GokoHttp<D, P> {
+impl<D: PointCloud, P: PointParser> Load for GokoHttp<D, P> {
     type Metric = u32;
     fn load(&self) -> Self::Metric {
         self.in_flight.load(atomic::Ordering::SeqCst)

@@ -1,8 +1,7 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
+use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 
-use stats_plugins::discrete::Categorical;
-use stats_plugins::discrete::{Dirichlet, DirichletTracker};
-
+use stats_goko::discrete::Categorical;
+use stats_goko::discrete::{Dirichlet, DirichletTracker};
 
 pub fn criterion_benchmark(c: &mut Criterion) {
     let mut bucket1 = Categorical::new();
@@ -17,7 +16,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
 
     let mut bucket3 = Categorical::new();
     for i in 0..3 {
-        bucket3.add_pop(i*3, i as f64);
+        bucket3.add_pop(i * 3, i as f64);
     }
 
     c.bench_function("Categorical KL Divergence", |b| {
@@ -28,7 +27,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         b.iter(|| bucket1.supported_kl_divergence(black_box(&bucket2)))
     });
 
-    let diri_bucket1: Dirichlet = bucket1.into(); 
+    let diri_bucket1: Dirichlet = bucket1.into();
     c.bench_function("Dirichlet posterior KL Divergence Equal Size", |b| {
         b.iter(|| diri_bucket1.posterior_kl_divergence(black_box(&bucket2)))
     });
@@ -70,18 +69,25 @@ fn tracker(c: &mut Criterion) {
         let mut tracker: DirichletTracker = prior.tracker();
         let mut categorical: Categorical = Categorical::new();
         let observations: Vec<u64> = (0..*size).map(|s| s % 10).collect();
-        group.bench_with_input(BenchmarkId::new("tracker_fast", size), &observations, |b, observations| {
-            b.iter(|| tracker_fast(&mut tracker, &observations));
-        });
-        group.bench_with_input(BenchmarkId::new("tracker_slow", size), &observations, |b, observations| {
-            b.iter(|| tracker_slow(&prior, &mut categorical, &observations));
-        });
+        group.bench_with_input(
+            BenchmarkId::new("tracker_fast", size),
+            &observations,
+            |b, observations| {
+                b.iter(|| tracker_fast(&mut tracker, &observations));
+            },
+        );
+        group.bench_with_input(
+            BenchmarkId::new("tracker_slow", size),
+            &observations,
+            |b, observations| {
+                b.iter(|| tracker_slow(&prior, &mut categorical, &observations));
+            },
+        );
     }
     group.finish();
 }
 
 fn dirichlet(c: &mut Criterion) {
-    
     let mut group = c.benchmark_group("dirichlet ln_pdf");
     for size in [2u64, 4, 8, 16, 32, 64, 128, 256, 512, 1024].iter() {
         let mut prior: Dirichlet = Dirichlet::new();
@@ -92,12 +98,20 @@ fn dirichlet(c: &mut Criterion) {
             categorical.add_pop(i, 0.1);
             multinomial.add_pop(i, 6.0);
         }
-        group.bench_with_input(BenchmarkId::new("categorical size", size), &categorical, |b, categorical| {
-            b.iter(|| prior.ln_pdf(&categorical));
-        });
-        group.bench_with_input(BenchmarkId::new("multinomial size", size), &multinomial, |b, multinomial| {
-            b.iter(|| prior.ln_pdf(&multinomial));
-        });
+        group.bench_with_input(
+            BenchmarkId::new("categorical size", size),
+            &categorical,
+            |b, categorical| {
+                b.iter(|| prior.ln_pdf(&categorical));
+            },
+        );
+        group.bench_with_input(
+            BenchmarkId::new("multinomial size", size),
+            &multinomial,
+            |b, multinomial| {
+                b.iter(|| prior.ln_pdf(&multinomial));
+            },
+        );
 
         let mut prior: Dirichlet = Dirichlet::new();
         let mut categorical: Categorical = Categorical::new();
@@ -107,16 +121,23 @@ fn dirichlet(c: &mut Criterion) {
             categorical.add_pop(i, 0.1);
             multinomial.add_pop(i, *size as f64);
         }
-        group.bench_with_input(BenchmarkId::new("categorical count", size), &categorical, |b, categorical| {
-            b.iter(|| prior.ln_pdf(&categorical));
-        });
-        group.bench_with_input(BenchmarkId::new("multinomial count", size), &multinomial, |b, multinomial| {
-            b.iter(|| prior.ln_pdf(&multinomial));
-        });
+        group.bench_with_input(
+            BenchmarkId::new("categorical count", size),
+            &categorical,
+            |b, categorical| {
+                b.iter(|| prior.ln_pdf(&categorical));
+            },
+        );
+        group.bench_with_input(
+            BenchmarkId::new("multinomial count", size),
+            &multinomial,
+            |b, multinomial| {
+                b.iter(|| prior.ln_pdf(&multinomial));
+            },
+        );
     }
     group.finish();
 }
-
 
 criterion_group!(benches, criterion_benchmark, tracker, dirichlet);
 criterion_main!(benches);

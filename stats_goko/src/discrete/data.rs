@@ -4,11 +4,6 @@
 //! distribution of data in the tree.
 use super::parameter_store::DiscreteParams;
 
-use rand::distributions::{Distribution, Uniform};
-use rand::Rng;
-
-use super::dirichlet::Dirichlet;
-
 /// Simple probability density function for where things go by count
 /// Stored as a flat vector in the order of the node addresses.
 #[derive(Debug, Clone, Default)]

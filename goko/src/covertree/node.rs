@@ -26,9 +26,9 @@ use crate::plugins::{
     labels::{NodeLabelSummary, NodeMetaSummary},
     NodePlugin, NodePluginSet,
 };
-use smallvec::smallvec;
 use crate::tree_file_format::*;
-use crate::{NodeAddress, NodeAddressBase};
+use crate::NodeAddress;
+use smallvec::smallvec;
 use std::ops::Deref;
 
 use pointcloud::*;
@@ -151,6 +151,11 @@ impl<D: PointCloud> CoverNode<D> {
     }
 
     ///
+    pub fn scale_index(&self) -> i32 {
+        self.address.scale_index()
+    }
+
+    ///
     pub fn parent_address(&self) -> Option<NodeAddress> {
         self.parent_address
     }
@@ -165,9 +170,7 @@ impl<D: PointCloud> CoverNode<D> {
 
     /// If the node is not a leaf this unpacks the child struct to a more publicly consumable format.
     pub fn children(&self) -> Option<&[NodeAddress]> {
-        self.children
-            .as_ref()
-            .map(|c| &c[..])
+        self.children.as_ref().map(|c| &c[..])
     }
 
     /// Performs the `singleton_knn` and `child_knn` with a provided query heap. If you have the distance
@@ -184,8 +187,8 @@ impl<D: PointCloud> CoverNode<D> {
     ) -> GokoResult<()> {
         self.singleton_knn(point, point_cloud, query_heap)?;
 
-        let dist_to_center =
-            dist_to_center.unwrap_or(point_cloud.distances_to_point(point, &[self.address.point_index()])?[0]);
+        let dist_to_center = dist_to_center
+            .unwrap_or(point_cloud.distances_to_point(point, &[self.address.point_index()])?[0]);
         self.child_knn(Some(dist_to_center), point, point_cloud, query_heap)?;
 
         if self.children.is_none() {
@@ -215,15 +218,11 @@ impl<D: PointCloud> CoverNode<D> {
         point_cloud: &D,
         query_heap: &mut T,
     ) -> GokoResult<()> {
-        let dist_to_center =
-            dist_to_center.unwrap_or(point_cloud.distances_to_point(point, &[self.address.point_index()])?[0]);
+        let dist_to_center = dist_to_center
+            .unwrap_or(point_cloud.distances_to_point(point, &[self.address.point_index()])?[0]);
 
         if let Some(children) = &self.children {
-            query_heap.push_nodes(
-                &[children[0]],
-                &[dist_to_center],
-                None,
-            );
+            query_heap.push_nodes(&[children[0]], &[dist_to_center], None);
             let children_indexes: Vec<usize> =
                 children[1..].iter().map(|na| na.point_index()).collect();
             let distances = point_cloud.distances_to_point(point, &children_indexes[..])?;
@@ -251,15 +250,12 @@ impl<D: PointCloud> CoverNode<D> {
                 .unwrap_or((0, &std::f32::MAX));
             if dist_to_center < *min_dist {
                 if dist_to_center < scale_base.powi(children[0].scale_index()) {
-                    Ok(Some((
-                        dist_to_center,
-                        children[0],
-                    )))
+                    Ok(Some((dist_to_center, children[0])))
                 } else {
                     Ok(None)
                 }
-            } else if *min_dist < scale_base.powi(children[min_index].scale_index()) {
-                Ok(Some((*min_dist, children[min_index])))
+            } else if *min_dist < scale_base.powi(children[min_index + 1].scale_index()) {
+                Ok(Some((*min_dist, children[min_index + 1])))
             } else {
                 Ok(None)
             }
@@ -280,10 +276,7 @@ impl<D: PointCloud> CoverNode<D> {
     ) -> GokoResult<Option<(f32, NodeAddress)>> {
         if let Some(children) = &self.children {
             if dist_to_center < scale_base.powi(children[0].scale_index()) {
-                return Ok(Some((
-                    dist_to_center,
-                    children[0],
-                )));
+                return Ok(Some((dist_to_center, children[0])));
             }
             let children_indexes: Vec<usize> =
                 children[1..].iter().map(|na| na.point_index()).collect();
@@ -312,7 +305,10 @@ impl<D: PointCloud> CoverNode<D> {
         if self.children.is_some() {
             Err(GokoError::DoubleNest)
         } else {
-            self.children = Some(smallvec![NodeAddress::new(scale_index, self.address.point_index())]);
+            self.children = Some(smallvec![NodeAddress::from((
+                scale_index,
+                self.address.point_index()
+            ))]);
             Ok(())
         }
     }
@@ -356,28 +352,33 @@ impl<D: PointCloud> CoverNode<D> {
             .map(|i| *i as usize)
             .collect();
         let radius = node_proto.get_radius();
-        let address = NodeAddress::new(
+        let address = NodeAddress::from((
             node_proto.get_scale_index(),
             node_proto.get_center_index() as usize,
-        );
+        ));
         let parent_scale_index = node_proto.get_parent_scale_index();
         let parent_center_index = node_proto.get_parent_center_index();
         let parent_address =
             if parent_scale_index == std::i32::MIN && parent_center_index == std::u64::MAX {
                 None
             } else {
-                Some(NodeAddress::new(parent_scale_index, parent_center_index as usize))
+                Some(NodeAddress::from((
+                    parent_scale_index,
+                    parent_center_index as usize,
+                )))
             };
         let coverage_count = node_proto.get_coverage_count() as usize;
         let children = if node_proto.get_is_leaf() {
             None
         } else {
-            Some(node_proto
-                .get_children_scale_indexes()
-                .iter()
-                .zip(node_proto.get_children_point_indexes())
-                .map(|(si, pi)| NodeAddress::new(*si as i32, *pi as usize))
-                .collect())
+            Some(
+                node_proto
+                    .get_children_scale_indexes()
+                    .iter()
+                    .zip(node_proto.get_children_point_indexes())
+                    .map(|(si, pi)| (*si as i32, *pi as usize).into())
+                    .collect(),
+            )
         };
         CoverNode {
             parent_address,
@@ -418,10 +419,7 @@ impl<D: PointCloud> CoverNode<D> {
                     children.iter().map(|na| na.scale_index()).collect(),
                 );
                 proto.set_children_point_indexes(
-                    children
-                        .iter()
-                        .map(|na| na.point_index() as u64)
-                        .collect(),
+                    children.iter().map(|na| na.point_index() as u64).collect(),
                 );
             }
             None => proto.set_is_leaf(true),
@@ -455,14 +453,16 @@ mod tests {
     use crate::query_tools::KnnQueryHeap;
 
     fn create_test_node<D: PointCloud>() -> CoverNode<D> {
-        let children = Some(NodeChildren {
-            nested_scale: 0,
-            addresses: smallvec![(-4, 1), (-4, 2), (-4, 3)],
-        });
+        let children = Some(smallvec![
+            (-4, 0).into(),
+            (-4, 1).into(),
+            (-4, 2).into(),
+            (-4, 3).into()
+        ]);
 
         CoverNode {
             parent_address: None,
-            address: (0, 0),
+            address: (0, 0).into(),
             radius: 1.0,
             coverage_count: 8,
             children,
@@ -474,8 +474,8 @@ mod tests {
 
     fn create_test_leaf_node<D: PointCloud>() -> CoverNode<D> {
         CoverNode {
-            parent_address: Some((1, 0)),
-            address: (0, 0),
+            parent_address: Some((1, 0).into()),
+            address: (0, 0).into(),
             radius: 1.0,
             coverage_count: 8,
             children: None,
@@ -571,7 +571,7 @@ mod tests {
         let zeros: Vec<f32> = vec![0.0; 784];
         let mut heap = KnnQueryHeap::new(10000, 1.3);
         let dist_to_center = point_cloud
-            .distances_to_point(&zeros.as_ref(), &[node.address.1])
+            .distances_to_point(&zeros.as_ref(), &[node.address.point_index()])
             .unwrap()[0];
 
         node.knn(
@@ -585,9 +585,10 @@ mod tests {
         // Complete KNN
         let mut all_children = Vec::from(node.singletons());
         if let Some(children) = &node.children {
-            all_children.extend(children.addresses.iter().map(|(_si, pi)| *pi));
+            all_children.extend(children.iter().map(|na| na.point_index()));
+        } else {
+            all_children.push(node.center_index())
         }
-        all_children.push(node.address.1);
         let brute_knn = point_cloud
             .distances_to_point(&zeros.as_ref(), &all_children)
             .unwrap();
@@ -600,15 +601,8 @@ mod tests {
         let brute_knn: Vec<usize> = brute_knn.iter().map(|(_d, pi)| *pi).collect();
 
         // Children KNN
-        let children = match &node.children() {
-            Some((si, ca)) => {
-                let mut c: Vec<NodeAddress> = ca.iter().cloned().collect();
-                c.push((*si, *node.center_index()));
-                c
-            }
-            None => vec![],
-        };
-        let children_indexes: Vec<usize> = children.iter().map(|(_si, pi)| *pi).collect();
+        let children = &node.children().map(|c| c.to_vec()).unwrap_or(Vec::new());
+        let children_indexes: Vec<usize> = children.iter().map(|na| na.point_index()).collect();
 
         let children_dist = point_cloud
             .distances_to_point(&zeros.as_ref(), &children_indexes)
@@ -617,10 +611,10 @@ mod tests {
         let mut children_range_calc: Vec<QueryAddress> = children_dist
             .iter()
             .zip(children)
-            .map(|(d, (si, pi))| QueryAddress {
-                min_dist: (*d - (1.3f32).powi(si)).max(0.0),
+            .map(|(d, na)| QueryAddress {
+                min_dist: (*d - (1.3f32).powi(na.scale_index())).max(0.0),
                 dist_to_center: *d,
-                address: (si, pi),
+                address: *na,
             })
             .collect();
         children_range_calc.sort();
@@ -637,7 +631,7 @@ mod tests {
                 println!("Expected {:?}", query);
                 println!("Got {:?}", (q_d, q_a));
                 assert_approx_eq!(query.dist_to_center, q_d);
-                assert_eq!(query.address.1, q_a.1);
+                assert_eq!(query.address.point_index(), q_a.point_index());
             }
             (None, None) => {}
             (Some(query), None) => {
@@ -665,14 +659,32 @@ mod tests {
             correct = heap_range == children_range_calc;
         }
         if !correct {
-            println!("Node: {:?}", node);
             println!("=============");
+            println!("Node: {:?}", node);
+            println!("====");
             println!("Heap Range Calc: {:?}", heap_range);
             println!("Brute Range Calc: {:?}", children_range_calc);
             println!("Heap Knn: {:?}", heap_knn);
             println!("Brute Knn: {:?}", brute_knn);
+            println!("=============");
         }
         correct
+    }
+
+    #[test]
+    fn nearest_covering_child_sanity() {
+        let data = vec![0.0, 0.49, 0.48, 0.5, 0.1, 0.2, 0.3];
+        let labels = vec![0, 0, 0, 0, 1, 1, 1];
+        let point_cloud = DefaultLabeledCloud::<L2>::new_simple(data, 1, labels);
+
+        let test_node = create_test_node();
+        let point = [0.494f32];
+        let (d, na) = test_node
+            .nearest_covering_child(2.0, 0.494, &&point[..], &point_cloud)
+            .unwrap()
+            .unwrap();
+        assert_eq!(na, (-4, 1).into());
+        assert_approx_eq!(d, 0.004);
     }
 
     #[test]
@@ -687,7 +699,7 @@ mod tests {
                 })
                 .unwrap();
 
-            let layer = reader.layer(reader.root_address().0 - 3);
+            let layer = reader.layer(reader.root_address().scale_index() - 3);
             println!("Testing 3 layers below root, with {} nodes", layer.len());
             // Allowed 3 errors.
             let mut errors = 0;
@@ -706,17 +718,26 @@ mod tests {
         let proto = node.save();
         let reconstructed_node = CoverNode::<DefaultLabeledCloud<L2>>::load(&proto);
 
-        assert_eq!(reconstructed_node.parent_address, None);
-        assert_eq!(reconstructed_node.address, (0, 0));
+        assert_eq!(
+            reconstructed_node
+                .parent_address
+                .map(|n| <(i32, usize)>::from(n)),
+            None
+        );
+        assert_eq!(<(i32, usize)>::from(reconstructed_node.address), (0, 0));
         assert_eq!(reconstructed_node.radius, 1.0);
         assert_eq!(reconstructed_node.coverage_count, 8);
         assert_eq!(&reconstructed_node.singles_indexes[..], &[4, 5, 6]);
 
         let reconstructed_children = reconstructed_node.children.unwrap();
-        assert_eq!(reconstructed_children.nested_scale, 0);
         assert_eq!(
-            &reconstructed_children.addresses[..],
-            &[(-4, 1), (-4, 2), (-4, 3)]
+            &reconstructed_children[..],
+            &[
+                (-4, 0).into(),
+                (-4, 1).into(),
+                (-4, 2).into(),
+                (-4, 3).into()
+            ]
         );
     }
 
@@ -726,8 +747,11 @@ mod tests {
         let proto = node.save();
         let reconstructed_node = CoverNode::<DefaultLabeledCloud<L2>>::load(&proto);
 
-        assert_eq!(reconstructed_node.parent_address, Some((1, 0)));
-        assert_eq!(reconstructed_node.address, (0, 0));
+        assert_eq!(
+            reconstructed_node.parent_address.map(|n| n.into()),
+            Some((1, 0))
+        );
+        assert_eq!(<(i32, usize)>::from(reconstructed_node.address), (0, 0));
         assert_eq!(reconstructed_node.radius, 1.0);
         assert_eq!(reconstructed_node.coverage_count, 8);
         assert_eq!(&reconstructed_node.singles_indexes[..], &[1, 2, 3, 4, 5, 6]);

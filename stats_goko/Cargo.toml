@@ -1,5 +1,5 @@
 [package]
-name = "stats_plugins"
+name = "stats_goko"
 version = "0.1.0"
 edition = "2018"
 

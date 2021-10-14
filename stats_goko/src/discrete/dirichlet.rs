@@ -18,7 +18,7 @@ use rand::distributions::{Distribution, Uniform};
 use super::categorical::Categorical;
 use super::data::DiscreteData;
 use super::parameter_store::DiscreteParams;
-use super::stats_consts::{LN_GAMMA_1024, DIGAMMA_1024};
+use super::stats_consts::{DIGAMMA_1024, LN_GAMMA_1024};
 
 fn cached_ln_gamma(x: f64) -> f64 {
     if x.fract() == 0.0 && x < 1023.0 {
@@ -40,11 +40,6 @@ fn cached_digamma(x: f64) -> f64 {
 ///
 #[derive(Debug, Clone, Default)]
 pub struct Dirichlet {
-    pub(crate) params: DiscreteParams,
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct DiscreteObservations {
     pub(crate) params: DiscreteParams,
 }
 
@@ -76,7 +71,8 @@ impl Dirichlet {
         if self.params.len() != categorical.params.len() || self.params.total() < 0.000000001 {
             return None;
         }
-        let mut result = cached_ln_gamma(self.params.total()) + (categorical.params.len() as f64) * categorical.params.total().ln();
+        let mut result = cached_ln_gamma(self.params.total())
+            + (categorical.params.len() as f64) * categorical.params.total().ln();
         for ((ca, ca_count), (other_ca, other_ca_count)) in
             self.params.iter().zip(categorical.params.iter())
         {
@@ -92,7 +88,9 @@ impl Dirichlet {
         if self.params.len() != data.params.len() || self.params.total() < 0.000000001 {
             return None;
         }
-        let mut result = cached_ln_gamma(self.params.total()) + cached_ln_gamma(data.params.total() + 1.0) - cached_ln_gamma(data.params.total() + self.params.total());
+        let mut result = cached_ln_gamma(self.params.total())
+            + cached_ln_gamma(data.params.total() + 1.0)
+            - cached_ln_gamma(data.params.total() + self.params.total());
         for ((ca, ca_count), (other_ca, other_ca_count)) in
             self.params.iter().zip(data.params.iter())
         {
@@ -100,7 +98,9 @@ impl Dirichlet {
                 return None;
             }
             if other_ca_count > 0.0 {
-                result += cached_ln_gamma(ca_count + other_ca_count) - cached_ln_gamma(ca_count) - cached_ln_gamma(other_ca_count);
+                result += cached_ln_gamma(ca_count + other_ca_count)
+                    - cached_ln_gamma(ca_count)
+                    - cached_ln_gamma(other_ca_count);
             }
         }
         Some(result)
@@ -159,7 +159,8 @@ impl Dirichlet {
             if ca_count > 0.0 {
                 my_total_lng += cached_ln_gamma(ca_count);
                 other_total_lng += cached_ln_gamma(other_ca_count + ca_count);
-                digamma_portion -= other_ca_count * (cached_digamma(ca_count) - cached_digamma(my_total));
+                digamma_portion -=
+                    other_ca_count * (cached_digamma(ca_count) - cached_digamma(my_total));
             } else {
                 return None;
             }
@@ -177,7 +178,8 @@ impl Dirichlet {
     }
 
     pub fn marginal_aic(&self, data: &DiscreteData) -> Option<f64> {
-        self.ln_likelihood(data).map(|a| 2.0*self.params.len() as f64 - a)
+        self.ln_likelihood(data)
+            .map(|a| 2.0 * self.params.len() as f64 - a)
     }
 
     /// Samples from the expected PDF of the Dirichlet distribution
@@ -267,9 +269,11 @@ impl Dirichlet {
     pub fn tracker(&self) -> DirichletTracker {
         DirichletTracker {
             prior_params: self.clone(),
-            observed_data: DiscreteData {params: self.params.zero_copy()},
+            observed_data: DiscreteData {
+                params: self.params.zero_copy(),
+            },
             kldiv: 0.0,
-            digamma_total: digamma(self.total())
+            digamma_total: digamma(self.total()),
         }
     }
 }
@@ -317,7 +321,11 @@ impl DirichletTracker {
         new_count: f64,
         new_total: f64,
     ) -> f64 {
-        let prior_count = self.prior_params.params.get(loc).expect("Not in the prior!");
+        let prior_count = self
+            .prior_params
+            .params
+            .get(loc)
+            .expect("Not in the prior!");
         let prior_total = self.prior_params.params.total();
         let diff = if let Some(old_count) = old_count {
             cached_ln_gamma(prior_count + new_count)
@@ -328,7 +336,8 @@ impl DirichletTracker {
                 - cached_ln_gamma(prior_count)
                 - (new_count) * (cached_digamma(prior_count) - self.digamma_total)
         };
-        self.kldiv += diff - cached_ln_gamma(prior_total + new_total) + cached_ln_gamma(prior_total + old_total);
+        self.kldiv += diff - cached_ln_gamma(prior_total + new_total)
+            + cached_ln_gamma(prior_total + old_total);
         self.kldiv
     }
 
@@ -392,7 +401,7 @@ pub(crate) mod tests {
         data.add_pop(1, 2.0);
 
         let categorical = Categorical::from(data.clone());
-        let mut buckets = Dirichlet::from(data.clone());
+        let buckets = Dirichlet::from(data.clone());
 
         let mut buckets_posterior = buckets.clone();
         buckets_posterior.add_observations(&data);
@@ -535,10 +544,7 @@ pub(crate) mod tests {
             posterior.marginal_aic(&data1).unwrap(),
             posterior.marginal_aic(&data2).unwrap()
         );
-        assert!(
-            posterior.marginal_aic(&data1).unwrap()
-                > posterior.marginal_aic(&data2).unwrap()
-        );
+        assert!(posterior.marginal_aic(&data1).unwrap() > posterior.marginal_aic(&data2).unwrap());
     }
 
     /*

@@ -5,7 +5,7 @@ members = [
     "pygoko",
     "pointcloud",
     "serve_goko",
-    "stats_plugins",
+    "stats_goko",
 ]
 default-members = [
     "goko", 

@@ -157,7 +157,10 @@ macro_rules! make_point_cloud {
                 Ok(pi.to_string())
             }
             fn index(&self, pn: &str) -> PointCloudResult<usize> {
-                pn.parse::<usize>().map_err(|_| ParsingError::RegularParsingError("Unable to parse your str into an usize").into())
+                pn.parse::<usize>().map_err(|_| {
+                    ParsingError::RegularParsingError("Unable to parse your str into an usize")
+                        .into()
+                })
             }
             fn names(&self) -> Vec<String> {
                 (0..self.len()).map(|i| i.to_string()).collect()

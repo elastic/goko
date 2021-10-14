@@ -2,7 +2,7 @@
 
 use crate::covertree::CoverTreeReader;
 use crate::plugins::*;
-use crate::{NodeAddress, NodeAddressBase};
+use crate::NodeAddress;
 use hashbrown::HashMap;
 
 use super::categorical::*;
@@ -36,10 +36,7 @@ impl<D: PointCloud> fmt::Debug for BayesCategoricalTracker<D> {
 
 impl<D: PointCloud> BayesCategoricalTracker<D> {
     /// Creates a new blank thing with capacity `size`, input 0 for unlimited.
-    pub fn new(
-        window_size: usize,
-        reader: CoverTreeReader<D>,
-    ) -> BayesCategoricalTracker<D> {
+    pub fn new(window_size: usize, reader: CoverTreeReader<D>) -> BayesCategoricalTracker<D> {
         BayesCategoricalTracker {
             running_evidence: HashMap::new(),
             sequence_queue: VecDeque::new(),
@@ -312,13 +309,13 @@ pub(crate) mod tests {
         let mut tracker = BayesCategoricalTracker::new(0, tree.reader());
         assert_approx_eq!(tracker.kl_div(), 0.0);
         tracker.add_path(vec![
-            (0.0, (-1, 4)),
-            (0.0, (-2, 2)),
-            (0.0, (-5, 2)),
-            (0.0, (-6, 2)),
+            (0.0, (-1, 4).into()),
+            (0.0, (-2, 2).into()),
+            (0.0, (-5, 2).into()),
+            (0.0, (-6, 2).into()),
         ]);
         println!("KL Div: {}", tracker.kl_div());
-        tracker.add_path(vec![(0.0, (-1, 4))]);
+        tracker.add_path(vec![(0.0, (-1, 4).into())]);
         println!("KL Div: {}", tracker.kl_div());
         let mut unvisited_nodes = vec![tree.root_address];
         let reader = tree.reader();
@@ -346,24 +343,24 @@ pub(crate) mod tests {
         let mut tracker = BayesCategoricalTracker::new(0, tree.reader());
         assert_approx_eq!(tracker.kl_div(), 0.0);
         tracker.add_path(vec![
-            (0.0, (-1, 4)),
-            (0.0, (-2, 2)),
-            (0.0, (-5, 2)),
-            (0.0, (-6, 2)),
+            (0.0, (-1, 4).into()),
+            (0.0, (-2, 2).into()),
+            (0.0, (-5, 2).into()),
+            (0.0, (-6, 2).into()),
         ]);
         println!("KL Div: {}", tracker.kl_div());
-        tracker.add_path(vec![(0.0, (-1, 4))]);
+        tracker.add_path(vec![(0.0, (-1, 4).into())]);
         println!("KL Div: {}", tracker.kl_div());
 
         let mut tracker1 = BayesCategoricalTracker::new(0, tree.reader());
         tracker1.add_path(vec![
-            (0.0, (-1, 4)),
-            (0.0, (-2, 2)),
-            (0.0, (-5, 2)),
-            (0.0, (-6, 2)),
+            (0.0, (-1, 4).into()),
+            (0.0, (-2, 2).into()),
+            (0.0, (-5, 2).into()),
+            (0.0, (-6, 2).into()),
         ]);
         let mut tracker2 = BayesCategoricalTracker::new(0, tree.reader());
-        tracker2.add_path(vec![(0.0, (-1, 4))]);
+        tracker2.add_path(vec![(0.0, (-1, 4).into())]);
         tracker1 = tracker1.append(&tracker2);
 
         println!("Merge KL Div: {}", tracker1.kl_div());

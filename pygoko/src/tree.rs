@@ -328,17 +328,11 @@ impl CoverTree {
         Ok((vec, summ))
     }
 
-    pub fn kl_div_dirichlet(
-        &self,
-        size: u64,
-    ) -> PyBayesCategoricalTracker {
+    pub fn kl_div_dirichlet(&self, size: u64) -> PyBayesCategoricalTracker {
         let writer = self.writer.as_ref().unwrap();
 
         PyBayesCategoricalTracker {
-            hkl: BayesCategoricalTracker::new(
-                size as usize,
-                writer.reader(),
-            ),
+            hkl: BayesCategoricalTracker::new(size as usize, writer.reader()),
             tree: writer.reader(),
         }
     }

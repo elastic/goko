@@ -120,7 +120,7 @@ impl Categorical {
             for ((ca, ca_count), (other_ca, other_ca_count)) in
                 self.params.double_iter(&other.params)
             {
-                if (ca_count <= 0.0 && other_ca_count > 0.0) || ca != other_ca  {
+                if (ca_count <= 0.0 && other_ca_count > 0.0) || ca != other_ca {
                     return None;
                 }
                 sum += (ca_count / my_total) * (ca_count.ln() - other_ca_count.ln() - ln_total);

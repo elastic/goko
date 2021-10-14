@@ -17,7 +17,7 @@
 * under the License.
 */
 
-use crate::{NodeAddress, NodeAddressBase};
+use crate::NodeAddress;
 use std::cmp::Ordering::{self, Less};
 use std::f32;
 

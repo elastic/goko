@@ -1,18 +1,18 @@
-use goko::{CoverTreeWriter, CoverTreeBuilder};
+use goko::{CoverTreeBuilder, CoverTreeWriter};
 use pointcloud::*;
 use std::path::Path;
 extern crate serve_goko;
-use serve_goko::parsers::MsgPackDense;
-use serve_goko::http::*;
-use serve_goko::core::*;
-use std::sync::Arc;
+use env_logger::Builder;
 use goko::plugins::discrete::prelude::GokoDirichlet;
 use hyper::Server;
-use pointcloud::loaders::labeled_ram_from_yaml;
-use pointcloud::label_sources::SmallIntLabels;
-use pointcloud::data_sources::DataRam;
 use log::LevelFilter;
-use env_logger::Builder;
+use pointcloud::data_sources::DataRam;
+use pointcloud::label_sources::SmallIntLabels;
+use pointcloud::loaders::labeled_ram_from_yaml;
+use serve_goko::core::*;
+use serve_goko::http::*;
+use serve_goko::parsers::MsgPackDense;
+use std::sync::Arc;
 
 fn build_tree() -> CoverTreeWriter<SimpleLabeledCloud<DataRam<L2>, SmallIntLabels>> {
     let file_name = "../data/ember_complex_test.yml";
@@ -33,7 +33,7 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut ct_writer = build_tree();
     ct_writer.add_plugin::<GokoDirichlet>(GokoDirichlet {});
     ct_writer.generate_summaries();
-    let goko_server = MakeGokoHttp::<_,MsgPackDense>::new(Arc::new(CoreWriter::new(ct_writer)));
+    let goko_server = MakeGokoHttp::<_, MsgPackDense>::new(Arc::new(CoreWriter::new(ct_writer)));
 
     let addr = ([127, 0, 0, 1], 3030).into();
 

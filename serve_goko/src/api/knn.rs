@@ -1,5 +1,5 @@
-use pointcloud::*;
 use crate::core::*;
+use pointcloud::*;
 
 use serde::{Deserialize, Serialize};
 use std::ops::Deref;
@@ -22,9 +22,9 @@ pub struct KnnResponse {
 }
 
 impl<T> KnnRequest<T> {
-    pub fn process<D>(self, reader: &mut CoreReader<D,T>) -> Result<KnnResponse, GokoError> 
-    where 
-        D: PointCloud, 
+    pub fn process<D>(self, reader: &mut CoreReader<D, T>) -> Result<KnnResponse, GokoError>
+    where
+        D: PointCloud,
         T: Deref<Target = D::Point> + Send + Sync,
     {
         let knn = reader.tree.knn(&self.point, self.k)?;
@@ -57,9 +57,9 @@ pub struct RoutingKnnResponse {
 }
 
 impl<T> RoutingKnnRequest<T> {
-    pub fn process<D>(self, reader: &CoreReader<D, T>) -> Result<RoutingKnnResponse, GokoError> 
-    where 
-        D: PointCloud, 
+    pub fn process<D>(self, reader: &CoreReader<D, T>) -> Result<RoutingKnnResponse, GokoError>
+    where
+        D: PointCloud,
         T: Deref<Target = D::Point> + Send + Sync,
     {
         let knn = reader.tree.routing_knn(&self.point, self.k)?;
