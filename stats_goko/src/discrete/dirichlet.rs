@@ -67,6 +67,10 @@ impl Dirichlet {
         self.params.iter().map(|(_, c)| c).fold(0.0, |x, a| x + a)
     }
 
+    pub fn get_alpha(&self, loc: u64) -> Option<f64> {
+        self.params.get(loc)
+    }
+
     pub fn ln_pdf(&self, categorical: &Categorical) -> Option<f64> {
         if self.params.len() != categorical.params.len() || self.params.total() < 0.000000001 {
             return None;
@@ -148,7 +152,7 @@ impl Dirichlet {
 
     /// Computes KL(prior || posterior), where the prior is the distribution
     /// and the posterior is based on the evidence provided.
-    pub fn posterior_kl_divergence(&self, other: &DiscreteData) -> Option<f64> {
+    pub fn posterior_kl_div(&self, other: &DiscreteData) -> Option<f64> {
         let my_total = self.total();
         let other_total = other.total() + my_total;
         let mut my_total_lng = 0.0;
@@ -200,7 +204,7 @@ impl Dirichlet {
 
     /// from <http://bariskurt.com/kullback-leibler-divergence-between-two-dirichlet-and-beta-distributions/>
     /// We assume that the Dirichlet distribution passed into this one is conditioned on this one! It assumes they have the same keys!
-    pub fn supported_kl_divergence(&self, other: &Dirichlet) -> Option<f64> {
+    pub fn supported_kl_div(&self, other: &Dirichlet) -> Option<f64> {
         let my_total = self.total();
         if self.params.len() != other.params.len() || my_total < 0.000000001 {
             return None;
@@ -235,7 +239,7 @@ impl Dirichlet {
 
     /// from <http://bariskurt.com/kullback-leibler-divergence-between-two-dirichlet-and-beta-distributions/>
     /// We assume that the Dirichlet distribution passed into this one is conditioned on this one! It assumes they have the same keys!
-    pub fn kl_divergence(&self, other: &Dirichlet) -> Option<f64> {
+    pub fn kl_div(&self, other: &Dirichlet) -> Option<f64> {
         let my_total = self.total();
         if self.params.len() != other.params.len() || my_total < 0.000000001 {
             return None;
@@ -268,11 +272,13 @@ impl Dirichlet {
 
     pub fn tracker(&self) -> DirichletTracker {
         DirichletTracker {
+            total_alpha: self.total(),
             prior_params: self.clone(),
             observed_data: DiscreteData {
                 params: self.params.zero_copy(),
             },
             kldiv: 0.0,
+            mar_aic: 2.0*self.params.len() as f64,
             digamma_total: digamma(self.total()),
         }
     }
@@ -280,69 +286,134 @@ impl Dirichlet {
 
 #[derive(Debug, Clone, Default)]
 pub struct DirichletTracker {
-    pub(crate) prior_params: Dirichlet,
-    pub(crate) observed_data: DiscreteData,
-    pub(crate) kldiv: f64,
-    pub(crate) digamma_total: f64,
+    total_alpha: f64,
+    prior_params: Dirichlet,
+    observed_data: DiscreteData,
+    kldiv: f64,
+    digamma_total: f64,
+    mar_aic: f64,
 }
 
 impl DirichletTracker {
+    pub fn sparse(total_alpha: f64, num_buckets: usize) -> DirichletTracker {
+        DirichletTracker {
+            total_alpha,
+            prior_params: Dirichlet::new(),
+            observed_data: DiscreteData::new(),
+            kldiv: 0.0,
+            digamma_total: digamma(total_alpha),
+            mar_aic: 2.0*num_buckets as f64,
+        }
+    }
+
+    pub fn set_alpha(&mut self, loc: u64, count: f64) {
+        let old_count = self.prior_params.params.replace_pop(loc, count);
+        assert!(
+            0.0 == old_count || old_count == count,
+            "Cannot update an alpha that was already set"
+        );
+        assert!(
+            self.prior_params.total() <= self.total_alpha + 1e-7,
+            "The prior's total cannot exceed the predetermined alpha."
+        );
+        assert!(
+            self.observed_data.params.get(loc).is_none(),
+            "Please set the prior observations before adding evidence"
+        );
+    }
+
+    pub fn get_observations(&self, loc: u64) -> Option<f64> {
+        self.observed_data.get(loc)
+    }
+
+    pub fn get_alpha(&self, loc: u64) -> Option<f64> {
+        self.prior_params.params.get(loc)
+    }
+
     /// Adds a single observation to the Dirichlet distribution.
     /// Mutates the distribution in place to the posterior given the new evidence.
-    pub fn add_observation(&mut self, loc: u64) -> f64 {
-        let old_count = self.observed_data.get(loc);
+    pub fn add_observation(&mut self, loc: u64) -> &mut Self {
+        let old_count = self.observed_data.get(loc).unwrap_or(0.0);
         let old_total = self.observed_data.total();
         let new_count = self.observed_data.add_pop(loc, 1.0);
         let new_total = self.observed_data.total();
-        self.update_kl_div(loc, old_count, old_total, new_count, new_total)
+        let alpha = self
+            .get_alpha(loc)
+            .expect("Please set the prior observations before adding evidence");
+        self.update_kl_div(alpha, old_count, old_total, new_count, new_total);
+        self.update_aic(alpha, old_count, old_total, new_count, new_total);
+        self
     }
 
-    pub fn remove_observation(&mut self, loc: u64) -> f64 {
-        let old_count = self.observed_data.get(loc);
+    pub fn remove_observation(&mut self, loc: u64) -> &mut Self {
+        let old_count = self.observed_data.get(loc).unwrap_or(0.0);
         let old_total = self.observed_data.total();
         let new_count = self.observed_data.remove_pop(loc, 1.0);
         let new_total = self.observed_data.total();
         assert!(
-            old_count.is_some() || old_count == Some(0.0),
+            old_count > new_count,
             "Can't remove evidence if we've got a 0.0"
         );
-        self.update_kl_div(loc, old_count, old_total, new_count, new_total)
+        let alpha = self
+            .get_alpha(loc)
+            .expect("Please set the prior observations before adding evidence");
+        self.update_kl_div(alpha, old_count, old_total, new_count, new_total);
+        self.update_aic(alpha, old_count, old_total, new_count, new_total);
+        self
     }
 
-    pub fn marginal_aic(&self) -> Option<f64> {
-        self.prior_params.marginal_aic(&self.observed_data)
-    }
-
-    fn update_kl_div(
+    fn update_aic(
         &mut self,
-        loc: u64,
-        old_count: Option<f64>,
+        alpha: f64,
+        old_count: f64,
         old_total: f64,
         new_count: f64,
         new_total: f64,
-    ) -> f64 {
-        let prior_count = self
-            .prior_params
-            .params
-            .get(loc)
-            .expect("Not in the prior!");
-        let prior_total = self.prior_params.params.total();
-        let diff = if let Some(old_count) = old_count {
-            cached_ln_gamma(prior_count + new_count)
-                - cached_ln_gamma(prior_count + old_count)
-                - (new_count - old_count) * (cached_digamma(prior_count) - self.digamma_total)
-        } else {
-            cached_ln_gamma(prior_count + new_count)
-                - cached_ln_gamma(prior_count)
-                - (new_count) * (cached_digamma(prior_count) - self.digamma_total)
+    ) {
+        let diff = match (old_count < 1e-7, new_count < 1e-7) {
+            (false, false) => {
+                cached_ln_gamma(alpha + new_count)
+                - cached_ln_gamma(new_count)
+                - cached_ln_gamma(alpha + old_count)
+                + cached_ln_gamma(old_count)
+            }
+            (true, false) => {
+                cached_ln_gamma(alpha + new_count) - cached_ln_gamma(alpha) - cached_ln_gamma(new_count)
+            }
+            (false, true) => {
+                -(cached_ln_gamma(alpha + old_count) - cached_ln_gamma(alpha) - cached_ln_gamma(old_count))
+            }
+            (true, true) => panic!("Invalid update to AIC"),
         };
-        self.kldiv += diff - cached_ln_gamma(prior_total + new_total)
-            + cached_ln_gamma(prior_total + old_total);
+        self.mar_aic -= diff;
+        self.mar_aic -= cached_ln_gamma(new_total + 1.0)
+            - cached_ln_gamma(new_total + self.total_alpha)
+            - cached_ln_gamma(old_total + 1.0)
+            + cached_ln_gamma(old_total + self.total_alpha);
+    }
+
+
+    fn update_kl_div(
+        &mut self,
+        alpha: f64,
+        old_count: f64,
+        old_total: f64,
+        new_count: f64,
+        new_total: f64,
+    ) {
+        let diff = cached_ln_gamma(alpha + new_count)
+                - cached_ln_gamma(alpha + old_count)
+                - (new_count - old_count) * (cached_digamma(alpha) - self.digamma_total);
+        self.kldiv += diff - cached_ln_gamma(self.total_alpha + new_total)
+            + cached_ln_gamma(self.total_alpha + old_total);
+    }
+
+    pub fn kl_div(&self) -> f64 {
         self.kldiv
     }
 
-    pub fn kl_divergence(&self) -> f64 {
-        self.kldiv
+    pub fn marginal_aic(&self) -> f64 {
+        self.mar_aic
     }
 }
 
@@ -357,7 +428,7 @@ pub(crate) mod tests {
         buckets.params.add_pop(0, 5.0);
         println!("{:?}", buckets);
         assert_approx_eq!(buckets.params.get(0).unwrap(), 5.0);
-        assert_approx_eq!(buckets.supported_kl_divergence(&buckets).unwrap(), 0.0);
+        assert_approx_eq!(buckets.supported_kl_div(&buckets).unwrap(), 0.0);
     }
 
     #[test]
@@ -368,7 +439,7 @@ pub(crate) mod tests {
         println!("{:?}", buckets);
         assert_approx_eq!(buckets.params.get(0).unwrap(), 5.0);
         assert_approx_eq!(buckets.params.get(1).unwrap(), 5.0);
-        assert_approx_eq!(buckets.supported_kl_divergence(&buckets).unwrap(), 0.0);
+        assert_approx_eq!(buckets.supported_kl_div(&buckets).unwrap(), 0.0);
     }
 
     #[test]
@@ -389,8 +460,8 @@ pub(crate) mod tests {
         assert_approx_eq!(buckets_posterior.params.get(0).unwrap(), 5.0);
         assert_approx_eq!(buckets_posterior.params.get(1).unwrap(), 5.0);
         assert_approx_eq!(
-            buckets.supported_kl_divergence(&buckets_posterior).unwrap(),
-            buckets.posterior_kl_divergence(&data).unwrap()
+            buckets.supported_kl_div(&buckets_posterior).unwrap(),
+            buckets.posterior_kl_div(&data).unwrap()
         );
     }
 
@@ -410,15 +481,15 @@ pub(crate) mod tests {
         println!("Buckets Posterior: {:?}", buckets_posterior);
         println!("Evidence: {:?}", categorical);
         assert_approx_eq!(
-            buckets.supported_kl_divergence(&buckets_posterior).unwrap(),
-            buckets.posterior_kl_divergence(&data).unwrap()
+            buckets.supported_kl_div(&buckets_posterior).unwrap(),
+            buckets.posterior_kl_div(&data).unwrap()
         );
         assert_approx_eq!(
-            buckets.supported_kl_divergence(&buckets_posterior).unwrap(),
-            buckets.kl_divergence(&buckets_posterior).unwrap()
+            buckets.supported_kl_div(&buckets_posterior).unwrap(),
+            buckets.kl_div(&buckets_posterior).unwrap()
         );
         assert_approx_eq!(
-            buckets.supported_kl_divergence(&buckets_posterior).unwrap(),
+            buckets.supported_kl_div(&buckets_posterior).unwrap(),
             0.1789970483832892
         );
     }
@@ -431,45 +502,93 @@ pub(crate) mod tests {
 
         let mut tracker = buckets.tracker();
 
-        let mut buckets_posterior = buckets.clone();
-        let posterior_kl_divergence = buckets.supported_kl_divergence(&buckets_posterior).unwrap();
-        let tracker_kl_divergence = tracker.kl_divergence();
+        let mut true_data = DiscreteData::new();
+        true_data.add_pop(0, 0.0);
+        true_data.add_pop(1, 0.0);
+        let posterior_kl_div = buckets.posterior_kl_div(&true_data).unwrap();
+        let tracker_kl_div = tracker.kl_div();
         println!("{:?}", tracker);
-        assert_approx_eq!(posterior_kl_divergence, tracker_kl_divergence);
+        assert_approx_eq!(posterior_kl_div, tracker_kl_div);
         for _i in 0..3 {
-            buckets_posterior.add_observation(0);
-            let posterior_kl_divergence =
-                buckets.supported_kl_divergence(&buckets_posterior).unwrap();
-            let tracker_kl_divergence = tracker.add_observation(0);
+            true_data.add_pop(0, 1.0);
+            let posterior_kl_div = buckets.posterior_kl_div(&true_data).unwrap();
+            let tracker_kl_div = tracker.add_observation(0).kl_div();
+            let posterior_aic = buckets.marginal_aic(&true_data).unwrap();
+            let tracker_aic = tracker.marginal_aic();
             println!("{:?}", tracker);
-            println!("{:?}", buckets_posterior);
-            assert_approx_eq!(posterior_kl_divergence, tracker_kl_divergence);
+            println!("{:?}", true_data);
+            assert_approx_eq!(posterior_kl_div, tracker_kl_div);
+            assert_approx_eq!(posterior_aic, tracker_aic);
         }
         for _i in 0..2 {
-            buckets_posterior.add_observation(1);
-            let posterior_kl_divergence =
-                buckets.supported_kl_divergence(&buckets_posterior).unwrap();
-            let tracker_kl_divergence = tracker.add_observation(1);
-            assert_approx_eq!(posterior_kl_divergence, tracker_kl_divergence);
+            true_data.add_pop(1, 1.0);
+            let posterior_kl_div = buckets.posterior_kl_div(&true_data).unwrap();
+            let tracker_kl_div = tracker.add_observation(1).kl_div();
+            let posterior_aic = buckets.marginal_aic(&true_data).unwrap();
+            let tracker_aic = tracker.marginal_aic();
+            println!("{:?}", tracker);
+            println!("{:?}", true_data);
+            assert_approx_eq!(posterior_kl_div, tracker_kl_div);
+            assert_approx_eq!(posterior_aic, tracker_aic);
         }
-        assert_approx_eq!(tracker.kl_divergence(), 0.1789970483832892);
+        assert_approx_eq!(tracker.kl_div(), 0.1789970483832892);
 
         for _i in 0..3 {
-            buckets_posterior.params.remove_pop(0, 1.0);
-            let posterior_kl_divergence =
-                buckets.supported_kl_divergence(&buckets_posterior).unwrap();
-            let tracker_kl_divergence = tracker.remove_observation(0);
+            true_data.remove_pop(0, 1.0);
+            let posterior_kl_div = buckets.posterior_kl_div(&true_data).unwrap();
+            let tracker_kl_div = tracker.remove_observation(0).kl_div();
+            let posterior_aic = buckets.marginal_aic(&true_data).unwrap();
+            let tracker_aic = tracker.marginal_aic();
             println!("{:?}", tracker);
-            println!("{:?}", buckets_posterior);
-            assert_approx_eq!(posterior_kl_divergence, tracker_kl_divergence);
+            println!("{:?}", true_data);
+            assert_approx_eq!(posterior_kl_div, tracker_kl_div);
+            assert_approx_eq!(posterior_aic, tracker_aic);
         }
         for _i in 0..2 {
-            buckets_posterior.params.remove_pop(1, 1.0);
-            let posterior_kl_divergence =
-                buckets.supported_kl_divergence(&buckets_posterior).unwrap();
-            let tracker_kl_divergence = tracker.remove_observation(1);
-            assert_approx_eq!(posterior_kl_divergence, tracker_kl_divergence);
+            true_data.remove_pop(1, 1.0);
+            let posterior_kl_div = buckets.posterior_kl_div(&true_data).unwrap();
+            let tracker_kl_div = tracker.remove_observation(1).kl_div();
+            let posterior_aic = buckets.marginal_aic(&true_data).unwrap();
+            let tracker_aic = tracker.marginal_aic();
+            println!("{:?}", tracker);
+            println!("{:?}", true_data);
+            assert_approx_eq!(posterior_kl_div, tracker_kl_div);
+            assert_approx_eq!(posterior_aic, tracker_aic);
         }
+    }
+
+    #[test]
+    fn dirichlet_sparse_tracker_sanity_test() {
+        let mut tracker = DirichletTracker::sparse(5.0, 2);
+        let mut buckets = Dirichlet::new();
+        // The sparse adds one to these
+        buckets.params.add_pop(0, 3.0);
+        buckets.params.add_pop(1, 2.0);
+
+        let mut dense_tracker = buckets.tracker();
+
+        tracker.set_alpha(0, 3.0);
+        let true_tracker_kl_div = dense_tracker.kl_div();
+        let tracker_kl_div = tracker.kl_div();
+        println!("{:?}", tracker);
+        println!("{:?}", dense_tracker);
+        assert_approx_eq!(true_tracker_kl_div, tracker_kl_div);
+        for _i in 0..3 {
+            let true_tracker_kl_div = dense_tracker.add_observation(0).kl_div();
+            let tracker_kl_div = tracker.add_observation(0).kl_div();
+            println!("{:?}", tracker);
+            println!("{:?}", dense_tracker);
+            assert_approx_eq!(true_tracker_kl_div, tracker_kl_div);
+        }
+        tracker.set_alpha(1, 2.0);
+        for _i in 0..2 {
+            let true_tracker_kl_div = dense_tracker.add_observation(1).kl_div();
+            let tracker_kl_div = tracker.add_observation(1).kl_div();
+            println!("{:?}", tracker);
+            println!("{:?}", dense_tracker);
+            assert_approx_eq!(true_tracker_kl_div, tracker_kl_div);
+        }
+        assert_approx_eq!(tracker.kl_div(), 0.1789970483832892);
     }
 
     #[test]
@@ -487,13 +606,10 @@ pub(crate) mod tests {
         println!("Buckets Posterior: {:?}", buckets_posterior);
         println!("Evidence: {:?}", data);
         assert_approx_eq!(
-            buckets.supported_kl_divergence(&buckets_posterior).unwrap(),
-            buckets.posterior_kl_divergence(&data).unwrap()
+            buckets.supported_kl_div(&buckets_posterior).unwrap(),
+            buckets.posterior_kl_div(&data).unwrap()
         );
-        assert_approx_eq!(
-            buckets.supported_kl_divergence(&buckets_posterior).unwrap(),
-            0.0
-        );
+        assert_approx_eq!(buckets.supported_kl_div(&buckets_posterior).unwrap(), 0.0);
     }
 
     #[test]
@@ -514,12 +630,12 @@ pub(crate) mod tests {
         println!("{:?}", bucket3);
         println!(
             "{:?}, {}",
-            bucket1.supported_kl_divergence(&bucket2).unwrap(),
-            bucket1.supported_kl_divergence(&bucket3).unwrap()
+            bucket1.supported_kl_div(&bucket2).unwrap(),
+            bucket1.supported_kl_div(&bucket3).unwrap()
         );
         assert!(
-            bucket1.supported_kl_divergence(&bucket2).unwrap()
-                > bucket1.supported_kl_divergence(&bucket3).unwrap()
+            bucket1.supported_kl_div(&bucket2).unwrap()
+                > bucket1.supported_kl_div(&bucket3).unwrap()
         );
     }
 

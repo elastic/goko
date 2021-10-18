@@ -115,7 +115,7 @@ impl<D: PointCloud, T: Deref<Target = D::Point> + Send + Sync>
             }
             CurrentStats(req) => {
                 if let Some(tracker) = self.trackers.get(&req.window_size) {
-                    let stats = tracker.kl_div_stats();
+                    let stats = tracker.node_kl_div_stats();
                     let kl_div = tracker.kl_div();
                     Ok(TrackingResponse::CurrentStats(CurrentStatsResponse {
                         kl_div,

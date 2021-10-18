@@ -10,6 +10,7 @@ rayon = "1.5.0"
 statrs = "0.13.0"
 rand = { version = "0.8.3", features = ["small_rng"]}
 rand_distr = "0.4.0"
+core_goko = { path = "../core_goko" }
 
 [dev-dependencies]
 criterion = "0.3.4"

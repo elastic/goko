@@ -6,11 +6,14 @@ members = [
     "pointcloud",
     "serve_goko",
     "stats_goko",
+    "core_goko",
 ]
 default-members = [
     "goko", 
     "pointcloud",
     "serve_goko",
+    "stats_goko",
+    "core_goko",
 ]
 
 [profile.dev]

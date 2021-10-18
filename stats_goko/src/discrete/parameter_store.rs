@@ -79,6 +79,22 @@ impl DiscreteParams {
         }
     }
 
+    pub(crate) fn replace_pop(&mut self, loc: u64, count: f64) -> f64 {
+        match self.params.binary_search_by_key(&loc, |&(a, _)| a) {
+            Ok(index) => {
+                let old_pop = self.params[index].1;
+                self.params[index].1 += count;
+                self.total += count - old_pop;
+                old_pop
+            }
+            Err(index) => {
+                self.params.insert(index, (loc, count));
+                self.total += count;
+                0.0
+            }
+        }
+    }
+
     pub(crate) fn remove_pop(&mut self, loc: u64, count: f64) -> f64 {
         if let Ok(index) = self.params.binary_search_by_key(&loc, |&(a, _)| a) {
             if self.params[index].1 < count {

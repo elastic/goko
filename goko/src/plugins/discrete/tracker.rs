@@ -5,9 +5,7 @@ use crate::plugins::*;
 use crate::NodeAddress;
 use hashbrown::HashMap;
 
-use super::categorical::*;
-use super::dirichlet::*;
-use statrs::function::gamma::{digamma, ln_gamma};
+use stats_goko::discrete::{Dirichlet, DirichletTracker};
 
 use serde::{Deserialize, Serialize};
 
@@ -17,7 +15,8 @@ use std::collections::VecDeque;
 
 /// Computes a frequentist KL divergence calculation on each node the sequence touches.
 pub struct BayesCategoricalTracker<D: PointCloud> {
-    running_evidence: HashMap<NodeAddress, Categorical>,
+    overall_tracker: DirichletTracker,
+    node_trackers: HashMap<NodeAddress, DirichletTracker>,
     sequence_queue: VecDeque<Vec<(f32, NodeAddress)>>,
     sequence_count: usize,
     window_size: usize,
@@ -28,8 +27,8 @@ impl<D: PointCloud> fmt::Debug for BayesCategoricalTracker<D> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "PointCloud {{ sequence_queue: {:?}, window_size: {}, running_evidence: {:?}}}",
-            self.sequence_queue, self.window_size, self.running_evidence,
+            "PointCloud {{ sequence_queue: {:?}, window_size: {}, node_trackers: {:?}}}",
+            self.sequence_queue, self.window_size, self.node_trackers,
         )
     }
 }
@@ -37,8 +36,10 @@ impl<D: PointCloud> fmt::Debug for BayesCategoricalTracker<D> {
 impl<D: PointCloud> BayesCategoricalTracker<D> {
     /// Creates a new blank thing with capacity `size`, input 0 for unlimited.
     pub fn new(window_size: usize, reader: CoverTreeReader<D>) -> BayesCategoricalTracker<D> {
+        let total_alpha_overall = (reader.parameters().point_cloud.len() + reader.node_count()) as f64;
         BayesCategoricalTracker {
-            running_evidence: HashMap::new(),
+            overall_tracker: DirichletTracker::sparse(total_alpha_overall, reader.node_count()),
+            node_trackers: HashMap::new(),
             sequence_queue: VecDeque::new(),
             sequence_count: 0,
             window_size,
@@ -46,47 +47,40 @@ impl<D: PointCloud> BayesCategoricalTracker<D> {
         }
     }
 
-    /// Appends a tracker to this one,
-    pub fn append(mut self, other: &Self) -> Self {
-        for (k, v) in other.running_evidence.iter() {
-            self.running_evidence
-                .entry(*k)
-                .and_modify(|e| e.merge(v))
-                .or_insert_with(|| v.clone());
-        }
-        self.sequence_queue
-            .extend(other.sequence_queue.iter().cloned());
-        self.sequence_count += other.sequence_count;
-        self
-    }
-
-    fn get_distro(&self, address: NodeAddress) -> Dirichlet {
-        let mut prob = self
-            .reader
-            .get_node_plugin_and::<Dirichlet, _, _>(address, |p| p.clone())
-            .unwrap();
-        let total = prob.total();
-        if total > self.window_size as f64 {
-            prob.weight((total.ln() * self.window_size as f64) / total)
-        }
-        prob
-    }
-
     fn add_trace_to_pdfs(&mut self, trace: &[(f32, NodeAddress)]) {
         let parent_address_iter = trace.iter().map(|(_, ca)| ca);
         let mut child_address_iter = trace.iter().map(|(_, ca)| ca);
         child_address_iter.next();
+        let node_trackers = &mut self.node_trackers;
+        let overall_tracker = &mut self.overall_tracker;
+        let reader = &self.reader;
         for (parent, child) in parent_address_iter.zip(child_address_iter) {
-            self.running_evidence
+            node_trackers
                 .entry(*parent)
-                .or_default()
-                .add_child_pop(Some(*child), 1.0);
+                .or_insert_with_key(|k| {
+                    reader
+                        .get_node_plugin_and::<Dirichlet, _, _>(*k, |p| {
+                            overall_tracker.set_alpha(k.raw(), p.get_alpha(NodeAddress::SINGLETON_U64).expect("There should always be singletons."));
+                            p.tracker()
+                        })
+                        .unwrap()
+                })
+                .add_observation(child.raw());
         }
         let last = trace.last().unwrap().1;
-        self.running_evidence
+
+        node_trackers
             .entry(last)
-            .or_default()
-            .add_child_pop(None, 1.0);
+            .or_insert_with_key(|k| {
+                reader
+                    .get_node_plugin_and::<Dirichlet, _, _>(*k, |p| {
+                        overall_tracker.set_alpha(k.raw(), p.get_alpha(NodeAddress::SINGLETON_U64).expect("There should always be singletons."));
+                        p.tracker()
+                    })
+                    .unwrap()
+            })
+            .add_observation(NodeAddress::SINGLETON_U64);
+        overall_tracker.add_observation(last.raw());
     }
 
     fn remove_trace_from_pdfs(&mut self, trace: &[(f32, NodeAddress)]) {
@@ -94,35 +88,15 @@ impl<D: PointCloud> BayesCategoricalTracker<D> {
         let mut child_address_iter = trace.iter().map(|(_, ca)| ca);
         child_address_iter.next();
         for (parent, child) in parent_address_iter.zip(child_address_iter) {
-            let parent_evidence = self.running_evidence.get_mut(parent).unwrap();
-            parent_evidence.remove_child_pop(Some(*child), 1.0);
+            let parent_evidence = self.node_trackers.get_mut(parent).unwrap();
+            parent_evidence.remove_observation(child.raw());
         }
         let last = trace.last().unwrap().1;
-        self.running_evidence
+        self.node_trackers
             .get_mut(&last)
             .unwrap()
-            .remove_child_pop(None, 1.0);
-    }
-
-    /// Gives the probability vector for this
-    pub fn prob_vector(&self, na: NodeAddress) -> Option<(Vec<(NodeAddress, f64)>, f64)> {
-        self.reader
-            .get_node_plugin_and::<Dirichlet, _, _>(na, |p| {
-                let mut dir = p.clone();
-                if let Some(e) = self.running_evidence.get(&na) {
-                    dir.add_evidence(e)
-                }
-                dir.prob_vector()
-            })
-            .flatten()
-    }
-
-    /// Gives the probability vector for this
-    pub fn evidence_prob_vector(&self, na: NodeAddress) -> Option<(Vec<(NodeAddress, f64)>, f64)> {
-        self.running_evidence
-            .get(&na)
-            .map(|e| e.prob_vector())
-            .flatten()
+            .remove_observation(NodeAddress::SINGLETON_U64);
+        self.overall_tracker.add_observation(last.raw());
     }
 
     /// Adds an element to the trace
@@ -139,11 +113,6 @@ impl<D: PointCloud> BayesCategoricalTracker<D> {
         }
     }
 
-    /// The running categorical distributions
-    pub fn running_evidence(&self) -> &HashMap<NodeAddress, Categorical> {
-        &self.running_evidence
-    }
-
     /// The lenght of the sequence
     pub fn sequence_len(&self) -> usize {
         if self.sequence_queue.is_empty() {
@@ -153,33 +122,13 @@ impl<D: PointCloud> BayesCategoricalTracker<D> {
         }
     }
 
-    /// Gives the per-node KL divergence, with the node address
-    pub fn all_node_kl(&self) -> Vec<(f64, NodeAddress)> {
-        self.running_evidence()
-            .iter()
-            .filter_map(|(address, sequence_pdf)| {
-                let kl_option = self
-                    .reader
-                    .get_node_plugin_and::<Dirichlet, _, _>(*address, |p| {
-                        p.posterior_kl_divergence(sequence_pdf).unwrap()
-                    })
-                    .map(|kl| (kl, *address));
-                if let None = kl_option {
-                    println!("Unable to find node at {:?}", address);
-                }
-                kl_option
-            })
-            .collect()
-    }
-
-    /// A set of stats for the sequence that are helpful.
-    pub fn kl_div_stats(&self) -> KLDivergenceStats {
+    fn stats(&self, vals: Vec<(f64, NodeAddress)>) -> CovertreeTrackerStats {
         let mut max = f64::MIN;
         let mut min = f64::MAX;
         let mut nz_count = 0;
         let mut moment1_nz = 0.0;
         let mut moment2_nz = 0.0;
-        self.all_node_kl().iter().for_each(|(kl, _address)| {
+        vals.iter().for_each(|(kl, _address)| {
             if *kl > 1.0e-10 {
                 moment1_nz += kl;
                 moment2_nz += kl * kl;
@@ -193,7 +142,7 @@ impl<D: PointCloud> BayesCategoricalTracker<D> {
                 nz_count += 1;
             }
         });
-        KLDivergenceStats {
+        CovertreeTrackerStats {
             max,
             min,
             nz_count,
@@ -203,62 +152,40 @@ impl<D: PointCloud> BayesCategoricalTracker<D> {
         }
     }
 
-    /// The KL Divergence between the prior and posterior of the whole tree.
-    pub fn kl_div(&self) -> f64 {
-        let prior_total =
-            (self.reader.parameters().point_cloud.len() + self.reader.node_count()) as f64;
-        let posterior_total = prior_total + self.sequence_len() as f64;
-        let mut prior_total_lng = 0.0;
-        let mut posterior_total_lng = 0.0;
-        let mut digamma_portion = 0.0;
-        for (addr, evidence) in self.running_evidence.iter() {
-            if evidence.singleton_count > 0.0 {
-                self.reader.get_node_and(*addr, |n| {
-                    let prior = n.singletons_len() as f64 + 1.0;
-                    prior_total_lng += ln_gamma(prior);
-                    posterior_total_lng += ln_gamma(evidence.singleton_count + prior);
-                    digamma_portion += evidence.singleton_count
-                        * (digamma(evidence.singleton_count + prior) - digamma(posterior_total));
-                });
-            }
-        }
-
-        let kld = ln_gamma(posterior_total) - posterior_total_lng - ln_gamma(prior_total)
-            + prior_total_lng
-            + digamma_portion;
-        // for floating point errors, sometimes this is -0.000000001
-        if kld < 0.0 {
-            0.0
-        } else {
-            kld
-        }
+    /// Some stats about the KL divergences of the nodes in the tree
+    pub fn node_kl_div_stats(&self) -> CovertreeTrackerStats {
+        self.stats(self.node_kl_div())
     }
 
-    /// A set of stats for the sequence that are helpful.
-    pub fn fractal_dim_stats(&self) -> FractalDimStats {
-        let mut layer_totals: Vec<u64> = vec![0; self.reader.len()];
-        let mut layer_node_counts = vec![Vec::<usize>::new(); self.reader.len()];
-        let parameters = self.reader.parameters();
-        self.all_node_kl().iter().for_each(|(_kl, address)| {
-            layer_totals[parameters.internal_index(address.scale_index())] += 1;
-            layer_node_counts[parameters.internal_index(address.scale_index())].push(
-                self.reader
-                    .get_node_and(*address, |n| n.coverage_count())
-                    .unwrap(),
-            );
-        });
-        let weighted_layer_totals: Vec<f32> = layer_node_counts
+    /// Gives the per-node KL divergence, with the node address
+    pub fn node_kl_div(&self) -> Vec<(f64, NodeAddress)> {
+        self.node_trackers
             .iter()
-            .map(|counts| {
-                let max: f32 = *counts.iter().max().unwrap_or(&1) as f32;
-                counts.iter().fold(0.0, |a, c| a + (*c as f32) / max)
-            })
-            .collect();
-        FractalDimStats {
-            sequence_len: self.sequence_len(),
-            layer_totals,
-            weighted_layer_totals,
-        }
+            .map(|(address, tracker)| (tracker.kl_div(), *address))
+            .collect()
+    }
+
+    /// The kl_div of the overall tree. The buckets are the individual partitions
+    pub fn kl_div(&self) -> f64 {
+        self.overall_tracker.kl_div()
+    }
+
+    /// Some stats about the AIC of the nodes in the tree
+    pub fn node_aic_stats(&self) -> CovertreeTrackerStats {
+        self.stats(self.node_aic())
+    }
+
+    /// Gives the per-node aic, with the node address
+    pub fn node_aic(&self) -> Vec<(f64, NodeAddress)> {
+        self.node_trackers
+            .iter()
+            .map(|(address, tracker)| (tracker.marginal_aic(), *address))
+            .collect()
+    }
+
+    /// The aic of the overall tree. The buckets are the individual partitions
+    pub fn marginal_aic(&self) -> f64 {
+        self.overall_tracker.marginal_aic()
     }
 
     /// Easy access to the cover tree read head associated to this tracker
@@ -269,7 +196,7 @@ impl<D: PointCloud> BayesCategoricalTracker<D> {
 
 /// Tracks the non-zero KL div (all KL divergences above 1e-10)
 #[derive(Debug, Serialize, Deserialize)]
-pub struct KLDivergenceStats {
+pub struct CovertreeTrackerStats {
     /// The maximum non-zero KL divergence
     pub max: f64,
     /// The minimum non-zero KL divergence
@@ -285,55 +212,47 @@ pub struct KLDivergenceStats {
     pub sequence_len: usize,
 }
 
-/// Stats that let you compute the fractal dim of the query dataset wrt the base covertree
-#[derive(Debug, Serialize, Deserialize)]
-pub struct FractalDimStats {
-    /// The number of sequence elements that went into calculating this stat. This is not the total lenght
-    /// We can drop old sequence elements
-    pub sequence_len: usize,
-    /// The number of nodes per layer this sequence touches
-    pub layer_totals: Vec<u64>,
-    /// The number of nodes per layer this sequence touches
-    pub weighted_layer_totals: Vec<f32>,
-}
-
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
     use crate::covertree::tests::build_basic_tree;
+    use crate::plugins::discrete::prelude::*;
 
     #[test]
     fn dirichlet_tree_probs_test() {
         let mut tree = build_basic_tree();
         tree.add_plugin::<GokoDirichlet>(GokoDirichlet::default());
         let mut tracker = BayesCategoricalTracker::new(0, tree.reader());
+
+        let mut unvisited_nodes = vec![tree.root_address];
+        let reader = tree.reader();
+        println!("Root Address: {}, ln_prob: {}", tree.root_address, 0.0);
+        while let Some(addr) = unvisited_nodes.pop() {
+            let ln_probs = reader
+                .get_node_plugin_and::<Dirichlet, _, _>(addr, |p| p.param_vec())
+                .unwrap().unwrap();
+            
+            for (child_addr, child_prob) in ln_probs {
+                println!(
+                    "Address: {:?} --- raw {} --- ln_prob: {}, parent: {}",
+                    NodeAddress::from_u64(child_addr), child_addr, child_prob, addr
+                );
+                if let Some(ca) = NodeAddress::from_u64(child_addr) {
+                    unvisited_nodes.push(ca);
+                }
+            }
+        }
+
         assert_approx_eq!(tracker.kl_div(), 0.0);
         tracker.add_path(vec![
             (0.0, (-1, 4).into()),
-            (0.0, (-2, 2).into()),
-            (0.0, (-5, 2).into()),
-            (0.0, (-6, 2).into()),
+            (0.0, (-2, 1).into()),
+            (0.0, (-6, 1).into()),
         ]);
         println!("KL Div: {}", tracker.kl_div());
         tracker.add_path(vec![(0.0, (-1, 4).into())]);
         println!("KL Div: {}", tracker.kl_div());
-        let mut unvisited_nodes = vec![tree.root_address];
-        let reader = tree.reader();
-        println!("Address: {:?}, ln_prob: {}", tree.root_address, 0.0);
-        while let Some(addr) = unvisited_nodes.pop() {
-            let ln_probs = reader
-                .get_node_plugin_and::<Dirichlet, _, _>(addr, |p| p.ln_prob_vector())
-                .unwrap();
-            if let Some((child_probs, _singleton_prob)) = ln_probs {
-                for (child_addr, child_prob) in child_probs {
-                    println!(
-                        "Address: {:?}, ln_prob: {}, parent: {:?}",
-                        child_addr, child_prob, addr
-                    );
-                    unvisited_nodes.push(child_addr);
-                }
-            }
-        }
+        
     }
 
     #[test]
@@ -344,26 +263,11 @@ pub(crate) mod tests {
         assert_approx_eq!(tracker.kl_div(), 0.0);
         tracker.add_path(vec![
             (0.0, (-1, 4).into()),
-            (0.0, (-2, 2).into()),
-            (0.0, (-5, 2).into()),
-            (0.0, (-6, 2).into()),
+            (0.0, (-2, 1).into()),
+            (0.0, (-6, 1).into()),
         ]);
         println!("KL Div: {}", tracker.kl_div());
         tracker.add_path(vec![(0.0, (-1, 4).into())]);
         println!("KL Div: {}", tracker.kl_div());
-
-        let mut tracker1 = BayesCategoricalTracker::new(0, tree.reader());
-        tracker1.add_path(vec![
-            (0.0, (-1, 4).into()),
-            (0.0, (-2, 2).into()),
-            (0.0, (-5, 2).into()),
-            (0.0, (-6, 2).into()),
-        ]);
-        let mut tracker2 = BayesCategoricalTracker::new(0, tree.reader());
-        tracker2.add_path(vec![(0.0, (-1, 4).into())]);
-        tracker1 = tracker1.append(&tracker2);
-
-        println!("Merge KL Div: {}", tracker1.kl_div());
-        assert_approx_eq!(tracker.kl_div(), tracker1.kl_div());
     }
 }
