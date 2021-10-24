@@ -33,7 +33,7 @@ impl<T> PathRequest<T> {
 
         let resp: Result<Vec<NodeDistance<D::LabelSummary>>, GokoError> = knn
             .iter()
-            .map(|(distance, na)| {
+            .map(|(na, distance)| {
                 let label_summary = reader.tree.get_node_label_summary(*na).map(|s| (*s).clone());
                 Ok(NodeDistance {
                     name: pc.name(na.point_index())?,

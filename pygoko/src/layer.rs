@@ -74,10 +74,12 @@ impl PyLayer {
     }
     pub fn child_addresses(&self, point_index: usize) -> Option<Vec<(i32, usize)>> {
         self.layer()
-            .get_node_children_and(point_index, |nested_address, child_addresses| {
-                let mut v = vec![nested_address];
-                v.extend(child_addresses);
-                v
+            .get_node_children_and(point_index, |child_addresses| {
+                child_addresses
+                    .to_tuples()
+                    .drain(0..)
+                    .filter_map(|p| p)
+                    .collect()
             })
     }
     pub fn singleton_indexes(&self, point_index: usize) -> Option<Vec<usize>> {
@@ -123,21 +125,14 @@ impl PyLayer {
         let dim = self.parameters.point_cloud.dim();
         Ok(self
             .layer()
-            .get_node_children_and(point_index, |nested_address, child_addresses| {
+            .get_node_children_and(point_index, |child_addresses| {
                 let count = child_addresses.len() + 1;
                 let mut centers: Vec<f32> = Vec::with_capacity(count * dim);
-                centers.extend(
-                    self.parameters
-                        .point_cloud
-                        .point(nested_address.1)
-                        .unwrap()
-                        .dense_iter(),
-                );
                 for na in child_addresses {
                     centers.extend(
                         self.parameters
                             .point_cloud
-                            .point(na.1)
+                            .point(na.point_index())
                             .unwrap()
                             .dense_iter(),
                     );
@@ -166,7 +161,7 @@ impl PyLayer {
     pub fn node(&self, center_index: usize) -> PyResult<PyNode> {
         Ok(PyNode {
             parameters: Arc::clone(&self.parameters),
-            address: (self.scale_index, center_index),
+            address: (self.scale_index, center_index).into(),
             tree: self.tree.clone(),
         })
     }
@@ -178,7 +173,7 @@ impl PyLayer {
                 .layer()
                 .node_center_indexes()
                 .iter()
-                .map(|pi| (self.scale_index, *pi))
+                .map(|pi| (self.scale_index, *pi).into())
                 .collect(),
             tree: self.tree.clone(),
             index: 0,

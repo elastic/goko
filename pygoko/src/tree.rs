@@ -200,37 +200,43 @@ impl CoverTree {
 
     pub fn node(&self, address: (i32, usize)) -> PyResult<PyNode> {
         let reader = self.writer.as_ref().unwrap().reader();
+        let na: NodeAddress = address.into();
         // Check node exists
-        reader.get_node_and(address, |_| true).unwrap();
+        reader.get_node_and(na, |_| true).unwrap();
         Ok(PyNode {
             parameters: Arc::clone(reader.parameters()),
-            address,
+            address: na,
             tree: reader,
         })
     }
 
     pub fn root(&self) -> PyResult<PyNode> {
         let reader = self.writer.as_ref().unwrap().reader();
-        self.node(reader.root_address())
+        self.node(reader.root_address().to_tuple().unwrap())
     }
 
-    pub fn knn(&self, point: &PyArray1<f32>, k: usize) -> Vec<(f32, usize)> {
+    pub fn knn(&self, point: &PyArray1<f32>, k: usize) -> Vec<(usize, f32)> {
         let reader = self.writer.as_ref().unwrap().reader();
         reader
             .knn(&point.readonly().as_slice().unwrap(), k)
             .unwrap()
     }
 
-    pub fn routing_knn(&self, point: &PyArray1<f32>, k: usize) -> Vec<(f32, usize)> {
+    pub fn routing_knn(&self, point: &PyArray1<f32>, k: usize) -> Vec<(usize, f32)> {
         let reader = self.writer.as_ref().unwrap().reader();
         reader
             .routing_knn(&point.readonly().as_slice().unwrap(), k)
             .unwrap()
     }
 
-    pub fn known_path(&self, point_index: usize) -> Vec<(f32, (i32, usize))> {
+    pub fn path(&self, point: &PyArray1<f32>) -> Vec<((i32, usize), f32)> {
         let reader = self.writer.as_ref().unwrap().reader();
-        reader.known_path(point_index).unwrap()
+        reader.path(&point.readonly().as_slice().unwrap()).unwrap().to_valid_tuples()
+    }
+
+    pub fn known_path(&self, point_index: usize) -> Vec<((i32, usize), f32)> {
+        let reader = self.writer.as_ref().unwrap().reader();
+        reader.known_path(point_index).unwrap().to_valid_tuples()
     }
 
     pub fn index_depths(&self, point_indexes: Vec<usize>, tau: Option<f32>) -> Vec<(usize, usize)> {
@@ -240,7 +246,7 @@ impl CoverTree {
         bulk.known_path_and(&point_indexes, |reader, path| {
             if let Ok(path) = path {
                 let mut homogenity_depth = path.len();
-                for (i, (_d, a)) in path.iter().enumerate() {
+                for (i, (a, _d)) in path.iter().enumerate() {
                     let summ = reader.get_node_label_summary(*a).unwrap();
                     if summ.summary.items.len() == 1 {
                         homogenity_depth = i;
@@ -268,7 +274,7 @@ impl CoverTree {
         bulk.array_map_with_reader(points.readonly().as_array(), |reader, point| {
             if let Ok(path) = reader.path(point) {
                 let mut homogenity_depth = path.len();
-                for (i, (_d, a)) in path.iter().enumerate() {
+                for (i, (a, _d)) in path.iter().enumerate() {
                     let summ = reader.get_node_label_summary(*a).unwrap();
                     if summ.summary.items.len() == 1 {
                         homogenity_depth = i;
@@ -288,18 +294,13 @@ impl CoverTree {
         })
     }
 
-    pub fn path(&self, point: &PyArray1<f32>) -> Vec<(f32, (i32, usize))> {
-        let reader = self.writer.as_ref().unwrap().reader();
-        reader.path(&point.readonly().as_slice().unwrap()).unwrap()
-    }
-
     pub fn sample(&self) -> PyResult<(Py<PyArray1<f32>>, Option<PyObject>)> {
         let reader = self.writer.as_ref().unwrap().reader();
         let mut rng = SmallRng::from_entropy();
         let mut parent_addr = reader.root_address();
 
         while let Some(pat) = reader
-            .get_node_plugin_and::<Dirichlet, _, _>(parent_addr, |p| p.sample(&mut rng))
+            .get_node_plugin_and::<Dirichlet, _, _>(parent_addr, |p| p.marginal_sample(&mut rng))
             .unwrap()
         {
             parent_addr = pat;
@@ -335,20 +336,5 @@ impl CoverTree {
             hkl: BayesCategoricalTracker::new(size as usize, writer.reader()),
             tree: writer.reader(),
         }
-    }
-
-    pub fn kl_div_dirichlet_baseline(
-        &self,
-        sequence_len: usize,
-        num_sequences: usize,
-        sample_rate: usize,
-    ) -> PyKLDivergenceBaseline {
-        let reader = self.writer.as_ref().unwrap().reader();
-        let mut trainer = DirichletBaseline::default();
-        trainer.set_sequence_len(sequence_len);
-        trainer.set_num_sequences(num_sequences);
-        trainer.set_sample_rate(sample_rate);
-        let baseline = trainer.train(reader).unwrap();
-        PyKLDivergenceBaseline { baseline }
     }
 }

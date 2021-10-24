@@ -17,7 +17,7 @@ pub struct TrackPointRequest<T> {
 
 #[derive(Deserialize, Serialize)]
 pub struct TrackPathRequest {
-    pub path: Vec<(f32, NodeAddress)>,
+    pub path: Vec<(NodeAddress, f32)>,
 }
 
 #[derive(Deserialize, Serialize)]

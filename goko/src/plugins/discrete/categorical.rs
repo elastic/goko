@@ -29,13 +29,13 @@ impl<D: PointCloud> GokoPlugin<D> for GokoCategorical {
         if let Some(child_addresses) = my_node.children() {
             for ca in child_addresses {
                 my_tree.get_node_and(*ca, |n| {
-                    bucket.add_pop(ca.raw(), n.coverage_count() as f64);
+                    bucket.add_pop(*ca, n.coverage_count() as f64);
                 });
             }
-            bucket.add_pop(NodeAddress::SINGLETON_U64, my_node.singletons_len() as f64);
+            bucket.add_pop(NodeAddress::SINGLETON, my_node.singletons_len() as f64);
         } else {
             bucket.add_pop(
-                NodeAddress::SINGLETON_U64,
+                NodeAddress::SINGLETON,
                 my_node.singletons_len() as f64 + 1.0,
             );
         }

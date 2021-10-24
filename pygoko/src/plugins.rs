@@ -41,25 +41,33 @@ impl PyBayesCategoricalTracker {
     pub fn print(&self) {
         println!("{:#?}", self.hkl);
     }
-
-    pub fn probs(&self, node_address: (i32, usize)) -> Option<(Vec<((i32, usize), f64)>, f64)> {
-        self.hkl.prob_vector(node_address)
+    /*
+    pub fn probs(&self, node_address: Option<(i32, usize)>) -> Option<Vec<(Option<(i32, usize)>, f64)>> {
+        if let Some(na) = node_address {
+            self.hkl.node_tracker(na.into()).map(|diri| diri.prior().param_vec()).map(|pvec| pvec.to_tuples())
+        } else {
+            Some(self.hkl.overall_tracker().prior().param_vec().to_tuples())
+        }
     }
 
-    pub fn evidence(&self, node_address: (i32, usize)) -> Option<(Vec<((i32, usize), f64)>, f64)> {
-        self.hkl.evidence_prob_vector(node_address)
+    pub fn evidence(&self, node_address: Option<(i32, usize)>) -> Option<Vec<(Option<(i32, usize)>, f64)>> {
+        if let Some(na) = node_address {
+            self.hkl.node_tracker(na.into()).map(|diri| diri.data().data_vec()).map(|pvec| pvec.to_tuples())
+        } else {
+            Some(self.hkl.overall_tracker().data().data_vec().to_tuples())
+        }
+    }
+    */
+    pub fn nodes_kl_div(&self) -> Vec<(Option<(i32, usize)>, f64)> {
+        self.hkl.nodes_kl_div().to_tuples()
     }
 
-    pub fn all_kl(&self) -> Vec<(f64, (i32, usize))> {
-        self.hkl.all_node_kl()
+    pub fn overall_kl_div(&self) -> f64 {
+        self.hkl.overall_kl_div()
     }
 
-    pub fn kl_div(&self) -> f64 {
-        self.hkl.kl_div()
-    }
-
-    pub fn stats(&self) -> PyResult<PyObject> {
-        let stats = self.hkl.kl_div_stats();
+    pub fn nodes_kl_div_stats(&self) -> PyResult<PyObject> {
+        let stats = self.hkl.nodes_kl_div_stats();
         let gil = pyo3::Python::acquire_gil();
         let py = gil.python();
         let dict = PyDict::new(py);
@@ -71,43 +79,71 @@ impl PyBayesCategoricalTracker {
         dict.set_item("sequence_len", stats.sequence_len)?;
         Ok(dict.into())
     }
-}
 
-#[pyclass(unsendable)]
-pub struct PyKLDivergenceBaseline {
-    pub baseline: KLDivergenceBaseline,
-}
+    pub fn nodes_aic(&self) -> Vec<(Option<(i32, usize)>, f64)> {
+        self.hkl.nodes_aic().to_tuples()
+    }
 
-#[pymethods]
-impl PyKLDivergenceBaseline {
-    pub fn stats(&self, i: usize) -> PyResult<PyObject> {
-        let stats = self.baseline.stats(i);
+    pub fn overall_aic(&self) -> f64 {
+        self.hkl.marginal_aic()
+    }
+
+    pub fn nodes_aic_stats(&self) -> PyResult<PyObject> {
+        let stats = self.hkl.nodes_aic_stats();
         let gil = pyo3::Python::acquire_gil();
-        let dict = PyDict::new(gil.python());
-        let max_dict = PyDict::new(gil.python());
-        max_dict.set_item("mean", stats.max.0)?;
-        max_dict.set_item("var", stats.max.1)?;
-        dict.set_item("max", max_dict)?;
-
-        let min_dict = PyDict::new(gil.python());
-        min_dict.set_item("mean", stats.min.0)?;
-        min_dict.set_item("var", stats.min.1)?;
-        dict.set_item("min", min_dict)?;
-
-        let nz_count_dict = PyDict::new(gil.python());
-        nz_count_dict.set_item("mean", stats.nz_count.0)?;
-        nz_count_dict.set_item("var", stats.nz_count.1)?;
-        dict.set_item("nz_count", nz_count_dict)?;
-
-        let moment1_nz_dict = PyDict::new(gil.python());
-        moment1_nz_dict.set_item("mean", stats.moment1_nz.0)?;
-        moment1_nz_dict.set_item("var", stats.moment1_nz.1)?;
-        dict.set_item("moment1_nz", moment1_nz_dict)?;
-
-        let moment2_nz_dict = PyDict::new(gil.python());
-        moment2_nz_dict.set_item("mean", stats.moment2_nz.0)?;
-        moment2_nz_dict.set_item("var", stats.moment2_nz.1)?;
-        dict.set_item("moment2_nz", moment2_nz_dict)?;
+        let py = gil.python();
+        let dict = PyDict::new(py);
+        dict.set_item("max", stats.max)?;
+        dict.set_item("min", stats.min)?;
+        dict.set_item("nz_count", stats.nz_count)?;
+        dict.set_item("moment1_nz", stats.moment1_nz)?;
+        dict.set_item("moment2_nz", stats.moment2_nz)?;
+        dict.set_item("sequence_len", stats.sequence_len)?;
         Ok(dict.into())
+    }
+
+    pub fn nodes_mll(&self) -> Vec<(Option<(i32, usize)>, f64)> {
+        self.hkl.nodes_mll().to_tuples()
+    }
+
+    pub fn overall_mll(&self) -> f64 {
+        self.hkl.overall_mll()
+    }
+
+    pub fn nodes_mll_stats(&self) -> PyResult<PyObject> {
+        let stats = self.hkl.nodes_mll_stats();
+        let gil = pyo3::Python::acquire_gil();
+        let py = gil.python();
+        let dict = PyDict::new(py);
+        dict.set_item("max", stats.max)?;
+        dict.set_item("min", stats.min)?;
+        dict.set_item("nz_count", stats.nz_count)?;
+        dict.set_item("moment1_nz", stats.moment1_nz)?;
+        dict.set_item("moment2_nz", stats.moment2_nz)?;
+        dict.set_item("sequence_len", stats.sequence_len)?;
+        Ok(dict.into())
+    }
+
+    pub fn nodes_corrected_mll(&self) -> Vec<(Option<(i32, usize)>, f64)> {
+        self.hkl.nodes_corrected_mll().to_tuples()
+    }
+
+    pub fn nodes_corrected_mll_stats(&self) -> PyResult<PyObject> {
+        let stats = self.hkl.nodes_corrected_mll_stats();
+        let gil = pyo3::Python::acquire_gil();
+        let py = gil.python();
+        let dict = PyDict::new(py);
+        dict.set_item("max", stats.max)?;
+        dict.set_item("min", stats.min)?;
+        dict.set_item("nz_count", stats.nz_count)?;
+        dict.set_item("moment1_nz", stats.moment1_nz)?;
+        dict.set_item("moment2_nz", stats.moment2_nz)?;
+        dict.set_item("sequence_len", stats.sequence_len)?;
+        Ok(dict.into())
+    }
+
+
+    pub fn overall_corrected_mll(&self) -> f64 {
+        self.hkl.overall_corrected_mll()
     }
 }

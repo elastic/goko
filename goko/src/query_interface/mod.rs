@@ -64,14 +64,14 @@ impl<D: PointCloud> BulkInterface<D> {
     }
 
     /// Bulk known path
-    pub fn known_path(&self, point_indexes: &[usize]) -> Vec<GokoResult<Vec<(f32, NodeAddress)>>> {
+    pub fn known_path(&self, point_indexes: &[usize]) -> Vec<GokoResult<Vec<(NodeAddress, f32)>>> {
         self.index_map_with_reader(point_indexes, |reader, i| reader.known_path(i))
     }
 
     /// Bulk known path
     pub fn known_path_and<F, T>(&self, point_indexes: &[usize], f: F) -> Vec<T>
     where
-        F: Fn(&CoverTreeReader<D>, GokoResult<Vec<(f32, NodeAddress)>>) -> T + Send + Sync,
+        F: Fn(&CoverTreeReader<D>, GokoResult<Vec<(NodeAddress, f32)>>) -> T + Send + Sync,
         T: Send + Sync,
     {
         self.index_map_with_reader(point_indexes, |reader, i| f(&reader, reader.known_path(i)))
@@ -81,7 +81,7 @@ impl<D: PointCloud> BulkInterface<D> {
     pub fn path<P: Deref<Target = D::Point> + Send + Sync>(
         &self,
         points: &[P],
-    ) -> Vec<GokoResult<Vec<(f32, NodeAddress)>>> {
+    ) -> Vec<GokoResult<Vec<(NodeAddress, f32)>>> {
         self.point_map_with_reader(points, |reader, p| reader.path(p))
     }
 
@@ -90,7 +90,7 @@ impl<D: PointCloud> BulkInterface<D> {
         &self,
         points: &[P],
         k: usize,
-    ) -> Vec<GokoResult<Vec<(f32, usize)>>> {
+    ) -> Vec<GokoResult<Vec<(usize, f32)>>> {
         self.point_map_with_reader(points, |reader, p| reader.knn(p, k))
     }
 
@@ -99,7 +99,7 @@ impl<D: PointCloud> BulkInterface<D> {
         &self,
         points: &[P],
         k: usize,
-    ) -> Vec<GokoResult<Vec<(f32, usize)>>> {
+    ) -> Vec<GokoResult<Vec<(usize, f32)>>> {
         self.point_map_with_reader(points, |reader, p| reader.routing_knn(p, k))
     }
 }
@@ -154,7 +154,7 @@ pub(crate) mod tests {
             let path_results = interface.path(&points);
             for (i, path) in path_results.iter().enumerate() {
                 let old_path = reader.path(&cloud.point(i).unwrap()).unwrap();
-                for ((d1, a1), (d2, a2)) in (path.as_ref().unwrap()).iter().zip(old_path) {
+                for ((a1, d1), (a2, d2)) in (path.as_ref().unwrap()).iter().zip(old_path) {
                     assert_approx_eq!(*d1, d2);
                     assert_eq!(*a1, a2);
                 }
@@ -175,7 +175,7 @@ pub(crate) mod tests {
             let knn_results = interface.knn(&points, 5);
             for (i, knn) in knn_results.iter().enumerate() {
                 let old_knn = reader.knn(&cloud.point(i).unwrap(), 5).unwrap();
-                for ((d1, a1), (d2, a2)) in (knn.as_ref().unwrap()).iter().zip(old_knn) {
+                for ((a1, d1), (a2, d2)) in (knn.as_ref().unwrap()).iter().zip(old_knn) {
                     assert_approx_eq!(*d1, d2);
                     assert_eq!(*a1, a2);
                 }

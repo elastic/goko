@@ -3,6 +3,7 @@
 //! Simple probability distribution that enables you to simulated the rough
 //! distribution of data in the tree.
 use super::parameter_store::DiscreteParams;
+use core_goko::*;
 
 use rand::distributions::{Distribution, Uniform};
 use rand::Rng;
@@ -24,6 +25,20 @@ impl From<DiscreteData> for Categorical {
     }
 }
 
+impl From<&[(u64, f64)]> for Categorical {
+    fn from(vals: &[(u64, f64)]) -> Categorical {
+        let params = DiscreteParams::from(vals);
+        Categorical { params }
+    }
+}
+
+impl From<&[(NodeAddress, f64)]> for Categorical {
+    fn from(vals: &[(NodeAddress, f64)]) -> Categorical {
+        let params = DiscreteParams::from(vals);
+        Categorical { params }
+    }
+}
+
 impl Categorical {
     /// Creates a new empty bucket probability
     pub fn new() -> Categorical {
@@ -33,22 +48,26 @@ impl Categorical {
     }
 
     /// Gives the probability vector for this
-    pub fn prob_vector(&self) -> Option<Vec<(u64, f64)>> {
+    pub fn prob_vector(&self) -> Option<Vec<(NodeAddress, f64)>> {
         let total = self.params.total();
         if total > 0.0 {
-            let v: Vec<(u64, f64)> = self.params.iter().map(|(na, f)| (na, f / total)).collect();
+            let v: Vec<(NodeAddress, f64)> = self
+                .params
+                .iter()
+                .map(|(na, f)| (na.into(), f / total))
+                .collect();
             Some(v)
         } else {
             None
         }
     }
 
-    pub fn get(&self, loc: u64) -> Option<f64> {
+    pub fn get(&self, loc: NodeAddress) -> Option<f64> {
         self.params.get(loc)
     }
 
     /// Pass none if you want to test for a singleton, returns 0 if
-    pub fn ln_pdf(&self, loc: u64) -> Option<f64> {
+    pub fn ln_pdf(&self, loc: NodeAddress) -> Option<f64> {
         let total = self.params.total();
         if total > 0.0 {
             self.params
@@ -61,7 +80,7 @@ impl Categorical {
     }
 
     /// Samples from the given categorical distribution
-    pub fn sample<R: Rng>(&self, rng: &mut R) -> Option<u64> {
+    pub fn sample<R: Rng>(&self, rng: &mut R) -> Option<NodeAddress> {
         let sum = self.params.total() as usize;
         let uniform = Uniform::from(0..sum);
         let sample = uniform.sample(rng) as f64;
@@ -76,13 +95,13 @@ impl Categorical {
         None
     }
 
-    /// Computes the KL divergence of two bucket probs.
+    /// Computes the KL div of two bucket probs.
     /// KL(self || other)
     /// Returns None if the support of the self is not a subset of the support of the other
     ///
     /// This assumes that the support of this distribution is a superset of the other distribution.
     /// Returns None if the supports don't match, or it's undefined.
-    pub fn supported_kl_divergence(&self, other: &Categorical) -> Option<f64> {
+    pub fn supported_kl_div(&self, other: &Categorical) -> Option<f64> {
         let my_total = self.params.total();
         let other_total = other.params.total();
         if (my_total == 0.0 || other_total == 0.0) || (self.params.len() != other.params.len()) {
@@ -103,13 +122,13 @@ impl Categorical {
         }
     }
 
-    /// Computes the KL divergence of two bucket probs.
+    /// Computes the KL div of two bucket probs.
     /// KL(self || other)
     /// Returns None if the support of the self is not a subset of the support of the other
     ///
     /// This assumes that the support of this distribution is a superset of the other distribution.
     /// Returns None if it's undefined.
-    pub fn kl_divergence(&self, other: &Categorical) -> Option<f64> {
+    pub fn kl_div(&self, other: &Categorical) -> Option<f64> {
         let my_total = self.params.total();
         let other_total = other.params.total();
         if my_total == 0.0 || other_total == 0.0 {
@@ -138,101 +157,92 @@ pub(crate) mod tests {
     #[test]
     fn empty_bucket_sanity_test() {
         let buckets = Categorical::new();
-        assert_eq!(buckets.ln_pdf(0), None);
-        assert_eq!(buckets.ln_pdf(1), None);
-        assert_eq!(buckets.supported_kl_divergence(&buckets), None)
+        assert_eq!(buckets.ln_pdf(0.into()), None);
+        assert_eq!(buckets.ln_pdf(1.into()), None);
+        assert_eq!(buckets.supported_kl_div(&buckets), None)
     }
 
     #[test]
     fn bucket_sanity_test() {
         let mut buckets = Categorical::new();
-        buckets.params.add_pop(0, 5.0);
-        assert_approx_eq!(buckets.ln_pdf(0).unwrap(), 0.0);
-        assert_approx_eq!(buckets.supported_kl_divergence(&buckets).unwrap(), 0.0);
-        assert_eq!(buckets.ln_pdf(1), Some(std::f64::NEG_INFINITY));
+        buckets.params.add_pop(0.into(), 5.0);
+        assert_approx_eq!(buckets.ln_pdf(0.into()).unwrap(), 0.0);
+        assert_approx_eq!(buckets.supported_kl_div(&buckets).unwrap(), 0.0);
+        assert_eq!(buckets.ln_pdf(1.into()), Some(std::f64::NEG_INFINITY));
     }
 
     #[test]
     fn mixed_bucket_sanity_test() {
         let mut bucket1 = Categorical::new();
-        bucket1.params.add_pop(0, 6.0);
-        bucket1.params.add_pop(1, 6.0);
+        bucket1.params.add_pop(0.into(), 6.0);
+        bucket1.params.add_pop(1.into(), 6.0);
         println!("{:?}", bucket1);
 
         let mut bucket2 = Categorical::new();
-        bucket2.params.add_pop(0, 4.0);
-        bucket2.params.add_pop(1, 8.0);
+        bucket2.params.add_pop(0.into(), 4.0);
+        bucket2.params.add_pop(1.into(), 8.0);
         println!("{:?}", bucket2);
 
-        assert_approx_eq!(bucket1.ln_pdf(0).unwrap(), (0.5f64).ln());
-        assert_approx_eq!(bucket2.ln_pdf(1).unwrap(), (0.666666666f64).ln());
-        assert_approx_eq!(bucket1.supported_kl_divergence(&bucket1).unwrap(), 0.0);
-        assert_approx_eq!(
-            bucket1.supported_kl_divergence(&bucket2).unwrap(),
-            0.05889151782
-        );
-        assert_approx_eq!(
-            bucket2.supported_kl_divergence(&bucket1).unwrap(),
-            0.05663301226
-        );
+        assert_approx_eq!(bucket1.ln_pdf(0.into()).unwrap(), (0.5f64).ln());
+        assert_approx_eq!(bucket2.ln_pdf(1.into()).unwrap(), (0.666666666f64).ln());
+        assert_approx_eq!(bucket1.supported_kl_div(&bucket1).unwrap(), 0.0);
+        assert_approx_eq!(bucket1.supported_kl_div(&bucket2).unwrap(), 0.05889151782);
+        assert_approx_eq!(bucket2.supported_kl_div(&bucket1).unwrap(), 0.05663301226);
 
-        assert_approx_eq!(bucket1.kl_divergence(&bucket1).unwrap(), 0.0);
-        assert_approx_eq!(bucket1.kl_divergence(&bucket2).unwrap(), 0.05889151782);
-        assert_approx_eq!(bucket2.kl_divergence(&bucket1).unwrap(), 0.05663301226);
+        assert_approx_eq!(bucket1.kl_div(&bucket1).unwrap(), 0.0);
+        assert_approx_eq!(bucket1.kl_div(&bucket2).unwrap(), 0.05889151782);
+        assert_approx_eq!(bucket2.kl_div(&bucket1).unwrap(), 0.05663301226);
     }
 
     #[test]
     fn supported_kldiv_handles_zero_probs() {
         let mut bucket1 = Categorical::new();
-        bucket1.params.add_pop(0, 6.0);
-        bucket1.params.add_pop(1, 6.0);
+        bucket1.params.add_pop(0.into(), 6.0);
+        bucket1.params.add_pop(1.into(), 6.0);
         println!("{:?}", bucket1);
 
         let mut bucket2 = Categorical::new();
-        bucket2.params.add_pop(0, 4.0);
-        assert_eq!(bucket1.supported_kl_divergence(&bucket2), None);
-        assert_eq!(bucket2.supported_kl_divergence(&bucket1), None);
+        bucket2.params.add_pop(0.into(), 4.0);
+        assert_eq!(bucket1.supported_kl_div(&bucket2), None);
+        assert_eq!(bucket2.supported_kl_div(&bucket1), None);
 
         let mut bucket3 = Categorical::new();
-        bucket3.params.add_pop(0, 4.0);
-        bucket3.params.add_pop(1, 0.0);
+        bucket3.params.add_pop(0.into(), 4.0);
+        bucket3.params.add_pop(1.into(), 0.0);
         println!("{:?}", bucket3);
-        assert_eq!(
-            bucket1.supported_kl_divergence(&bucket3),
-            Some(std::f64::INFINITY)
-        );
-        assert_eq!(bucket3.supported_kl_divergence(&bucket1), None);
+        assert_eq!(bucket1.supported_kl_div(&bucket3), Some(std::f64::INFINITY));
+        assert_eq!(bucket3.supported_kl_div(&bucket1), None);
 
         let mut bucket4 = Categorical::new();
-        bucket4.params.add_pop(0, 0.0);
-        bucket4.params.add_pop(2, 4.0);
-        assert_eq!(bucket1.supported_kl_divergence(&bucket4), None);
-        assert_eq!(bucket4.supported_kl_divergence(&bucket1), None);
+        bucket4.params.add_pop(0.into(), 0.0);
+        bucket4.params.add_pop(2.into(), 4.0);
+        assert_eq!(bucket1.supported_kl_div(&bucket4), None);
+        assert_eq!(bucket4.supported_kl_div(&bucket1), None);
     }
 
     #[test]
     fn kldiv_handles_zero_probs() {
         let mut bucket1 = Categorical::new();
-        bucket1.params.add_pop(0, 6.0);
-        bucket1.params.add_pop(1, 6.0);
+        bucket1.params.add_pop(0.into(), 6.0);
+        bucket1.params.add_pop(1.into(), 6.0);
         println!("{:?}", bucket1);
 
         let mut bucket2 = Categorical::new();
-        bucket2.params.add_pop(0, 4.0);
-        assert_eq!(bucket1.kl_divergence(&bucket2), Some(std::f64::INFINITY));
-        assert_eq!(bucket2.kl_divergence(&bucket1), None);
+        bucket2.params.add_pop(0.into(), 4.0);
+        assert_eq!(bucket1.kl_div(&bucket2), Some(std::f64::INFINITY));
+        assert_eq!(bucket2.kl_div(&bucket1), None);
 
         let mut bucket3 = Categorical::new();
-        bucket3.params.add_pop(0, 4.0);
-        bucket3.params.add_pop(1, 0.0);
+        bucket3.params.add_pop(0.into(), 4.0);
+        bucket3.params.add_pop(1.into(), 0.0);
         println!("{:?}", bucket3);
-        assert_eq!(bucket1.kl_divergence(&bucket3), Some(std::f64::INFINITY));
-        assert_eq!(bucket3.kl_divergence(&bucket1), None);
+        assert_eq!(bucket1.kl_div(&bucket3), Some(std::f64::INFINITY));
+        assert_eq!(bucket3.kl_div(&bucket1), None);
 
         let mut bucket4 = Categorical::new();
-        bucket4.params.add_pop(0, 4.0);
-        bucket4.params.add_pop(2, 4.0);
-        assert_eq!(bucket1.kl_divergence(&bucket4), None);
-        assert_eq!(bucket4.kl_divergence(&bucket1), None);
+        bucket4.params.add_pop(0.into(), 4.0);
+        bucket4.params.add_pop(2.into(), 4.0);
+        assert_eq!(bucket1.kl_div(&bucket4), None);
+        assert_eq!(bucket4.kl_div(&bucket1), None);
     }
 }

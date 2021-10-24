@@ -31,6 +31,5 @@ use tree::CoverTree;
 fn pygoko(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
     m.add_class::<CoverTree>()?;
     m.add_class::<PyBayesCategoricalTracker>()?;
-    m.add_class::<PyKLDivergenceBaseline>()?;
     Ok(())
 }

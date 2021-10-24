@@ -66,11 +66,11 @@ fn load_tree_and_query() {
     let ct_reader = ct_loaded.reader();
     let query = ct_reader.knn(&zeros, 5).unwrap();
     println!("(array([3.56982747, 3.65066243, 3.83593169, 3.84857365, 3.86859321]), array([17664, 21618, 51468,  8080, 37920]))");
-    assert!(query[0].1 == 17664);
-    assert!(query[1].1 == 21618);
-    assert!(query[2].1 == 51468);
-    assert!(query[3].1 == 8080);
-    assert!(query[4].1 == 37920);
+    assert!(query[0].0 == 17664);
+    assert!(query[1].0 == 21618);
+    assert!(query[2].0 == 51468);
+    assert!(query[3].0 == 8080);
+    assert!(query[4].0 == 37920);
     assert!(query.len() == 5);
 }
 */
@@ -88,8 +88,8 @@ fn test_path(ct_reader: &CoverTreeReader<DefaultLabeledCloud<L2>>, query_index: 
         )
         .unwrap();
     println!("{:?}", trace);
-    assert_eq!((trace[0].1), ct_reader.root_address());
-    let (_dist, last_node_address) = trace.last().unwrap();
+    assert_eq!((trace[0].0), ct_reader.root_address());
+    let (last_node_address, _dist) = trace.last().unwrap();
     let singleton_condition = ct_reader
         .get_node_and(*last_node_address, |n| n.singletons().contains(&0))
         .unwrap();
@@ -106,11 +106,11 @@ fn run_knn_query() {
         let query = ct_reader.knn(&zeros.as_ref(), 5).unwrap();
         println!("{:#?}", query);
         println!("Expected: (array([3.56982747, 3.65066243, 3.83593169, 3.84857365, 3.86859321]), array([17664, 21618, 51468,  8080, 37920]))");
-        assert_eq!(query[0].1, 17664);
-        assert_eq!(query[1].1, 21618);
-        assert_eq!(query[2].1, 51468);
-        assert_eq!(query[3].1, 8080);
-        assert_eq!(query[4].1, 37920);
+        assert_eq!(query[0].0, 17664);
+        assert_eq!(query[1].0, 21618);
+        assert_eq!(query[2].0, 51468);
+        assert_eq!(query[3].0, 8080);
+        assert_eq!(query[4].0, 37920);
         assert_eq!(query.len(), 5);
 
         println!("Testing root address 59999");

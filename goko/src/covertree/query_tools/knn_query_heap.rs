@@ -134,7 +134,7 @@ impl KnnQueryHeap {
 
     /// Finds the closest node who could have a child node at least the current kth furthest distance away from the query point.
     /// This pops that node and pushes it onto the singleton heap.
-    pub fn closest_unvisited_child_covering_address(&mut self) -> Option<(f32, NodeAddress)> {
+    pub fn closest_unvisited_child_covering_address(&mut self) -> Option<(NodeAddress, f32)> {
         while let Some(mut node_to_visit) = self.child_heap.pop() {
             if let Some(min_dist_update) = self.est_min_dist.remove(&node_to_visit.address) {
                 if min_dist_update > node_to_visit.min_dist {
@@ -142,11 +142,11 @@ impl KnnQueryHeap {
                     self.child_heap.push(node_to_visit);
                 } else {
                     self.singleton_heap.push(node_to_visit);
-                    return Some((node_to_visit.dist_to_center, node_to_visit.address));
+                    return Some((node_to_visit.address, node_to_visit.dist_to_center));
                 }
             } else {
                 self.singleton_heap.push(node_to_visit);
-                return Some((node_to_visit.dist_to_center, node_to_visit.address));
+                return Some((node_to_visit.address, node_to_visit.dist_to_center));
             }
         }
         None
@@ -154,17 +154,17 @@ impl KnnQueryHeap {
 
     /// Finds the closest node who could have a singleton at least the current kth furthest distance away from the query point.
     /// This pops the node and sends it to oblivion.
-    pub fn closest_unvisited_singleton_covering_address(&mut self) -> Option<(f32, NodeAddress)> {
+    pub fn closest_unvisited_singleton_covering_address(&mut self) -> Option<(NodeAddress, f32)> {
         while let Some(mut node_to_visit) = self.singleton_heap.pop() {
             if let Some(min_dist_update) = self.est_min_dist.remove(&node_to_visit.address) {
                 if min_dist_update > node_to_visit.min_dist {
                     node_to_visit.min_dist = min_dist_update;
                     self.singleton_heap.push(node_to_visit);
                 } else {
-                    return Some((node_to_visit.dist_to_center, node_to_visit.address));
+                    return Some((node_to_visit.address, node_to_visit.dist_to_center));
                 }
             } else {
-                return Some((node_to_visit.dist_to_center, node_to_visit.address));
+                return Some((node_to_visit.address, node_to_visit.dist_to_center));
             }
         }
         None
@@ -195,10 +195,10 @@ impl KnnQueryHeap {
     }
 
     /// Unpacks the distance heap. This consumes the query heap.
-    pub fn unpack(mut self) -> Vec<(f32, usize)> {
+    pub fn unpack(mut self) -> Vec<(usize, f32)> {
         let mut result = Vec::with_capacity(self.k);
         while let Some(el) = self.dist_heap.pop() {
-            result.push((el.dist, el.index));
+            result.push((el.index, el.dist));
         }
         result.iter().rev().cloned().collect()
     }
@@ -230,16 +230,16 @@ pub(crate) mod tests {
         let unpack = heap.unpack();
 
         for i in 1..5 {
-            assert!(unpack[i - 1].1 == i);
+            assert!(unpack[i - 1].0 == i);
         }
     }
 
-    pub fn clone_unvisited_nodes(heap: &KnnQueryHeap) -> Vec<(f32, NodeAddress)> {
+    pub fn clone_unvisited_nodes(heap: &KnnQueryHeap) -> Vec<(NodeAddress, f32)> {
         let mut all_nodes: Vec<QueryAddress> = heap.child_heap.iter().cloned().collect();
         all_nodes.extend(heap.singleton_heap.iter().cloned());
 
         all_nodes.sort();
-        all_nodes.iter().map(|n| (n.min_dist, n.address)).collect()
+        all_nodes.iter().map(|n| (n.address, n.min_dist)).collect()
     }
     /*
         #[test]

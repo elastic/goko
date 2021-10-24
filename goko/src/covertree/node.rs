@@ -238,7 +238,7 @@ impl<D: PointCloud> CoverNode<D> {
         dist_to_center: f32,
         point: &P,
         point_cloud: &D,
-    ) -> GokoResult<Option<(f32, NodeAddress)>> {
+    ) -> GokoResult<Option<(NodeAddress, f32)>> {
         if let Some(children) = &self.children {
             let children_indexes: Vec<usize> =
                 children[1..].iter().map(|na| na.point_index()).collect();
@@ -250,12 +250,12 @@ impl<D: PointCloud> CoverNode<D> {
                 .unwrap_or((0, &std::f32::MAX));
             if dist_to_center < *min_dist {
                 if dist_to_center < scale_base.powi(children[0].scale_index()) {
-                    Ok(Some((dist_to_center, children[0])))
+                    Ok(Some((children[0], dist_to_center)))
                 } else {
                     Ok(None)
                 }
             } else if *min_dist < scale_base.powi(children[min_index + 1].scale_index()) {
-                Ok(Some((*min_dist, children[min_index + 1])))
+                Ok(Some((children[min_index + 1], *min_dist)))
             } else {
                 Ok(None)
             }
@@ -273,17 +273,17 @@ impl<D: PointCloud> CoverNode<D> {
         dist_to_center: f32,
         point: &P,
         point_cloud: &D,
-    ) -> GokoResult<Option<(f32, NodeAddress)>> {
+    ) -> GokoResult<Option<(NodeAddress, f32)>> {
         if let Some(children) = &self.children {
             if dist_to_center < scale_base.powi(children[0].scale_index()) {
-                return Ok(Some((dist_to_center, children[0])));
+                return Ok(Some((children[0], dist_to_center)));
             }
             let children_indexes: Vec<usize> =
                 children[1..].iter().map(|na| na.point_index()).collect();
             let distances = point_cloud.distances_to_point(point, &children_indexes[..])?;
             for (ca, d) in children[1..].iter().zip(distances) {
                 if d < scale_base.powi(ca.scale_index()) {
-                    return Ok(Some((d, *ca)));
+                    return Ok(Some((*ca, d)));
                 }
             }
         }
@@ -507,9 +507,9 @@ mod tests {
         println!("There should be 5 results, {:?}", results);
         assert!(results.len() == 5);
         println!("The first result should be 1 but is {:?}", results[0].1);
-        assert!(results[0].1 == 1);
+        assert!(results[0].0 == 1);
         println!("The first result should be 3 but is {:?}", results[1].1);
-        assert!(results[1].1 == 3);
+        assert!(results[1].0 == 3);
     }
 
     #[test]
@@ -533,9 +533,9 @@ mod tests {
         println!("There should be 5 results, {:?}", results);
         assert!(results.len() == 5);
         println!("The first result should be 1 but is {:?}", results[0].1);
-        assert!((results[0].1) == 1);
+        assert!((results[0].0) == 1);
         println!("The first result should be 3 but is {:?}", results[1].1);
-        assert!((results[1].1) == 3);
+        assert!((results[1].0) == 3);
     }
 
     #[test]
@@ -559,9 +559,9 @@ mod tests {
         println!("There should be 5 results");
         assert!(results.len() == 5);
         println!("The first result should be 1 but is {:?}", results[0].1);
-        assert!(results[0].1 == 1);
+        assert!(results[0].0 == 1);
         println!("The first result should be 3 but is {:?}", results[1].1);
-        assert!(results[1].1 == 3);
+        assert!(results[1].0 == 3);
     }
 
     fn brute_test_knn_node(
@@ -592,13 +592,13 @@ mod tests {
         let brute_knn = point_cloud
             .distances_to_point(&zeros.as_ref(), &all_children)
             .unwrap();
-        let mut brute_knn: Vec<(f32, usize)> = brute_knn
+        let mut brute_knn: Vec<(usize, f32)> = brute_knn
             .iter()
             .zip(all_children)
-            .map(|(d, i)| (*d, i))
+            .map(|(d, i)| (i, *d))
             .collect();
-        brute_knn.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
-        let brute_knn: Vec<usize> = brute_knn.iter().map(|(_d, pi)| *pi).collect();
+        brute_knn.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+        let brute_knn: Vec<usize> = brute_knn.iter().map(|(pi, _d)| *pi).collect();
 
         // Children KNN
         let children = &node.children().map(|c| c.to_vec()).unwrap_or(Vec::new());
@@ -627,7 +627,7 @@ mod tests {
             node.nearest_covering_child(1.3, dist_to_center, &zeros.as_ref(), &point_cloud)
                 .unwrap(),
         ) {
-            (Some(query), Some((q_d, q_a))) => {
+            (Some(query), Some((q_a, q_d))) => {
                 println!("Expected {:?}", query);
                 println!("Got {:?}", (q_d, q_a));
                 assert_approx_eq!(query.dist_to_center, q_d);
@@ -647,9 +647,9 @@ mod tests {
 
         let heap_range: Vec<NodeAddress> = clone_unvisited_nodes(&heap)
             .iter()
-            .map(|(_d, a)| *a)
+            .map(|(a, _d)| *a)
             .collect();
-        let heap_knn: Vec<usize> = heap.unpack().iter().map(|(_d, pi)| *pi).collect();
+        let heap_knn: Vec<usize> = heap.unpack().iter().map(|(pi, _d)| *pi).collect();
 
         let mut correct = true;
         if correct {
@@ -679,7 +679,7 @@ mod tests {
 
         let test_node = create_test_node();
         let point = [0.494f32];
-        let (d, na) = test_node
+        let (na, d) = test_node
             .nearest_covering_child(2.0, 0.494, &&point[..], &point_cloud)
             .unwrap()
             .unwrap();
@@ -721,10 +721,10 @@ mod tests {
         assert_eq!(
             reconstructed_node
                 .parent_address
-                .map(|n| <(i32, usize)>::from(n)),
+                .map(|n| <Option<(i32, usize)>>::from(n)),
             None
         );
-        assert_eq!(<(i32, usize)>::from(reconstructed_node.address), (0, 0));
+        assert_eq!(<Option<(i32, usize)>>::from(reconstructed_node.address), Some((0, 0)));
         assert_eq!(reconstructed_node.radius, 1.0);
         assert_eq!(reconstructed_node.coverage_count, 8);
         assert_eq!(&reconstructed_node.singles_indexes[..], &[4, 5, 6]);
@@ -749,9 +749,9 @@ mod tests {
 
         assert_eq!(
             reconstructed_node.parent_address.map(|n| n.into()),
-            Some((1, 0))
+            Some(Some((1, 0)))
         );
-        assert_eq!(<(i32, usize)>::from(reconstructed_node.address), (0, 0));
+        assert_eq!(<Option<(i32, usize)>>::from(reconstructed_node.address), Some((0, 0)));
         assert_eq!(reconstructed_node.radius, 1.0);
         assert_eq!(reconstructed_node.coverage_count, 8);
         assert_eq!(&reconstructed_node.singles_indexes[..], &[1, 2, 3, 4, 5, 6]);

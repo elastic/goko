@@ -518,7 +518,7 @@ mod tests {
 
         let test_parameters = create_test_parameters(data, 1);
         let build_node = BuilderNode::new(&test_parameters, PartitionType::Nearest).unwrap();
-        let (scale_index, center_index) = build_node.address().into();
+        let (scale_index, center_index) = (build_node.address().scale_index(), build_node.address().point_index());
 
         println!("{:?}", build_node);
         println!(
@@ -556,7 +556,7 @@ mod tests {
 
         let test_parameters = create_test_parameters(data, 1);
         let build_node = BuilderNode::new(&test_parameters, PartitionType::First).unwrap();
-        let (scale_index, center_index) = build_node.address().into();
+        let (scale_index, center_index) = (build_node.address().scale_index(), build_node.address().point_index());
 
         println!("{:?}", build_node);
         println!(
@@ -610,11 +610,11 @@ mod tests {
             let (na, node) = pat.unwrap();
             println!("{:?}", node);
             match na.into() {
-                (-1, 3) => assert!(!node.is_leaf()),
-                (-2, 3) => assert!(node.is_leaf()),
-                (-2, 2) => assert!(node.is_leaf()),
-                (-2, 0) => assert!(!node.is_leaf()),
-                (-2, 1) => assert!(!node.is_leaf()),
+                Some((-1, 3)) => assert!(!node.is_leaf()),
+                Some((-2, 3)) => assert!(node.is_leaf()),
+                Some((-2, 2)) => assert!(node.is_leaf()),
+                Some((-2, 0)) => assert!(!node.is_leaf()),
+                Some((-2, 1)) => assert!(!node.is_leaf()),
                 _ => {}
             };
         }
@@ -648,11 +648,11 @@ mod tests {
             println!("{:?}", node);
 
             match na.into() {
-                (-1, 3) => assert!(!node.is_leaf()),
-                (-2, 3) => assert!(node.is_leaf()),
-                (-2, 2) => assert!(node.is_leaf()),
-                (-2, 0) => assert!(!node.is_leaf()),
-                (-2, 1) => assert!(!node.is_leaf()),
+                Some((-1, 3)) => assert!(!node.is_leaf()),
+                Some((-2, 3)) => assert!(node.is_leaf()),
+                Some((-2, 2)) => assert!(node.is_leaf()),
+                Some((-2, 0)) => assert!(!node.is_leaf()),
+                Some((-2, 1)) => assert!(!node.is_leaf()),
                 _ => {}
             };
         }

@@ -31,7 +31,7 @@ impl<T> KnnRequest<T> {
         let pc = &reader.tree.parameters().point_cloud;
         let resp: Result<Vec<NamedDistance>, GokoError> = knn
             .iter()
-            .map(|(distance, pi)| {
+            .map(|(pi, distance)| {
                 Ok(NamedDistance {
                     name: pc.name(*pi)?,
                     distance: *distance,
@@ -66,7 +66,7 @@ impl<T> RoutingKnnRequest<T> {
         let pc = &reader.tree.parameters().point_cloud;
         let resp: Result<Vec<NamedDistance>, GokoError> = knn
             .iter()
-            .map(|(distance, pi)| {
+            .map(|(pi, distance)| {
                 Ok(NamedDistance {
                     name: pc.name(*pi)?,
                     distance: *distance,

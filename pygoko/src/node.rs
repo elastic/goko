@@ -57,7 +57,7 @@ pub struct PyNode {
 #[pymethods]
 impl PyNode {
     pub fn address(&self) -> (i32, usize) {
-        self.address
+        (self.address.scale_index(), self.address.point_index())
     }
 
     pub fn is_leaf(&self) -> bool {
@@ -77,26 +77,24 @@ impl PyNode {
             .iter()
             .map(|address| PyNode {
                 parameters: Arc::clone(&self.parameters),
-                address: *address,
+                address: (*address).into(),
                 tree: self.tree.clone(),
             })
             .collect()
     }
 
-    pub fn children_probs(&self) -> Option<(Vec<((i32, usize), f64)>, f64)> {
+    pub fn children_probs(&self) -> Vec<(Option<(i32, usize)>, f64)> {
         self.tree
-            .get_node_plugin_and(self.address, |p: &Dirichlet| p.prob_vector())
-            .flatten()
+            .get_node_plugin_and(self.address, |p: &Dirichlet| {
+                p.param_vec().iter().map(|p| (NodeAddress::from(p.0).to_tuple(), p.1)).collect()
+            })
+            .unwrap_or(Vec::new())
     }
 
     pub fn children_addresses(&self) -> Vec<(i32, usize)> {
         self.tree
             .get_node_and(self.address, |n| {
-                n.children().map(|(nested_scale, children)| {
-                    let mut py_nodes: Vec<(i32, usize)> = Vec::from(children);
-                    py_nodes.push((nested_scale, *n.center_index()));
-                    py_nodes
-                })
+                n.children().map(|ns| ns.to_valid_tuples())
             })
             .flatten()
             .unwrap_or(vec![])
@@ -122,7 +120,7 @@ impl PyNode {
             });
 
             if n.is_leaf() {
-                if let Ok(p) = self.parameters.point_cloud.point(*n.center_index()) {
+                if let Ok(p) = self.parameters.point_cloud.point(n.center_index()) {
                     ret_matrix.extend(p.dense_iter());
                 }
             }

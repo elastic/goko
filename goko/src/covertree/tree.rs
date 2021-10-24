@@ -283,7 +283,7 @@ impl<D: PointCloud> CoverTreeReader<D> {
         &self,
         point: &P,
         k: usize,
-    ) -> GokoResult<Vec<(f32, usize)>> {
+    ) -> GokoResult<Vec<(usize, f32)>> {
         let mut query_heap = KnnQueryHeap::new(k, self.parameters.scale_base);
 
         let root_center = self
@@ -294,7 +294,7 @@ impl<D: PointCloud> CoverTreeReader<D> {
         query_heap.push_nodes(&[self.root_address], &[dist_to_root], None);
         self.greedy_knn_nodes(point, &mut query_heap);
 
-        while let Some((_dist, address)) = query_heap.closest_unvisited_singleton_covering_address()
+        while let Some((address, _dist)) = query_heap.closest_unvisited_singleton_covering_address()
         {
             self.get_node_and(address, |n| {
                 n.singleton_knn(point, &self.parameters.point_cloud, &mut query_heap)
@@ -310,7 +310,7 @@ impl<D: PointCloud> CoverTreeReader<D> {
         &self,
         point: &P,
         k: usize,
-    ) -> GokoResult<Vec<(f32, usize)>> {
+    ) -> GokoResult<Vec<(usize, f32)>> {
         let mut query_heap = KnnQueryHeap::new(k, self.parameters.scale_base);
 
         let root_center = self
@@ -331,7 +331,7 @@ impl<D: PointCloud> CoverTreeReader<D> {
         query_heap: &mut KnnQueryHeap,
     ) -> bool {
         let mut did_something = false;
-        while let Some((dist, nearest_address)) =
+        while let Some((nearest_address, dist)) =
             query_heap.closest_unvisited_child_covering_address()
         {
             if self
@@ -353,14 +353,14 @@ impl<D: PointCloud> CoverTreeReader<D> {
     pub fn path<P: Deref<Target = D::Point> + Send + Sync>(
         &self,
         point: &P,
-    ) -> GokoResult<Vec<(f32, NodeAddress)>> {
+    ) -> GokoResult<Vec<(NodeAddress, f32)>> {
         let root_center = self
             .parameters
             .point_cloud
             .point(self.root_address.point_index())?;
         let mut current_distance = D::Metric::dist(&root_center, &point);
         let mut current_address = self.root_address;
-        let mut trace = vec![(current_distance, current_address)];
+        let mut trace = vec![(current_address, current_distance)];
         while let Some(nearest) =
             self.get_node_and(current_address, |n| match self.parameters.partition_type {
                 PartitionType::Nearest => n.nearest_covering_child(
@@ -377,11 +377,10 @@ impl<D: PointCloud> CoverTreeReader<D> {
                 ),
             })
         {
-            println!("Trace: {:?}", trace);
             if let Some(nearest) = nearest? {
                 trace.push(nearest);
-                current_distance = nearest.0;
-                current_address = nearest.1;
+                current_distance = nearest.1;
+                current_address = nearest.0;
             } else {
                 break;
             }
@@ -390,7 +389,7 @@ impl<D: PointCloud> CoverTreeReader<D> {
     }
 
     ///
-    pub fn known_path(&self, point_index: usize) -> GokoResult<Vec<(f32, NodeAddress)>> {
+    pub fn known_path(&self, point_index: usize) -> GokoResult<Vec<(NodeAddress, f32)>> {
         self.final_addresses
             .get_and(&point_index, |addr| {
                 let mut path = Vec::with_capacity(
@@ -408,7 +407,7 @@ impl<D: PointCloud> CoverTreeReader<D> {
                     .point_cloud
                     .distances_to_point_index(point_index, &point_indexes[..])
                     .unwrap();
-                dists.iter().zip(path).map(|(d, a)| (*d, a)).collect()
+                dists.iter().zip(path).map(|(d, a)| (a, *d)).collect()
             })
             .ok_or(GokoError::IndexNotInTree(point_index))
     }
@@ -778,7 +777,7 @@ pub(crate) mod tests {
             query_heap
                 .closest_unvisited_child_covering_address()
                 .unwrap()
-                .1
+                .0
         );
 
         reader.greedy_knn_nodes(&point.as_ref(), &mut query_heap);
@@ -801,7 +800,7 @@ pub(crate) mod tests {
             trace.len()
         );
         for i in 0..(trace.len() - 1) {
-            assert!((trace[i].1).scale_index() > (trace[i + 1].1).scale_index());
+            assert!((trace[i].0).scale_index() > (trace[i + 1].0).scale_index());
         }
     }
 
@@ -816,7 +815,7 @@ pub(crate) mod tests {
                 "final address: {:?}",
                 reader.final_addresses.get_and(&i, |i| *i)
             );
-            let ad = trace.last().unwrap().1;
+            let ad = trace.last().unwrap().0;
             reader
                 .get_node_and(ad, |n| {
                     if !n.is_leaf() {
@@ -848,8 +847,8 @@ pub(crate) mod tests {
         let reader = writer.reader();
         let zero_nbrs = reader.knn(&[0.1f32].as_ref(), 2).unwrap();
         println!("{:?}", zero_nbrs);
-        assert!(zero_nbrs[0].1 == 4);
-        assert!(zero_nbrs[1].1 == 2);
+        assert!(zero_nbrs[0].0 == 4);
+        assert!(zero_nbrs[1].0 == 2);
     }
 
     #[test]
@@ -904,8 +903,8 @@ pub(crate) mod tests {
         println!("2 nearest neighbors of 0.1 are 0.48 and 0.0");
         let zero_nbrs = reader.knn(&[0.1f32].as_ref(), 2).unwrap();
         println!("{:?}", zero_nbrs);
-        assert!(zero_nbrs[0].1 == 4);
-        assert!(zero_nbrs[1].1 == 2);
+        assert!(zero_nbrs[0].0 == 4);
+        assert!(zero_nbrs[1].0 == 2);
     }
 
     #[test]

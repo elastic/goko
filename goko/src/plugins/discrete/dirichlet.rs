@@ -13,7 +13,7 @@
 use crate::covertree::node::CoverNode;
 use crate::covertree::CoverTreeReader;
 use crate::plugins::*;
-use stats_goko::discrete::{Dirichlet, DiscreteData};
+pub use stats_goko::discrete::{Dirichlet, DiscreteData};
 
 /// Simple probability density function for where things go by count
 ///
@@ -43,13 +43,13 @@ impl<D: PointCloud> GokoPlugin<D> for GokoDirichlet {
         if let Some(child_addresses) = my_node.children() {
             for ca in child_addresses {
                 my_tree.get_node_and(*ca, |n| {
-                    bucket.add_pop(ca.raw(), n.coverage_count() as f64 + 1.0);
+                    bucket.add_pop(*ca, n.coverage_count() as f64 + 1.0);
                 }).unwrap();
             }
-            bucket.add_pop(NodeAddress::SINGLETON_U64, my_node.singletons_len() as f64 + 1.0);
+            bucket.add_pop(NodeAddress::SINGLETON, my_node.singletons_len() as f64 + 1.0);
         } else {
             bucket.add_pop(
-                NodeAddress::SINGLETON_U64,
+                NodeAddress::SINGLETON,
                 my_node.singletons_len() as f64 + 1.0,
             );
         }

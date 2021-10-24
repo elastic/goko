@@ -1,3 +1,3 @@
-from .pygoko import CoverTree, PyBayesCategoricalTracker, PyKLDivergenceBaseline
+from .pygoko import CoverTree, PyBayesCategoricalTracker
 
-__all__ = ["CoverTree", "PyBayesCategoricalTracker", "PyKLDivergenceBaseline"]
+__all__ = ["CoverTree", "PyBayesCategoricalTracker"]
