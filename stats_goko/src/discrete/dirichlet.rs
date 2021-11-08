@@ -10,9 +10,9 @@
 //! bayesian way. There may be more applications of this idea, but defending against
 //! attackers has been proven.
 use core_goko::*;
+use serde::{Deserialize, Serialize};
 use rand::prelude::*;
 use statrs::function::gamma::{digamma, ln_gamma};
-
 use rand::distributions::{Distribution, Uniform};
 
 use super::categorical::Categorical;
@@ -39,7 +39,7 @@ fn cached_digamma(x: f64) -> f64 {
 
 /// Simple probability density function for where things go by count
 ///
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 pub struct Dirichlet {
     indexes: DiscreteParamsIndexes,
     values: Vec<f64>,
@@ -367,10 +367,6 @@ impl DiscreteTrackerEntry {
         }
         ((old_mll, self.mll), (old_kl, self.kl_div))
     }
-
-    fn mll_correction(&self, weight: f64) -> f64 {
-        ln_gamma(self.alpha + self.alpha*weight) - self.alpha_ln_gamma - ln_gamma(self.alpha*weight + 1.0)
-    }
 }
 
 #[derive(Debug, Clone, Default)]
@@ -388,6 +384,7 @@ pub struct DirichletTracker {
     mll: f64,
     mll_const: f64,
 }
+
 
 impl DirichletTracker {
     pub fn sparse(total_alpha: f64, num_buckets: usize) -> DirichletTracker {
@@ -448,8 +445,16 @@ impl DirichletTracker {
         self.indexes.get(loc).map(|i| self.values[i].alpha)
     }
 
+    pub fn marginal_posterior_probs(&self) -> Vec<(NodeAddress, f64)> {
+        self.values.iter().zip(self.indexes.iter()).map(|(v,a)| (a.into(),(v.alpha + v.observations)/ (self.total_alpha + self.observation_total))).collect()
+    }
+
     pub fn total_alpha(&self) -> f64 {
         self.total_alpha
+    }
+
+    pub fn total_observations(&self) -> f64 {
+        self.observation_total
     }
 
     pub fn weight_alphas(&mut self, weight: f64) {
@@ -496,11 +501,6 @@ impl DirichletTracker {
 
     pub fn mll(&self) -> f64 {
         self.mll
-    }
-
-    pub fn corrected_mll(&self) -> f64 {
-        let weight = self.observation_total/self.total_alpha;
-        self.values.iter().map(|e| e.mll_correction(weight)).sum::<f64>() + self.mll_const - self.mll
     }
     
     pub fn mll_const(&self) -> f64 {
@@ -650,7 +650,6 @@ pub(crate) mod tests {
     #[test]
     fn dirichlet_sparse_tracker_sanity_test() {
         let mut tracker = DirichletTracker::sparse(5.0, 2);
-        let mut buckets = Dirichlet::new();
         // The sparse adds one to these
         let buckets = Dirichlet::from(&[(0, 3.0), (1, 2.0)][..]);
 

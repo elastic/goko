@@ -51,6 +51,8 @@ ndarray = "0.15.3"
 [dev-dependencies]
 criterion = "0.3.4"
 assert_approx_eq = "1.0.0"
+lightgbm = "0.2.3"
+serde_json = "1.0"
 
 [[bench]]
 name = "path_bench"

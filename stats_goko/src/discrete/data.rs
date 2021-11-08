@@ -82,7 +82,7 @@ pub(crate) mod tests {
     fn merge_test() {
         let mut bucket1 = DiscreteData::from(&[(0u64, 6.0f64), (1, 6.0)][..]);
         println!("{:?}", bucket1);
-        let mut bucket2 = DiscreteData::from(&[(0u64, 4.0f64), (1, 8.0)][..]);
+        let bucket2 = DiscreteData::from(&[(0u64, 4.0f64), (1, 8.0)][..]);
         println!("{:?}", bucket2);
         bucket1.merge(&bucket2);
         assert_approx_eq!(bucket1.get(0.into()).unwrap(), 10.0);

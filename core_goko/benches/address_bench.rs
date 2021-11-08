@@ -26,7 +26,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
 fn address_to_vec(c: &mut Criterion) {
     let mut group = c.benchmark_group("address_to_vec");
     for size in [2usize, 4, 8, 16, 32, 64, 128, 256].iter() {
-        let addresses: Vec<NodeAddress> = (0..*size).map(|s| (*s as i32, *s).into()).collect();
+        let addresses: Vec<NodeAddress> = (0..*size).map(|s| (s as i32, s).into()).collect();
         group.bench_with_input(
             BenchmarkId::new("address_to_point_index", size),
             &addresses,

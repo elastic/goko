@@ -1,12 +1,14 @@
 use core_goko::*;
 use fxhash::FxBuildHasher;
+use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::iter::Iterator;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub(crate) struct DiscreteParamsIndexes {
     indexes: Vec<u64>,
+    #[serde(skip_serializing)]
     hashed_indexes: Option<HashMap<u64, usize, FxBuildHasher>>,
 }
 
@@ -243,22 +245,6 @@ impl DiscreteParams {
         }
     }
 
-    /// Produces a copy of the original parameters, but zeros them out. This is for evidence storage where you're likely to
-    /// see the same distribution as before and don't want to do allocations.
-    pub(crate) fn zero_copy(&self) -> DiscreteParams {
-        let values = self.values.iter().map(|_| 0.0f64).collect();
-        DiscreteParams {
-            indexes: self.indexes.clone(),
-            values,
-            total: 0.0,
-        }
-    }
-
-    /// Multiplies all parameters by this weight
-    pub(crate) fn weight(&mut self, weight: f64) {
-        self.values.iter_mut().for_each(|p| *p *= weight);
-        self.total *= weight;
-    }
 
     /// The total of the parameters. This is a proxy for the total count, and the "concentration" of the distribution
     pub(crate) fn total(&self) -> f64 {
@@ -403,20 +389,6 @@ pub(crate) mod tests {
         let params = DiscreteParams::new();
         assert_eq!(params.total(), 0.0);
         assert_eq!(params.len(), 0);
-    }
-
-    #[test]
-    fn zeroed_copy() {
-        let mut params = DiscreteParams::new();
-        params.add_pop(0.into(), 5.0);
-        params.add_pop(2.into(), 4.0);
-        params.add_pop(1.into(), 3.0);
-        let zero_params = params.zero_copy();
-        assert_eq!(zero_params.get(0.into()), Some(0.0));
-        assert_eq!(zero_params.get(1.into()), Some(0.0));
-        assert_eq!(zero_params.get(2.into()), Some(0.0));
-        assert_eq!(zero_params.total(), 0.0);
-        assert_eq!(zero_params.len(), 3);
     }
 
     #[test]

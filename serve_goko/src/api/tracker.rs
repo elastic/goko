@@ -1,6 +1,6 @@
 use crate::core::internal_service::*;
 use goko::errors::GokoError;
-use goko::plugins::discrete::tracker::BayesCategoricalTracker;
+use goko::plugins::discrete::tracker::BayesCovertree;
 use goko::{CoverTreeReader, NodeAddress};
 use pointcloud::*;
 use std::ops::Deref;
@@ -52,7 +52,7 @@ pub struct CurrentStatsResponse {
 
 pub struct TrackerWorker<D: PointCloud> {
     reader: CoverTreeReader<D>,
-    trackers: HashMap<usize, BayesCategoricalTracker<D>>,
+    trackers: HashMap<usize, BayesCovertree>,
 }
 
 impl<D: PointCloud> TrackerWorker<D> {
@@ -106,7 +106,7 @@ impl<D: PointCloud, T: Deref<Target = D::Point> + Send + Sync>
                 } else {
                     self.trackers.insert(
                         req.window_size,
-                        BayesCategoricalTracker::new(req.window_size, self.reader.clone()),
+                        BayesCovertree::new(req.window_size, &self.reader),
                     );
                     Ok(TrackingResponse::AddTracker(AddTrackerResponse {
                         success: true,
@@ -115,8 +115,8 @@ impl<D: PointCloud, T: Deref<Target = D::Point> + Send + Sync>
             }
             CurrentStats(req) => {
                 if let Some(tracker) = self.trackers.get(&req.window_size) {
-                    let stats = tracker.node_kl_div_stats();
-                    let kl_div = tracker.kl_div();
+                    let stats = tracker.nodes_kl_div_stats();
+                    let kl_div = tracker.overall_kl_div();
                     Ok(TrackingResponse::CurrentStats(CurrentStatsResponse {
                         kl_div,
                         max: stats.max,

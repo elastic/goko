@@ -30,7 +30,7 @@ fn build_tree() -> CoverTreeWriter<SimpleLabeledCloud<DataRam<L2>, SmallIntLabel
     let file_name = "data/ember_complex.yml";
     let path = Path::new(file_name);
     if !path.exists() {
-        panic!(file_name.to_owned() + &" does not exist".to_string());
+        panic!("data/ember_complex.yml does not exist");
     }
     let builder = CoverTreeBuilder::from_yaml(&path);
     let point_cloud = labeled_ram_from_yaml("data/ember_complex.yml").unwrap();

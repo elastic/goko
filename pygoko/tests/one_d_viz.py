@@ -40,7 +40,9 @@ def show1D(
 
         if si < final_layer:
             break
-        child_probs, singleton_probs = node.children_probs()
+        child_probs = node.children_probs()
+        singleton_probs =  [(a,v) for a,v in child_probs if a is None][0]
+        child_probs = [(a,v) for a,v in child_probs if a is not None]
         for i, (child_address, child_prob) in enumerate(child_probs):
             (csi, cpi) = child_address
             y_next = 1 + 0.1 * csi
@@ -79,7 +81,8 @@ def show1D(
                     )
                 )
             elif "post_prob" in color:
-                tracker_probs, _ = tracker.probs((si, pi))
+                tracker_probs = tracker.marginal_posterior_probs((si, pi))
+                tracker_probs = [(a,v) for a,v in tracker_probs if a is not None]
                 my_color = tracker_probs[i][1]
                 lines.append(
                     mlines.Line2D(
@@ -157,7 +160,9 @@ def show1D(
                     )
                 )
             elif "post_prob" in color:
-                _, my_color = tracker.probs((si, pi))
+                tracker_probs = tracker.marginal_posterior_probs((si, pi))
+                tracker_probs = [(a,v) for a,v in tracker_probs if a is None]
+                my_color = tracker_probs[0][1]
                 lines.append(
                     mlines.Line2D(
                         [x_next, x_next],
@@ -222,7 +227,7 @@ def show1D(
                     )
                 )
             elif "post_prob" in color:
-                _, my_color = tracker.probs((si, pi))
+                my_color = tracker.marginal_posterior_probs((si, pi))[0][1]
                 lines.append(
                     mlines.Line2D(
                         [x, x], [y, 0.0], color=cmap(my_color), linewidth=2, alpha=0.5
@@ -253,7 +258,7 @@ def show1D(
         for c in test_set:
 
             path = tree.path(c)
-            csi, cpi = path[-1][1]
+            csi, cpi = path[-1][0]
             x = data[cpi][0]
             y = 1 + 0.1 * csi
             x_next = c[0]
@@ -315,7 +320,7 @@ if __name__ == "__main__":
     tree.fit(data)
     path = tree.path(np.array([0.5], dtype=np.float32))
 
-    run_tracker = tree.kl_div_dirichlet(0)
+    run_tracker = tree.tracker(0)
     for i, t in enumerate(test_set):
         run_tracker.push(t)
         show1D(

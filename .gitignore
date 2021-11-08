@@ -13,3 +13,12 @@ add_license.py
 .ipynb_checkpoints
 graphistry_creds.json
 .python-version
+*.nav
+*.aux
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.snm
+*.synctex.gz
+*.toc

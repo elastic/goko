@@ -359,7 +359,7 @@ impl CoverTreeBuilder {
             use_singletons: params["use_singletons"].as_bool().unwrap_or(true),
             partition_type,
             verbosity: params["verbosity"].as_i64().unwrap_or(0) as u32,
-            rng_seed: params["verbosity"].as_i64().map(|i| i as u64),
+            rng_seed: params["rng_seed"].as_i64().map(|i| i as u64),
         }
     }
 
@@ -518,7 +518,10 @@ mod tests {
 
         let test_parameters = create_test_parameters(data, 1);
         let build_node = BuilderNode::new(&test_parameters, PartitionType::Nearest).unwrap();
-        let (scale_index, center_index) = (build_node.address().scale_index(), build_node.address().point_index());
+        let (scale_index, center_index) = (
+            build_node.address().scale_index(),
+            build_node.address().point_index(),
+        );
 
         println!("{:?}", build_node);
         println!(
@@ -556,7 +559,10 @@ mod tests {
 
         let test_parameters = create_test_parameters(data, 1);
         let build_node = BuilderNode::new(&test_parameters, PartitionType::First).unwrap();
-        let (scale_index, center_index) = (build_node.address().scale_index(), build_node.address().point_index());
+        let (scale_index, center_index) = (
+            build_node.address().scale_index(),
+            build_node.address().point_index(),
+        );
 
         println!("{:?}", build_node);
         println!(

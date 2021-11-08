@@ -12,6 +12,7 @@ rand = { version = "0.8.3", features = ["small_rng"]}
 rand_distr = "0.4.0"
 core_goko = { path = "../core_goko" }
 fxhash = "0.2.1"
+serde = { version = "1.0.125", features = ["derive"] }
 smallvec = "1.6.1"
 
 [dev-dependencies]

@@ -42,11 +42,16 @@ impl<D: PointCloud> GokoPlugin<D> for GokoDirichlet {
         // If we're a routing node then grab the childen's values
         if let Some(child_addresses) = my_node.children() {
             for ca in child_addresses {
-                my_tree.get_node_and(*ca, |n| {
-                    bucket.add_pop(*ca, n.coverage_count() as f64 + 1.0);
-                }).unwrap();
+                my_tree
+                    .get_node_and(*ca, |n| {
+                        bucket.add_pop(*ca, n.coverage_count() as f64 + 1.0);
+                    })
+                    .unwrap();
             }
-            bucket.add_pop(NodeAddress::SINGLETON, my_node.singletons_len() as f64 + 1.0);
+            bucket.add_pop(
+                NodeAddress::SINGLETON,
+                my_node.singletons_len() as f64 + 1.0,
+            );
         } else {
             bucket.add_pop(
                 NodeAddress::SINGLETON,

@@ -126,7 +126,7 @@ impl PyLayer {
         Ok(self
             .layer()
             .get_node_children_and(point_index, |child_addresses| {
-                let count = child_addresses.len() + 1;
+                let count = child_addresses.len();
                 let mut centers: Vec<f32> = Vec::with_capacity(count * dim);
                 for na in child_addresses {
                     centers.extend(

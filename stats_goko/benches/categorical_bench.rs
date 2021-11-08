@@ -9,7 +9,6 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     let params_2: Vec<(u64, f64)> = (0..10).map(|i| (i, i as f64)).collect();
     let bucket2 = Categorical::from(&params_2[..]);
     let params_3: Vec<(u64, f64)> = (0..3).map(|i| (i * 3, i as f64)).collect();
-    let bucket3 = DiscreteData::from(&params_2[..]);
 
     c.bench_function("Categorical KL Div", |b| {
         b.iter(|| bucket1.kl_div(black_box(&bucket2)))
@@ -55,7 +54,6 @@ fn tracker(c: &mut Criterion) {
     let mut group = c.benchmark_group("tracker");
     for size in [2u64, 32, 512, 512 * 16, 512 * 16 * 16].iter() {
         let mut tracker: DirichletTracker = prior.tracker();
-        let mut categorical: Categorical = Categorical::new();
         let observations: Vec<NodeAddress> =
             (0..*size).map(|s| NodeAddress::from(s % 10)).collect();
         group.bench_with_input(
@@ -84,9 +82,9 @@ fn dirichlet(c: &mut Criterion) {
     let mut group = c.benchmark_group("dirichlet ln_pdf");
     for size in [2u64, 2 * 16, 2 * 16 * 16, 2 * 16 * 16 * 16, 512 * 16 * 16].iter() {
         let params: Vec<(u64, f64)> = (0..*size).map(|i| (i, 6.0)).collect();
-        let mut prior: Dirichlet = Dirichlet::from(&params[..]);
-        let mut categorical: Categorical = Categorical::from(&params[..]);
-        let mut multinomial: DiscreteData = DiscreteData::from(&params[..]);
+        let prior: Dirichlet = Dirichlet::from(&params[..]);
+        let categorical: Categorical = Categorical::from(&params[..]);
+        let multinomial: DiscreteData = DiscreteData::from(&params[..]);
 
         group.bench_with_input(
             BenchmarkId::new("categorical size", size),
@@ -103,10 +101,10 @@ fn dirichlet(c: &mut Criterion) {
             },
         );
 
-        let params: Vec<(u64, f64)> = (0..64).map(|i| (*size, 6.0)).collect();
-        let mut prior: Dirichlet = Dirichlet::from(&params[..]);
-        let mut categorical: Categorical = Categorical::from(&params[..]);
-        let mut multinomial: DiscreteData = DiscreteData::from(&params[..]);
+        let params: Vec<(u64, f64)> = (0..64).map(|_| (*size, 6.0)).collect();
+        let prior: Dirichlet = Dirichlet::from(&params[..]);
+        let categorical: Categorical = Categorical::from(&params[..]);
+        let multinomial: DiscreteData = DiscreteData::from(&params[..]);
         group.bench_with_input(
             BenchmarkId::new("categorical count", size),
             &categorical,

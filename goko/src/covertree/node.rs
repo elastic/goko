@@ -724,7 +724,10 @@ mod tests {
                 .map(|n| <Option<(i32, usize)>>::from(n)),
             None
         );
-        assert_eq!(<Option<(i32, usize)>>::from(reconstructed_node.address), Some((0, 0)));
+        assert_eq!(
+            <Option<(i32, usize)>>::from(reconstructed_node.address),
+            Some((0, 0))
+        );
         assert_eq!(reconstructed_node.radius, 1.0);
         assert_eq!(reconstructed_node.coverage_count, 8);
         assert_eq!(&reconstructed_node.singles_indexes[..], &[4, 5, 6]);
@@ -751,7 +754,10 @@ mod tests {
             reconstructed_node.parent_address.map(|n| n.into()),
             Some(Some((1, 0)))
         );
-        assert_eq!(<Option<(i32, usize)>>::from(reconstructed_node.address), Some((0, 0)));
+        assert_eq!(
+            <Option<(i32, usize)>>::from(reconstructed_node.address),
+            Some((0, 0))
+        );
         assert_eq!(reconstructed_node.radius, 1.0);
         assert_eq!(reconstructed_node.coverage_count, 8);
         assert_eq!(&reconstructed_node.singles_indexes[..], &[1, 2, 3, 4, 5, 6]);

@@ -51,7 +51,7 @@ def show2D(tree, data):
         ax.set_xlim((-1.6, 1.6))
         ax.set_ylim((-1.6, 1.6))
 
-        collection = PatchCollection(patches, match_original=True, alpha=0.05)
+        collection = PatchCollection(patches, match_original=True, alpha=0.2)
         for line in lines:
             ax.add_line(line)
         ax.add_collection(collection)

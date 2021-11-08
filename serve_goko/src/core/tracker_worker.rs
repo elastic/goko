@@ -6,7 +6,7 @@ use std::ops::Deref;
 use goko::errors::GokoError;
 use std::collections::HashMap;
 
-use goko::plugins::discrete::tracker::BayesCategoricalTracker;
+use goko::plugins::discrete::tracker::BayesCovertree;
 
 pub(crate) type TrackerResponseSender = oneshot::Sender<Result<Response<Body>, GokoClientError>>;
 pub(crate) type TrackerResponseReciever = oneshot::Receiver<Result<Response<Body>, GokoClientError>>;
@@ -24,7 +24,7 @@ impl<D> TrackerWorker<D>
 where
     D: PointCloud,
 {
-    pub(crate) fn new<P>(mut tracker: BayesCategoricalTracker<D>) -> TrackerWorker<D> 
+    pub(crate) fn new<P>(mut tracker: BayesCovertree<D>) -> TrackerWorker<D> 
     where P: Deref<Target = D::Point> + Send + Sync + 'static {
         let (request_snd, mut request_rcv): (TrackerRequestSender<P>, TrackerRequestReciever<P>) =
             mpsc::unbounded_channel();
